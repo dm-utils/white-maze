@@ -10,7 +10,6 @@ extends SceneTree
 ##     rectangle, --part: every n-th set, for parallel runs) on top of the preset rings.
 
 var H_WEIGHT := 1
-var RING_WEIGHT := 30 # ticks per ring used in the cost
 
 var _level: MazeLevel
 var _k := 4
@@ -162,9 +161,6 @@ func _h(s: MazeSim) -> int:
 
 func _search(lv: MazeLevel) -> String:
 	var root := MazeSim.new(lv)
-	# extras count as thrown rings so rings_used scores them
-	for i in range(_level.preset_rings.size(), root.rings.size()):
-		root.rings[i]["preset"] = false
 	var nodes: Array = [[root, false, -1, []]]
 	var seen := {_key(root, false): true}
 	var heap: Array = [[_h(root) * H_WEIGHT, 0]] # [f, node index]
@@ -198,7 +194,7 @@ func _search(lv: MazeLevel) -> String:
 					continue
 				seen[key] = true
 				nodes.append([n, hh, idx, macro])
-				_push(heap, [n.tick + _h(n) * H_WEIGHT + n.rings_used * RING_WEIGHT, nodes.size() - 1])
+				_push(heap, [n.tick + _h(n) * H_WEIGHT, nodes.size() - 1])
 	print("  nodes %d, open %d" % [nodes.size(), heap.size()])
 	return ""
 
