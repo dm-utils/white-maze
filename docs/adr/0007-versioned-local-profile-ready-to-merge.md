@@ -1,6 +1,6 @@
 # 0007 A versioned local profile that can be merged with an online profile
 
-Status: accepted (2026-11-20)
+Status: accepted (2026-11-20); bead fields renamed to ring fields by ADR 0009 (format stays 1).
 
 ## Context
 
@@ -14,9 +14,10 @@ puzzle games' progress file (`WhiteProgress`) is keyed by puzzle day and stores 
 
 - One JSON object in `user://profile.json` with `format` (1), `game`, `tick_hz`, a random per-installation `device`
   id, `updated`, `lang` and `levels` keyed by level id.
-- Per level: the fastest finish (`best_ticks` with its beads and run script), the finish with the fewest beads
-  (`fewest_beads`, `fewest_ticks`), `first_finish`, `last_played`, and counters per device (`starts`, `finishes`,
-  `deaths`, `play_ticks`).
+- Per level: the fastest finish (`best_ticks` with its rings used and run script), the finish with the fewest rings
+  used (`fewest_rings`, `fewest_ticks`), `first_finish`, `last_played`, and counters per device (`starts`,
+  `finishes`, `deaths`, `play_ticks`). (ADR 0009 renamed `best_beads` and `fewest_beads` to `best_rings` and
+  `fewest_rings`.)
 - Every field has a merge rule: bests by minimum (fields of one best travel together), first by minimum, last by
   maximum, counters per device by maximum, then summed for display. `merge(local, remote)` is implemented and tested in
   phase 1, but not called.

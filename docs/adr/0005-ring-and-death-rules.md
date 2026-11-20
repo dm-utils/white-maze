@@ -1,6 +1,6 @@
 # 0005 Ring, bead and death rules
 
-Status: accepted (2026-11-20)
+Status: accepted (2026-11-20); par and beads used amended by ADR 0009 (par counts rings used).
 
 ## Context
 
@@ -20,6 +20,8 @@ can be taken back, and what happens on a spike.
   release in the dead zone throws nothing.
 - **Bead back.** `Z` (or the HUD button) removes the latest thrown ring and returns its bead, without moving the player
   or stopping the clock. Beads used = beads at the start minus beads left at the finish; par is compared with that.
+  (Superseded by ADR 0009: par is compared with rings used, the number of thrown rings that launched the player at
+  least once; bead back returns the bead but does not lower that count.)
 - **Death without loss.** A spike or a fall out of the level returns the player to the start after 0.5 s. Rings and
   beads stay; the clock keeps running. No lives.
 
@@ -40,5 +42,7 @@ can be taken back, and what happens on a spike.
 ## Consequences
 
 - Par means "rings standing when you finish", so take-back makes par forgiving; the clock rewards clean play.
+  (Superseded by ADR 0009: take-back stays free for a ring that never launched the player, but reusing a bead costs
+  par.)
 - The rules are few enough to be fully unit tested (design 3.12).
 - Level designers work with fixed metrics (jump 3 tiles, floor ring about 5.8 tiles).

@@ -2,7 +2,8 @@
 
 Status: phase 1 (playable prototype) designed; the headless core (card #002: `sim/`, levels, run scripts, profile logic,
 level check, CI file) is built, screens and controls (card #004) are not. Later phases are outlined and marked
-**[later]**; they are not built in phase 1.
+**[later]**; they are not built in phase 1. ADR 0009 (par counts rings used) changes the score rule after #002; the
+code changes it needs are listed in section 15.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
 
@@ -15,9 +16,10 @@ lists exactly what is reused (ADR 0008).
 White Maze is a calm 2D platformer in the White series. The player walks and jumps through a fixed series of
 handmade levels from start to finish. With the right stick (or a key, or the mouse) the player throws a white bead in
 a straight line; where it hits a surface it becomes a bounce ring that launches the player away from that surface: up
-from a floor, sideways from a wall, down from a ceiling. Each level has three beads and a par: the fewest beads the
-level designer needs. There are no enemies and no lives, only obstacles. There is no time pressure, but every level
-is timed and the times are kept as statistics in a local profile.
+from a floor, sideways from a wall, down from a ceiling. Each level has a supply of beads (usually three) that can be
+taken back and thrown again, and a par: the fewest rings the level designer needs to bounce off (rings used, ADR
+0009). There are no enemies and no lives, only obstacles. There is no time pressure, but every level is timed and the
+times are kept as statistics in a local profile.
 
 Owner decisions (2026-11-20), recorded in ADR 0001:
 
@@ -69,7 +71,7 @@ GitHub Pages (needs a remote).
 | A4 | The phone test of phase 1 runs in a mobile browser (web export), landscape. | A native build is phase 2 or later. |
 | A5 | Pulse's game profile is an opaque JSON object of at most 256 KB with an optional string `id` of at most 64 characters, and a 409 conflict is resolved by a deterministic client merge (`pulse/apps/accounts/src/profile.ts`). | The profile format of section 7 needs an adapter, not a rewrite. |
 | A6 | GDScript integer arithmetic is 64-bit and identical on every platform; the simulation uses only integers (3.1). | None expected. |
-| A7 | Three beads per level is the rule for the whole series; the level file still carries `beads` so a level may deviate. | None. |
+| A7 | The number of beads is a level field (`beads`, 1 to 9, default 3); three is the usual value, not a series rule. A level may have fewer (l004 has one) and its par may exceed its beads (ADR 0009). | None. |
 
 ## 2. Game rules
 
@@ -92,7 +94,8 @@ GitHub Pages (needs a remote).
 
 ### 2.3 Beads and rings
 
-- A level starts with `beads` beads (3) and possibly some preset rings from the level file.
+- A level starts with `beads` beads (the level field, usually 3) and possibly some preset rings from the level file.
+  The beads left are the supply: what the player can still throw.
 - Throwing: the player aims in one of 144 directions (2.5 degree steps) and releases. The bead flies in a straight
   line from the player's centre at 1600 px/s, up to 800 px. Where it first hits a solid tile face, it becomes a ring on
   that face.
@@ -109,9 +112,13 @@ GitHub Pages (needs a remote).
   button does not change a launch.
 - After launching, the same ring cannot launch again for 10 ticks.
 - Take back ("bead back", key `Z`): removes the most recently thrown ring (or the bead still in flight) and returns
-  the bead. Preset rings cannot be taken back. Taking back has no other effect: the player stays where they are and the
-  clock keeps running.
-- Beads used = beads at the start minus beads left at the finish. Par is compared with beads used.
+  the bead to the supply. Preset rings cannot be taken back. Taking back has no other effect: the player stays where
+  they are, the clock keeps running and rings used does not go down.
+- Rings used (ADR 0009): the number of thrown rings that have launched the player at least once in the attempt. A
+  thrown ring counts at its first launch; further launches of the same ring do not count again. Preset rings never
+  count. A ring taken back before it launched the player, or a bead taken back in flight, never counts. Rings used
+  never goes down within an attempt (not by bead back, not by a death); a restart starts at 0. Par is compared with
+  rings used.
 
 ### 2.4 Start and finish
 
@@ -121,8 +128,9 @@ GitHub Pages (needs a remote).
 ### 2.5 Hazards, death and respawn
 
 - Touching a spike's hitbox (lower half of its tile, 3.6) or falling out of the grid is a death.
-- After a death the player disappears for 0.5 s (30 ticks), then respawns at the start with zero velocity. Rings and
-  beads stay as they are; beads in flight still land. The clock keeps running. There are no lives (ADR 0005).
+- After a death the player disappears for 0.5 s (30 ticks), then respawns at the start with zero velocity. Rings,
+  beads and rings used stay as they are; beads in flight still land. The clock keeps running. There are no lives
+  (ADR 0005).
 
 ### 2.6 Time
 
@@ -135,8 +143,8 @@ GitHub Pages (needs a remote).
 
 ### 2.7 Attempt, restart, pause
 
-- An attempt starts when a level is opened or restarted: player at start, preset rings only, all beads, clock stopped
-  at `0:00.00`.
+- An attempt starts when a level is opened or restarted: player at start, preset rings only, all beads, rings used 0,
+  clock stopped at `0:00.00`.
 - Restart (`R` or the HUD button) ends the attempt and starts a new one.
 - Pause (`Esc`, `P`, the HUD button, losing window focus, turning a phone to portrait) stops the simulation.
 
@@ -232,8 +240,9 @@ var launched := false             # rising from a ring launch (gravity up regard
 var lock_ticks := 0               # wall-launch input lock left
 var dead_ticks := 0               # > 0 while dead
 var deaths := 0
-var beads_left := 0
-var rings: Array[Dictionary] = []   # {"cell": Vector2i, "face": int, "preset": bool, "order": int, "cooldown": int}
+var beads_left := 0               # the supply
+var rings_used := 0               # thrown rings that launched the player at least once (ADR 0009); never decreases
+var rings: Array[Dictionary] = []   # {"cell": Vector2i, "face": int, "preset": bool, "order": int, "cooldown": int, "used": bool}
 var flights: Array[Dictionary] = [] # {"cell": Vector2i, "face": int, "from": Vector2i, "to": Vector2i, "throw_tick": int, "arrive_tick": int, "order": int}
 var throw_count := 0              # increasing order number for thrown beads
 var clock_start := -1             # tick of the first active tick; -1 = clock not started
@@ -245,17 +254,19 @@ func step(input: MazeInput) -> void
 func cast(dir_index: int) -> Dictionary
 func finished() -> bool                      # finish_tick >= 0
 func time_ticks() -> int                     # 0 before the clock starts; running: tick - clock_start + 1; finished: finish_tick - clock_start + 1
-func beads_used() -> int                     # level.beads - beads_left
 func alive() -> bool                         # dead_ticks == 0
 func snapshot() -> String                    # canonical text of every field above except level and events; for determinism tests
 ```
 
+`beads_used()` no longer exists (ADR 0009); the score is the field `rings_used`. `snapshot()` includes `rings_used`
+and every ring's `used`.
+
 Faces: `MazeLevel.Face { UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3 }`, named after the direction the face points to
 (`UP` = top face of a block = floor ring). In JSON: `"up"`, `"down"`, `"left"`, `"right"`.
 
-`_init`: spawn (3.6), `beads_left = level.beads`, `rings` = the level's preset rings in file order with `preset = true`
-and `order = -1`, everything else zero, `facing = 1`, `grounded` computed from the spawn position. The flight's
-`from` is the cast origin and `to` the cast `hit` point (both in units), for drawing.
+`_init`: spawn (3.6), `beads_left = level.beads`, `rings_used = 0`, `rings` = the level's preset rings in file order
+with `preset = true`, `order = -1` and `used = false`, everything else zero, `facing = 1`, `grounded` computed from the
+spawn position. The flight's `from` is the cast origin and `to` the cast `hit` point (both in units), for drawing.
 
 ### 3.5 Input (`MazeInput`)
 
@@ -308,6 +319,9 @@ Every launch also sets `launched = (face != DOWN)`, `jumping = false`, `coyote =
 and the ring's `cooldown = RING_COOLDOWN_TICKS`. The zones reach 1 unit into the block, so standing on a floor ring or
 pressing against a wall ring triggers it.
 
+Counting (ADR 0009): when the launching ring has `preset == false` and `used == false`, set `used = true` and
+`rings_used += 1`; the `launch` event then has `counted = true`, otherwise `counted = false`.
+
 ### 3.8 Step order
 
 `step(input)` does, in this order (`events` is cleared first):
@@ -315,13 +329,14 @@ pressing against a wall ring triggers it.
 1. `tick += 1`; `prev_px = px`; `prev_py = py`. When finished: stop here.
 2. Clock: when `clock_start < 0` and (`input.move != 0` or `input.jump_pressed`): `clock_start = tick`.
 3. Undo: when `input.undo` and a thrown ring or flight exists: remove the one with the highest `order`;
-   `beads_left += 1`; event `undo`.
+   `beads_left += 1`; `rings_used` is not changed; event `undo`.
 4. Throw: when `input.throw_dir >= 0`, alive and `beads_left > 0`: `t = cast(input.throw_dir)`. When valid:
    `beads_left -= 1`, add a flight with `order = throw_count`, `throw_count += 1`,
    `arrive_tick = tick + maxi(1, ceil_div(t.dist, BEAD_SPEED))`; start the clock as in step 2 if not started; event
-   `throw`. When invalid (or dead, or no beads): event `throw_invalid` with the reason; nothing changes.
-5. Flights: each flight with `arrive_tick <= tick` becomes a ring (`preset = false`, same `order`, cooldown 0); event
-   `ring`.
+   `throw`. When invalid (or dead, or no beads): event `throw_invalid` with the reason; nothing changes. A throw does
+   not change `rings_used`.
+5. Flights: each flight with `arrive_tick <= tick` becomes a ring (`preset = false`, same `order`, cooldown 0,
+   `used = false`); event `ring`.
 6. Ring cooldowns: every ring with `cooldown > 0` loses 1.
 7. Dead: when `dead_ticks > 0`: `dead_ticks -= 1`; when it reaches 0: respawn (spawn position, `vx = vy = 0`,
    `facing = 1`, `jumping = launched = false`, `lock_ticks = coyote = buffer = 0`, `grounded` recomputed); event
@@ -342,7 +357,8 @@ pressing against a wall ring triggers it.
     not grounded before. Then `grounded` is recomputed. `jumping = false` when `vy >= APEX_THRESHOLD`;
     `launched = false` when `vy >= 0`.
 12. Rings: walk `rings` in list order (presets first, then by `order`); the first ring with `cooldown == 0` whose zone
-    overlaps the player box launches (3.7); event `launch`. At most one launch per tick.
+    overlaps the player box launches (3.7) and is counted when it is a thrown ring not yet used (3.7); event `launch`.
+    At most one launch per tick.
 13. Hazards: when the hazard box overlaps a spike hitbox or `top >= height * TILE`: `dead_ticks = DEATH_TICKS`,
     `deaths += 1`, `vx = vy = 0`; event `death`. Stop here.
 14. Finish: when the player box overlaps the finish cell: `finish_tick = tick`; when the clock had not started,
@@ -352,10 +368,10 @@ pressing against a wall ring triggers it.
 
 ### 3.9 Events
 
-Each event is a Dictionary with `"type"` and extra fields: `jump`, `land`, `launch` (`cell`, `face`), `death`,
-`respawn`, `throw` (`cell`, `face`, `order`), `throw_invalid` (`reason`), `ring` (`cell`, `face`), `undo` (`order`),
-`finish` (`ticks`). The view uses them for short effects; the game screen uses `finish`. Events never feed back into
-the simulation.
+Each event is a Dictionary with `"type"` and extra fields: `jump`, `land`, `launch` (`cell`, `face`, `counted`),
+`death`, `respawn`, `throw` (`cell`, `face`, `order`), `throw_invalid` (`reason`), `ring` (`cell`, `face`), `undo`
+(`order`), `finish` (`ticks`, `rings`). The view uses them for short effects; the game screen uses `finish`. Events
+never feed back into the simulation.
 
 ### 3.10 Cast (`MazeSim.cast`)
 
@@ -410,19 +426,34 @@ sample point, for drawing), `dist` (int, units).
   for the next 12 ticks does not change `vx`; at tick 13 it does. Mirror for `LEFT`.
 - S10 Ceiling ring: `vy == CEILING_LAUNCH` after the launch.
 - S11 A ring launches at most once per 10 ticks; two overlapping rings give one launch per tick (the first in order).
-- S12 Throw: a valid throw lowers `beads_left` by 1 and creates the ring at `arrive_tick`; each invalid case of 3.10
-  (`X` face, out of bounds, unexposed face, spike in front, taken face, no beads, out of range, while dead) changes
-  nothing and reports its reason.
-- S13 Throwing straight down (index 108) while standing creates a floor ring under the player that launches it.
-- S14 Undo removes the latest thrown ring or flight (not a preset), returns its bead, and with nothing thrown changes
-  nothing.
-- S15 Death by spike and by falling out: the player respawns after exactly 30 ticks at the spawn; rings, beads and the
-  clock are unchanged by the death; `deaths` counts.
+- S12 Throw: a valid throw lowers `beads_left` by 1, leaves `rings_used` unchanged, and creates the ring at
+  `arrive_tick`; each invalid case of 3.10 (`X` face, out of bounds, unexposed face, spike in front, taken face, no
+  beads, out of range, while dead) changes nothing and reports its reason.
+- S13 Throwing straight down (index 108) while standing creates a floor ring under the player that launches it; after
+  that launch `rings_used == 1`.
+- S14 Undo removes the latest thrown ring or flight (not a preset), returns its bead, leaves `rings_used` unchanged,
+  and with nothing thrown changes nothing.
+- S15 Death by spike and by falling out: the player respawns after exactly 30 ticks at the spawn; rings, beads,
+  `rings_used` and the clock are unchanged by the death; `deaths` counts.
 - S16 Clock: before any input `time_ticks() == 0`; the first move starts it; after the finish `time_ticks()` stays
   fixed and further steps change nothing in `snapshot()` except `tick`.
-- S17 Determinism: the same level and input sequence give equal `snapshot()` after every tick, in two separate runs.
+- S17 Determinism: the same level and input sequence give equal `snapshot()` after every tick, in two separate runs;
+  `snapshot()` contains `rings_used` and each ring's `used`.
 - S18 `MazeAim`: 144 entries, index 0 is `(10000, 0)`, 36 is `(0, -10000)`, every entry within 1 of `cos`/`sin`;
   `keyboard_index` and `index_from_vector` give the values of 3.11 for at least eight hand-picked cases.
+- S19 Rings used (ADR 0009), each on a small fixture map:
+  - a) A thrown ring that lands and never touches the player: `rings_used == 0`; undo then returns the bead and
+    `rings_used` stays 0.
+  - b) A bead taken back while in flight: `rings_used == 0`.
+  - c) Standing on an own floor ring and bouncing on it at least three times: `rings_used == 1`; only the first
+    `launch` event has `counted == true`.
+  - d) Undo after the launch: `beads_left == level.beads` again, `rings_used` stays 1; throwing again to the same face
+    and launching from it gives `rings_used == 2`.
+  - e) A preset ring launching the player: `rings_used == 0` and `counted == false`.
+  - f) Misuse case: a level with `beads` 1; three cycles of throw, launch, undo end with `beads_left == 1` and
+    `rings_used == 3` (with the old rule this was 0).
+  - g) A death after a counted launch leaves `rings_used` unchanged; a new `MazeSim` on the same level starts at 0.
+  - h) The `finish` event carries `rings` equal to `rings_used` at the finish tick.
 
 ## 4. Controls
 
@@ -572,13 +603,16 @@ One JSON file per level, `levels/<id>.json`, made by hand in a text editor:
 | `id` | `^[a-z0-9-]{1,32}$`, equal to the file name without `.json`. Stable: statistics are keyed by it. |
 | `name` | Object with non-empty `nl` and `en`. |
 | `difficulty` | `easy`, `medium` or `hard` (label from the kit text `levels`). |
-| `beads` | Integer 1 to 9; default 3 when absent. |
-| `par` | Integer 0 to `beads`. |
+| `beads` | Integer 1 to 9; default 3 when absent. The bead supply of the level, a design choice per level (ADR 0009). |
+| `par` | Integer 0 to 20: the fewest rings used the designer needs (ADR 0009). Independent of `beads`; may be larger, because a bead can be taken back and thrown again. |
 | `hint` | Optional object with `nl` and `en`; may contain `{move}`, `{jump}`, `{throw}`, `{undo}` (8.6). |
 | `rings` | Optional list of preset rings: `x`, `y` of a `#` cell and `face`; the face must be exposed (cell in front not solid, not a spike); no duplicates. |
 | `rows` | Strings, top row first, all the same length; width 8 to 256, height 8 to 64; characters `. # X ^ S F`; exactly one `S` with a solid cell below it; exactly one `F`. |
 
 `levels/index.json` lists the series in order: `{"format": 1, "levels": ["l001", "l002", "l003"]}`.
+
+The level `format` stays 1: `par` keeps its type and only its upper bound and meaning change, and every shipped level
+(l001 to l003) has the same par under both readings (5.4).
 
 ### 5.2 Loading and validation
 
@@ -586,6 +620,7 @@ One JSON file per level, `levels/<id>.json`, made by hand in a text editor:
 class_name MazeLevel extends RefCounted
 enum Cell { EMPTY, SOLID, NO_RING, SPIKE }
 enum Face { UP, DOWN, LEFT, RIGHT }
+const MAX_PAR := 20
 var id := ""
 var names := {}                 # {"nl": ..., "en": ...}
 var difficulty := 0             # 0 easy, 1 medium, 2 hard
@@ -616,7 +651,7 @@ static func load_level(id: String) -> MazeLevel  # from DIR + id + ".json"; a mi
 - JSON is read with `WhitePuzzleStore.load_json(path)` (cached, no error output on bad files).
 - Error texts are English, one per problem, with coordinates where useful, for example
   `row 3 has length 47, expected 48`, `unknown character 'Q' at (5, 2)`, `need exactly one S, found 2`,
-  `nothing solid below S at (2, 10)`, `par 4 is outside 0..3`, `ring at (4, 11) up is not on a # block`,
+  `nothing solid below S at (2, 10)`, `par 21 is outside 0..20`, `ring at (4, 11) up is not on a # block`,
   `id 'l1' does not match file name 'l001'` (the file name check is done by `load_level`).
 - The game shows only valid levels; an invalid level in the index is shown as locked with no name and logged with
   `push_error` (the tests and the check tool make sure this never ships).
@@ -624,7 +659,8 @@ static func load_level(id: String) -> MazeLevel  # from DIR + id + ".json"; a mi
 ### 5.3 How levels are made
 
 1. Copy an existing level file, give it a new id, add the id to `levels/index.json`.
-2. Edit `rows` in a text editor (monospace); use the metrics of 3.3.
+2. Edit `rows` in a text editor (monospace); use the metrics of 3.3. Choose `beads` (the supply) and `par` (the fewest
+   rings used your own route needs) separately.
 3. Check: `godot --headless --path . -s res://tools/check_levels.gd` (5.5).
 4. Play it directly: `godot --path . -- --level=<id> --print-run`; at the finish the run script is printed (6.3).
 5. Paste that script into `tests/solutions.json` under the id; the solution test (11.2) then keeps it solvable.
@@ -635,8 +671,11 @@ A visual editor (for example importing a `TileMapLayer` scene) is **[later]**.
 
 Rows are given in blocks of 8 columns for readability; the JSON row is the concatenation without spaces. The level
 check verifies lengths. Intended solutions are the designer's; the solution tests (11.2) prove that each level can be
-finished within par. If the tuning makes a level impossible or clearly cheaper than par, the developer adjusts the
-geometry (not the tuning), and records the change in the log and in this section.
+finished within par (rings used <= par). If the tuning makes a level impossible or clearly cheaper than par, the
+developer adjusts the geometry (not the tuning), and records the change in the log and in this section.
+
+Par of l001 to l003 is unchanged by ADR 0009: their intended routes throw only rings they bounce off and take none
+back, so rings used equals the old beads used.
 
 **l001, "Eerste ring" / "First ring", easy, beads 3, par 1** (48 x 14), preset ring `{"x": 26, "y": 11, "face": "up"}`
 
@@ -717,19 +756,22 @@ do not stick to dark blocks."
 
 For every id in the index: load, validate, print `ok <id> <w>x<h> beads <b> par <p>` or each error as
 `error <id>: <text>`. When `tests/solutions.json` has the id: run the script with `MazeRunScript.run` (at most 36000
-ticks) and print `solution <id> finished ticks <t> beads <b>` or `solution <id> FAILED <reason>`; a solution that
-uses more beads than par fails. Also reports ids in the index without a file and level files not in the index. Exit
-code 1 on any error or failed solution, else 0. Optional `--dir=<path>` checks another level folder (for tests).
+ticks) and print `solution <id> finished ticks <t> rings <r>` or `solution <id> FAILED <reason>`; a solution whose
+`rings_used` is above par fails with the reason `used <r> rings, par is <p>`. Also reports ids in the index without a
+file and level files not in the index. Exit code 1 on any error or failed solution, else 0. Optional `--dir=<path>`
+checks another level folder (for tests).
 
 ### 5.6 Acceptance (levels)
 
 - L1 The three shipped levels and the index are valid; `render()` gives the file rows back.
 - L2 Each validation rule of 5.1 has a test with a minimal bad level that produces exactly its error (at least 14
-  cases), and no case produces engine error output.
+  cases), and no case produces engine error output. The par cases are: `par` -1 and 21 give `par <v> is outside
+  0..20`; `par` 3 with `beads` 1 is valid (par may exceed beads).
 - L3 `cell()` outside the grid: left, right, top `NO_RING`; below `EMPTY`.
 - L4 `tools/check_levels.gd` exits 0 on the shipped data, and 1 on a temporary folder with one broken level
-  (`--dir`); the test runs it as a child process like the kit's precompute test.
-- L5 Every shipped level has a solution in `tests/solutions.json` that finishes with beads used <= par (11.2).
+  (`--dir`); the test runs it as a child process like the kit's precompute test. Its output uses
+  `solution <id> finished ticks <t> rings <r>`.
+- L5 Every shipped level has a solution in `tests/solutions.json` that finishes with `rings_used <= par` (11.2).
 
 ## 6. Run scripts
 
@@ -774,7 +816,7 @@ Example: `R40 RJ12 R20 T30 -5 L18 U -1`.
 
 `MazeGame` appends every `MazeInput` it feeds the simulation to a list for the current attempt (reset on restart). At
 the finish it encodes the list. With `--print-run` the script is printed to stdout as
-`run <level id> <ticks> <beads> <script>`.
+`run <level id> <ticks> <rings> <script>`, with `<rings>` the attempt's `rings_used`.
 
 ### 6.4 Acceptance (run scripts)
 
@@ -783,7 +825,8 @@ the finish it encodes the list. With `--print-run` the script is printed to stdo
   `T05`, two `T` before one hold, trailing event, unknown letter, count 100000.
 - R3 Round trip: `parse(encode(x)).inputs` equals `x` for random input arrays of 500 ticks (50 arrays, seeded with
   `WhiteRng`), and `encode(parse(s).inputs) == s` for canonical scripts.
-- R4 A recorded run (from a solution) replayed in a fresh simulation finishes at the same tick with the same beads.
+- R4 A recorded run (from a solution) replayed in a fresh simulation finishes at the same tick with the same
+  `rings_used`.
 
 ## 7. Profile and statistics
 
@@ -793,6 +836,8 @@ the finish it encodes the list. With `--print-run` the script is printed to stdo
 - Shaped like a Pulse game profile (A5): a single JSON object well under 256 KB, so phase 3 can upload it unchanged.
 - Every field merges deterministically (7.6): bests by minimum, timestamps by min/max, counters per device.
 - Robust reading as in White Kit's progress file: a damaged file never stops the game.
+- ADR 0009 renamed the bead fields to ring fields within format 1 (no profile had been written yet). From the first
+  build that writes profiles on, a change of meaning raises `format` (conventions, "Profile").
 
 ### 7.2 Format 1
 
@@ -807,9 +852,9 @@ the finish it encodes the list. With `--print-run` the script is printed to stdo
   "levels": {
     "l001": {
       "best_ticks": 2412,
-      "best_beads": 1,
+      "best_rings": 1,
       "best_run": "R40 RJ12 R20 T102 -5 R18",
-      "fewest_beads": 1,
+      "fewest_rings": 1,
       "fewest_ticks": 2412,
       "first_finish": 1763640400,
       "last_played": 1763640500,
@@ -831,14 +876,15 @@ the finish it encodes the list. With `--print-run` the script is printed to stdo
 | `updated` | Unix seconds of the last write. |
 | `lang` | `nl` or `en`. |
 | `levels.<id>` | Statistics per level id (5.1); an entry exists once the level was started. |
-| `best_ticks`, `best_beads`, `best_run` | Fastest finish: time in ticks, beads used in that run, its run script (`""` when longer than 20000 characters). Absent until finished. |
-| `fewest_beads`, `fewest_ticks` | Finish with the fewest beads; the fastest such finish breaks ties. Absent until finished. |
+| `best_ticks`, `best_rings`, `best_run` | Fastest finish: time in ticks, rings used in that run, its run script (`""` when longer than 20000 characters). Absent until finished. |
+| `fewest_rings`, `fewest_ticks` | Finish with the fewest rings used; the fastest such finish breaks ties. Absent until finished. |
 | `first_finish` | Unix seconds of the first finish. Absent until finished. |
 | `last_played` | Unix seconds of the last start, finish or flush. |
 | `counts.<device>` | Counters of one device: `starts` (attempts begun), `finishes`, `deaths`, `play_ticks` (game time played, also of unfinished attempts). Totals are sums over devices. |
 
 Unknown keys at the top level and inside level entries are kept unchanged on write (forward compatibility within a
-format).
+format). `best_beads` and `fewest_beads` are no longer known keys; if a development profile still has them, they pass
+through as unknown keys and are never read.
 
 ### 7.3 Operations (`MazeProfile`, `sim/profile.gd`, pure, no file access)
 
@@ -852,8 +898,8 @@ static func sanitize(data: Variant) -> Dictionary      # {"profile": Dictionary 
 static func migrate(data: Dictionary) -> Dictionary    # format 1: unchanged copy
 static func record_start(p: Dictionary, level_id: String, now: int) -> void
 static func add_play(p: Dictionary, level_id: String, ticks: int, deaths: int, now: int) -> void
-static func record_finish(p: Dictionary, level_id: String, ticks: int, beads: int, run: String, now: int) -> Dictionary
-	# {"new_best": bool, "new_fewest": bool, "best_ticks": int, "fewest_beads": int}
+static func record_finish(p: Dictionary, level_id: String, ticks: int, rings: int, run: String, now: int) -> Dictionary
+	# {"new_best": bool, "new_fewest": bool, "best_ticks": int, "fewest_rings": int}
 static func level_totals(p: Dictionary, level_id: String) -> Dictionary  # {"starts", "finishes", "deaths", "play_ticks"} summed over devices
 static func is_finished(p: Dictionary, level_id: String) -> bool         # best_ticks present
 static func total_play_ticks(p: Dictionary) -> int
@@ -865,10 +911,10 @@ The device whose counters are changed is `p.device`.
 - `record_start`: creates the level entry when missing; `counts[device].starts += 1`; `last_played = now`;
   `updated = now`.
 - `add_play`: adds to `play_ticks` and `deaths` of this device; `last_played`, `updated`.
-- `record_finish`: `finishes += 1`; best when `best_ticks` absent or `ticks < best_ticks` (sets `best_ticks`,
-  `best_beads`, `best_run` or `""` when too long); fewest when absent, `beads < fewest_beads`, or equal beads and
-  `ticks < fewest_ticks`; `first_finish` when absent; `last_played`, `updated`. Play ticks and deaths are added by the
-  caller through `add_play`.
+- `record_finish` (`rings` = the attempt's `rings_used`): `finishes += 1`; best when `best_ticks` absent or
+  `ticks < best_ticks` (sets `best_ticks`, `best_rings`, `best_run` or `""` when too long); fewest when absent,
+  `rings < fewest_rings`, or equal rings and `ticks < fewest_ticks`; `first_finish` when absent; `last_played`,
+  `updated`. Play ticks and deaths are added by the caller through `add_play`.
 - Numbers from JSON arrive as floats; `sanitize` accepts a number that is finite, whole and `>= 0` and stores
   `int(value)`; other values are dropped (the field becomes absent, a counter 0).
 
@@ -909,7 +955,7 @@ func save(now: int) -> bool
 | Moment | Calls | Save |
 |---|---|---|
 | Level opened, or restarted | `add_play` for the previous attempt's unflushed ticks and deaths (restart only), then `record_start` | yes |
-| Finish | `add_play` (unflushed), `record_finish` | yes |
+| Finish | `add_play` (unflushed), `record_finish` with `sim.rings_used` | yes |
 | Leaving to the level select, pause by focus loss, `NOTIFICATION_WM_CLOSE_REQUEST`, `NOTIFICATION_APPLICATION_PAUSED` | `add_play` (unflushed) | yes |
 
 "Unflushed" = the attempt's `time_ticks()` and `deaths` minus what was already added in this attempt; `MazeGame`
@@ -922,8 +968,8 @@ keeps `flushed_ticks` and `flushed_deaths` per attempt. After the finish nothing
 - `format` 1, `game`, `tick_hz` 60; `device` from `local`; `id` from `remote` when present, else from `local`.
 - `updated`: maximum. `lang`: from the profile with the larger `updated`; equal: `local`.
 - `levels`: union of ids. Per level: best = the one with the smaller `best_ticks` (absent counts as infinite); tie:
-  smaller `best_beads`; tie: `local`; its `best_ticks`, `best_beads`, `best_run` go together. Fewest = smaller
-  `fewest_beads`, tie smaller `fewest_ticks`, tie `local`, both fields together. `first_finish`: minimum of the present
+  smaller `best_rings`; tie: `local`; its `best_ticks`, `best_rings`, `best_run` go together. Fewest = smaller
+  `fewest_rings`, tie smaller `fewest_ticks`, tie `local`, both fields together. `first_finish`: minimum of the present
   values. `last_played`: maximum. `counts`: union of device keys; per device and counter the maximum.
 - Unknown keys: from `local` when present there, else from `remote`.
 - Properties: `merge(a, a) == a`; `merge(a, b)` and `merge(b, a)` have equal levels when no ties occur; totals after a
@@ -934,14 +980,16 @@ keeps `flushed_ticks` and `flushed_deaths` per attempt. After the finish nothing
 - P1 `create` gives format 1 with all top-level fields and a 16-hex device id.
 - P2 `sanitize` cases (each with expected result): not a Dictionary, `format` missing / `"1"` / `0.5` / `-1`
   (damaged), `format` 2 (newer), bad `lang`, bad level key, negative and fractional counters, a `best_run` that is not
-  a string, unknown keys kept, `id` of 65 characters dropped, bad `device` replaced by `""`.
+  a string, unknown keys kept, `id` of 65 characters dropped, bad `device` replaced by `""`, a negative `best_rings`
+  dropped, an old `best_beads` key kept unchanged as an unknown key.
 - P3 `record_start`, `add_play`, `record_finish` update exactly the fields of 7.3; a slower finish keeps the best; a
-  finish with fewer beads but slower updates only fewest; `best_run` over 20000 characters is stored as `""`.
+  finish with fewer rings but slower updates only fewest; `best_run` over 20000 characters is stored as `""`; after
+  `record_finish` the entry has `best_rings` and `fewest_rings` and no `best_beads` or `fewest_beads`.
 - P4 Store: a missing file creates one; a write and a fresh `open` round-trip the data; a file with `"not json"` is
   renamed to `profile.damaged-<now>.json` and a fresh profile is written; a format-2 file is left byte-identical and
   `save` returns false. Test files live under `user://` with prefix `white_maze_test_` and are deleted afterwards.
-- P5 `merge` properties of 7.6 and at least six hand-made cases (best from remote, tie to local, counts from two
-  devices, id from remote, lang by `updated`, unknown keys).
+- P5 `merge` properties of 7.6 and at least six hand-made cases (best from remote, tie on `best_ticks` decided by
+  `best_rings`, tie to local, counts from two devices, id from remote, lang by `updated`, unknown keys).
 - P6 A profile with 30 levels, each with a 2000-character best run and counters of two devices, serializes to less
   than 100 KB (size printed in the test output).
 
@@ -971,8 +1019,8 @@ keeps `flushed_ticks` and `flushed_deaths` per attempt. After the finish nothing
   level is opened.
 - Level cards in a `GridContainer` with 3 columns inside a `ScrollContainer`; each card is a `WhiteUi.button` of height
   170 with four lines: `"%d  %s" % [number, name]`, difficulty (`t("levels")[difficulty]`), best time line
-  (`t("card_time") % time` or `t("not_done")`), beads line (`t("card_beads") % [fewest, par]` or `t("par") % par`).
-  Locked levels are disabled and show `t("locked")` as the last line.
+  (`t("card_time") % time` or `t("not_done")`), rings line (`t("card_rings") % [fewest_rings, par]` or
+  `t("par") % par`). Locked levels are disabled and show `t("locked")` as the last line.
 - Focus starts on the first open level that is not finished (else the first). Arrow keys move focus (Godot focus
   neighbours), `Enter`/`Space` opens.
 
@@ -992,10 +1040,11 @@ MazeGame (Node)
 - Camera: follows the interpolated player centre with `position_smoothing_enabled` (speed 8), a look-ahead of 60 px in
   the facing direction (lerped), limits at the level bounds; a level smaller than the viewport is centred.
 - HUD (`MazeHud`, top band, 110 px plus safe area): left `"%d · %s" % [number, name]` (`FONT_SUBTITLE`, `TEXT`) and
-  under it `t("par") % par` (`DIM`); centre the clock `MazeFormat.time(sim.time_ticks())` (`FONT_INFO`); right the
-  bead dots (one circle radius 12 per bead, filled `TEXT` when left, 3 px `DIM` outline when used) and three buttons
-  `t("undo_bead")`, `t("restart")`, `t("pause")` (`WhiteUi.button`, height 52, `focus_mode = FOCUS_NONE` so keys never
-  press them).
+  under it the score line `t("hud_rings") % [sim.rings_used, par]` (`DIM`; `TEXT` for 10 ticks after a `launch` event
+  with `counted == true`); centre the clock `MazeFormat.time(sim.time_ticks())` (`FONT_INFO`); right the bead dots
+  (the supply: `level.beads` circles of radius 12, filled `TEXT` for each bead left, 3 px `DIM` outline for each bead
+  not in the supply) and three buttons `t("undo_bead")`, `t("restart")`, `t("pause")` (`WhiteUi.button`, height 52,
+  `focus_mode = FOCUS_NONE` so keys never press them).
 - Hint: when the level has a hint, a `DIM` label (`FONT_MESSAGE`) centred at the bottom, above the safe area, with the
   placeholders of 8.6 filled for the current input mode; hidden on the result overlay.
 - Each frame: handle pause/restart/undo latches, update the rate (4.4), step the simulation, feed
@@ -1009,10 +1058,10 @@ MazeGame (Node)
   `t("restart")`, `t("levels_btn")`, and the controls legend (`t("help_keys")` or `t("help_touch")` by input mode,
   `DIM`). `Esc`/`P` resumes.
 - Result (after the finish, the world stays visible and frozen): `t("finished")` (`FONT_TITLE`), the time
-  (`FONT_TITLE`), `t("result_beads") % [used, par]` plus `"  " + t("perfect")` when used == par or
-  `"  " + t("under_par")` when used < par, `t("new_record")` when `new_best` (`ACCENT`), else `t("best_time") % best`;
-  buttons `t("restart")` (`R`), `t("next")` (`Enter`, hidden on the last level; on the last level `Enter` opens the
-  level select), `t("levels_btn")` (`Esc`). Focus on Next (or Restart on the last level).
+  (`FONT_TITLE`), `t("result_rings") % [rings_used, par]` plus `"  " + t("perfect")` when rings used == par or
+  `"  " + t("under_par")` when rings used < par, `t("new_record")` when `new_best` (`ACCENT`), else
+  `t("best_time") % best`; buttons `t("restart")` (`R`), `t("next")` (`Enter`, hidden on the last level; on the last
+  level `Enter` opens the level select), `t("levels_btn")` (`Esc`). Focus on Next (or Restart on the last level).
 - Rotate hint: when the viewport is taller than wide, a full-screen `BG` panel with `t("rotate")`; the game pauses;
   turning back closes the hint but keeps the pause overlay.
 
@@ -1037,13 +1086,14 @@ Registered through `WhiteText.register`; kit base keys used as they are: `levels
 | `locked` | `Op slot` | `Locked` |
 | `not_done` | `Nog niet gehaald` | `Not finished yet` |
 | `card_time` | `Beste tijd %s` | `Best time %s` |
-| `card_beads` | `Minste kralen %d · par %d` | `Fewest beads %d · par %d` |
+| `card_rings` | `Minste ringen %d · par %d` | `Fewest rings %d · par %d` |
+| `hud_rings` | `Ringen %d · par %d` | `Rings %d · par %d` |
 | `undo_bead` | `Kraal terug` | `Bead back` |
 | `pause` | `Pauze` | `Pause` |
 | `resume` | `Doorgaan` | `Resume` |
 | `levels_btn` | `Levels` | `Levels` |
 | `finished` | `Gehaald!` | `Finished!` |
-| `result_beads` | `Kralen: %d · par %d` | `Beads: %d · par %d` |
+| `result_rings` | `Ringen: %d · par %d` | `Rings: %d · par %d` |
 | `under_par` | `Onder par!` | `Under par!` |
 | `new_record` | `Nieuw record` | `New record` |
 | `best_time` | `Beste tijd %s` | `Best time %s` |
@@ -1057,6 +1107,10 @@ Registered through `WhiteText.register`; kit base keys used as they are: `levels
 | `touch` | `{"move": "je linkerduim", "jump": "de springknop", "throw": "de werpstick", "undo": "Kraal terug"}` | `{"move": "your left thumb", "jump": "the jump button", "throw": "the throw stick", "undo": "Bead back"}` |
 | `help_keys` | `A/D of pijltjes: lopen\nSpatie of W: springen (vasthouden = hoger)\nJ vasthouden: richten, W/S draaien, loslaten: werpen, K: annuleren\nZ: kraal terug  ·  R: opnieuw  ·  Esc: pauze` | `A/D or arrows: walk\nSpace or W: jump (hold = higher)\nHold J: aim, W/S turn, release: throw, K: cancel\nZ: bead back  ·  R: restart  ·  Esc: pause` |
 | `help_touch` | `Linkerduim: lopen\nSpringknop: springen (vasthouden = hoger)\nWerpstick: slepen = richten, loslaten = werpen, terug naar het midden = annuleren` | `Left thumb: walk\nJump button: jump (hold = higher)\nThrow stick: drag = aim, release = throw, back to the centre = cancel` |
+| `help_par` | `Par telt de ringen waar je vanaf bent gestuiterd. Kraal terug geeft je de kraal terug, maar een gebruikte ring blijft meetellen.` | `Par counts the rings you bounced off. Bead back returns the bead, but a used ring still counts.` |
+
+The keys `card_beads` and `result_beads` of the first design are replaced by `card_rings` and `result_rings`.
+`help_par` is shown in the pause overlay as a last `DIM` line under the controls legend, in both input modes.
 
 `keys` and `touch` are Dictionaries (`WhiteText.t` returns a Variant). Hint placeholders `{move}`, `{jump}`, `{throw}`,
 `{undo}` are replaced with the values of `keys` or `touch` (current input mode) via `String.format`.
@@ -1067,19 +1121,24 @@ Registered through `WhiteText.register`; kit base keys used as they are: `levels
 ### 8.7 Acceptance (screens)
 
 - U1 Headless: the main scene opens the level select with three cards; with an empty profile only card 1 is enabled;
-  after a recorded finish of l001 card 2 is enabled and card 1 shows the best time and beads.
+  after a recorded finish of l001 card 2 is enabled and card 1 shows the best time and the fewest rings line
+  (`t("card_rings")`).
 - U2 The language toggle switches every visible text and is saved in the profile; `--lang=en` overrides for the
   session.
 - U3 Starting l001 and feeding its solution through `MazeControls` (not directly into the simulation) ends in the
-  result overlay with the time, beads, par text and `new_record`; the profile has the finish.
+  result overlay with the time, `t("result_rings") % [1, 1]`, the `perfect` text and `new_record`; the profile has the
+  finish with `best_rings == 1` and `fewest_rings == 1`.
 - U4 HUD buttons have `focus_mode == FOCUS_NONE`; `Space` on the game screen never presses a button.
 - U5 Pause stops ticks (no change of `sim.tick` over 30 frames); resume continues; restart creates a fresh simulation
   and a `starts` increment.
 - U6 A viewport taller than wide shows the rotate hint and pauses.
 - U7 `MazeFormat.time` cases of 8.6; every text key exists in both languages (`MazeStrings.TEXT["nl"].keys() ==
-  MazeStrings.TEXT["en"].keys()`).
+  MazeStrings.TEXT["en"].keys()`); the keys `card_beads` and `result_beads` no longer exist.
 - U8 The screenshots of `tools/shots.txt` (10.5) are produced without errors; the tester reviews them by eye against
   8.1-8.4 and the mockup.
+- U9 HUD score line on l001: at the start it reads `Ringen 0 · par 1`; after the solution's own ring first launches
+  the player it reads `Ringen 1 · par 1`; a bead back after that refills a bead dot and the line still reads
+  `Ringen 1 · par 1`; a restart shows `Ringen 0 · par 1` again.
 
 ## 9. White Kit usage (ADR 0008)
 
@@ -1214,13 +1273,13 @@ timeout 300 godot --headless --path . res://tests/run_tests.tscn -- --min-checks
 | `aim_tests.gd` | S18. |
 | `level_tests.gd` | L1-L4. |
 | `move_tests.gd` | S2-S7 on small hand-made maps built with `MazeLevel.from_dict`. |
-| `ring_tests.gd` | S8-S14. |
+| `ring_tests.gd` | S8-S14 and S19. |
 | `rules_tests.gd` | S15-S17. |
 | `run_script_tests.gd` | R1-R4. |
-| `solution_tests.gd` | L5: every level in the index has a solution in `tests/solutions.json` that finishes with beads used <= par; replaying it twice gives equal snapshots; the encoded recording of the replay replays to the same finish. |
+| `solution_tests.gd` | L5: every level in the index has a solution in `tests/solutions.json` that finishes with `rings_used <= par`; replaying it twice gives equal snapshots; the encoded recording of the replay replays to the same finish. |
 | `profile_tests.gd` | P1-P6. |
 | `controls_tests.gd` | C1-C6 with synthetic `InputEventKey`, `InputEventMouseButton`, `InputEventScreenTouch` and `InputEventScreenDrag` passed to `handle_event` of the controls and the overlay. |
-| `ui_tests.gd` | U1-U7 with the main scene in the test tree (`--profile` under `user://white_maze_test_*`). |
+| `ui_tests.gd` | U1-U7 and U9 with the main scene in the test tree (`--profile` under `user://white_maze_test_*`). |
 
 Fixture maps in tests are written as row arrays in the test files (no extra level files).
 
@@ -1258,6 +1317,12 @@ screens are built.
 - A phone test needs the web build on a reachable address: a GitHub repository with Pages, or serving `build/web` on
   the local network. Owner question.
 - Kit candidates (9) are not needed now; the project lead may create kit cards when a second game needs them.
+- Ceiling ring role (ADR 0009): in the current rules a ceiling ring rarely does something air control cannot, so no
+  level uses it. The level designer proposes that a ceiling ring also sets horizontal speed to 0 ("drop": floor = up,
+  wall = sideways, ceiling = stop and fall). Decide after the owner's playtest, together with the tuning. If accepted:
+  3.7 `DOWN` row gets `vx = 0`, S10 checks `vx == 0`, and no existing solution changes (none uses a ceiling ring).
+- Par rule (ADR 0009) to be confirmed in the owner's playtest: does "rings used" read naturally in the HUD, and is a
+  free take-back of a ring that never launched the player understood?
 - [later] Moving obstacles as sim entities, gamepad, sound, a per-level finish history (last N times), a visual level
   editor, showing the best run as a ghost.
 
@@ -1291,8 +1356,36 @@ tuning. Stored solutions (`tests/solutions.json`), found with a throw-away searc
 | l002 | 2 | 2 | 256 | 0:04.26 | 0 |
 | l003 | 3 | 3 | 295 | 0:04.91 | 0 |
 
+"Beads" in this table is the old beads used; the solutions contain no `U`, so rings used is expected to be the same
+(each thrown ring is thrown to be bounced off). The solution tests confirm this after the change of section 15.
+
 Facts found while solving, for the playtest: a floor-ring jump from standing lifts the feet 5.85 tiles; the wall ring
 of l003 can only be reached at cell (0, 4) (from a floor-ring jump, throwing from about x = 2.4 tiles, index 41); a
 throw to (0, 4) from the spawn point itself hits the corner and is invalid. The solutions are replayed by
 `tests/solution_tests.gd` and `tools/check_levels.gd`; after a tuning change record them again (a played run with
 `--print-run` once the screens exist).
+
+## 15. Par counts rings used (ADR 0009): developer work
+
+A rule change on the built core. No tuning, geometry or level file changes. Order:
+
+1. `sim/sim.gd`: add `rings_used`; add `"used": false` to every ring (presets in `_init`, thrown rings in step 5);
+   count in the launch (3.7, 3.8 step 12) and add `counted` to the `launch` event; add `rings` to the `finish` event;
+   include `rings_used` and each ring's `used` in `snapshot()`; remove `beads_used()`. Undo (step 3) stays as it is.
+2. `sim/level.gd`: `par` accepted from 0 to `MAX_PAR` (20), independent of `beads`; error text
+   `par <v> is outside 0..20`.
+3. `sim/profile.gd`: `best_beads` -> `best_rings`, `fewest_beads` -> `fewest_rings` in `record_finish` (parameter
+   `rings`, result key `fewest_rings`), `sanitize`, `merge` and the known-field lists. `FORMAT` stays 1; `migrate`
+   unchanged.
+4. `tools/check_levels.gd`: compare `rings_used` with par; output `solution <id> finished ticks <t> rings <r>` and
+   `solution <id> FAILED used <r> rings, par is <p>`. `tools/search_par.gd` (throw-away search tool): add `rings_used`
+   to its state key and score by it, or delete the tool if it is no longer needed.
+5. Tests: every use of `beads_used()`, `best_beads` and `fewest_beads` in `tests/` moves to the new names
+   (`ring_tests`, `rules_tests`, `solution_tests`, `profile_tests`, `run_script_tests`, `robust_tests`,
+   `fuzz_tests`); new cases S19 a-h in `ring_tests`; L2 par cases in `level_tests`; P2, P3, P5 additions in
+   `profile_tests`. Raise `MIN_CHECKS` to the new count.
+6. Run the full suite and the level check; l001 to l003 must still pass with their stored solutions and report
+   rings 1, 2, 3.
+
+The screens (card #004) are built directly against sections 8.2 to 8.7 as they stand now (`hud_rings`,
+`card_rings`, `result_rings`, `help_par`, U9).
