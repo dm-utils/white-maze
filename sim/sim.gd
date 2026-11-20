@@ -25,7 +25,8 @@ var lock_ticks := 0
 var dead_ticks := 0
 var deaths := 0
 var beads_left := 0
-var rings: Array[Dictionary] = [] # cell, face, preset, order, cooldown
+var rings_used := 0 # thrown rings that launched at least once; never decreases
+var rings: Array[Dictionary] = [] # cell, face, preset, order, cooldown, used
 var flights: Array[Dictionary] = [] # cell, face, from, to, throw_tick, arrive_tick, order
 var throw_count := 0
 var clock_start := -1
@@ -37,7 +38,7 @@ func _init(lvl: MazeLevel) -> void:
 	level = lvl
 	beads_left = lvl.beads
 	for r in lvl.preset_rings:
-		rings.append({"cell": r["cell"], "face": r["face"], "preset": true, "order": -1, "cooldown": 0})
+		rings.append({"cell": r["cell"], "face": r["face"], "preset": true, "order": -1, "cooldown": 0, "used": false})
 	_respawn()
 	prev_px = px
 	prev_py = py
@@ -49,10 +50,6 @@ func finished() -> bool:
 
 func alive() -> bool:
 	return dead_ticks == 0
-
-
-func beads_used() -> int:
-	return level.beads - beads_left
 
 
 func time_ticks() -> int:
@@ -67,10 +64,10 @@ func time_ticks() -> int:
 func snapshot() -> String:
 	var parts := PackedStringArray()
 	for v in [tick, px, py, prev_px, prev_py, vx, vy, facing, grounded, coyote, buffer, jumping, launched, lock_ticks,
-			dead_ticks, deaths, beads_left, throw_count, clock_start, finish_tick]:
+			dead_ticks, deaths, beads_left, rings_used, throw_count, clock_start, finish_tick]:
 		parts.append(str(v))
 	for r in rings:
-		parts.append("r%s,%d,%s,%d,%d" % [r["cell"], r["face"], r["preset"], r["order"], r["cooldown"]])
+		parts.append("r%s,%d,%s,%d,%d,%s" % [r["cell"], r["face"], r["preset"], r["order"], r["cooldown"], r["used"]])
 	for f in flights:
 		parts.append("f%s,%d,%s,%s,%d,%d,%d" % [f["cell"], f["face"], f["from"], f["to"], f["throw_tick"],
 				f["arrive_tick"], f["order"]])
@@ -170,7 +167,7 @@ func step(input: MazeInput) -> void:
 		finish_tick = tick
 		if clock_start < 0:
 			clock_start = tick
-		_event("finish", {"ticks": time_ticks()})
+		_event("finish", {"ticks": time_ticks(), "rings": rings_used})
 
 
 func _undo() -> void:
@@ -220,7 +217,7 @@ func _land_flights() -> void:
 		if f["arrive_tick"] > tick:
 			remaining.append(f)
 			continue
-		var ring := {"cell": f["cell"], "face": f["face"], "preset": false, "order": f["order"], "cooldown": 0}
+		var ring := {"cell": f["cell"], "face": f["face"], "preset": false, "order": f["order"], "cooldown": 0, "used": false}
 		var at := rings.size()
 		for i in rings.size():
 			if rings[i]["order"] > f["order"]:
@@ -417,7 +414,11 @@ func _launch_from_rings() -> void:
 		buffer = 0
 		grounded = false
 		r["cooldown"] = MazeTuning.RING_COOLDOWN_TICKS
-		_event("launch", {"cell": r["cell"], "face": r["face"]})
+		var counted: bool = not r["preset"] and not r["used"]
+		if counted:
+			r["used"] = true
+			rings_used += 1
+		_event("launch", {"cell": r["cell"], "face": r["face"], "counted": counted})
 		return
 
 

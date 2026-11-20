@@ -11,6 +11,7 @@ const FACE_STEP: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1
 const DIFFICULTIES := ["easy", "medium", "hard"]
 const MIN_SIZE := Vector2i(8, 8)
 const MAX_SIZE := Vector2i(256, 64)
+const MAX_PAR := 20
 
 var id := ""
 var names := {}
@@ -116,10 +117,10 @@ func _parse(d: Dictionary) -> void:
 			beads = int(d["beads"])
 		else:
 			errors.append("beads %s is outside 1..9" % str(d["beads"]))
-	if _whole(d.get("par")) and int(d["par"]) >= 0 and int(d["par"]) <= beads:
+	if _whole(d.get("par")) and int(d["par"]) >= 0 and int(d["par"]) <= MAX_PAR:
 		par = int(d["par"])
 	else:
-		errors.append("par %s is outside 0..%d" % [str(d.get("par")), beads])
+		errors.append("par %s is outside 0..%d" % [str(d.get("par")), MAX_PAR])
 	if d.has("hint"):
 		if _text_pair(d["hint"]):
 			hints = {"nl": d["hint"]["nl"], "en": d["hint"]["en"]}

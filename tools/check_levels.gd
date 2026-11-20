@@ -47,8 +47,8 @@ func _check_solution(lv: MazeLevel, script: String) -> int:
 	if not sim.finished():
 		print("solution %s FAILED not finished within %d ticks" % [lv.id, MAX_TICKS])
 		return 1
-	if sim.beads_used() > lv.par:
-		print("solution %s FAILED used %d beads, par is %d" % [lv.id, sim.beads_used(), lv.par])
+	if sim.rings_used > lv.par:
+		print("solution %s FAILED used %d rings, par is %d" % [lv.id, sim.rings_used, lv.par])
 		return 1
-	print("solution %s finished ticks %d beads %d" % [lv.id, sim.time_ticks(), sim.beads_used()])
+	print("solution %s finished ticks %d rings %d" % [lv.id, sim.time_ticks(), sim.rings_used])
 	return 0

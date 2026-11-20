@@ -10,6 +10,7 @@ extends SceneTree
 ##     rectangle, --part: every n-th set, for parallel runs) on top of the preset rings.
 
 var H_WEIGHT := 1
+var RING_WEIGHT := 30 # ticks per ring used in the cost
 
 var _level: MazeLevel
 var _k := 4
@@ -136,7 +137,7 @@ func _try(extra: Array[Dictionary], quiet := false) -> bool:
 static func _clone(s: MazeSim) -> MazeSim:
 	var n := MazeSim.new(s.level)
 	for f in ["tick", "px", "py", "prev_px", "prev_py", "vx", "vy", "facing", "grounded", "coyote", "buffer",
-			"jumping", "launched", "lock_ticks", "dead_ticks", "deaths", "beads_left", "throw_count",
+			"jumping", "launched", "lock_ticks", "dead_ticks", "deaths", "beads_left", "rings_used", "throw_count",
 			"clock_start", "finish_tick"]:
 		n.set(f, s.get(f))
 	n.rings.clear()
@@ -148,9 +149,9 @@ static func _clone(s: MazeSim) -> MazeSim:
 func _key(s: MazeSim, held: bool) -> int:
 	var cd := 0
 	for r in s.rings:
-		cd = cd * 2 + (1 if r["cooldown"] > 0 else 0)
+		cd = cd * 4 + (1 if r["cooldown"] > 0 else 0) + (2 if r["used"] else 0)
 	return [s.px / 3000, s.py / 3000, s.vx / 1500, s.vy / 1500, s.grounded, s.coyote > 0, s.buffer > 0, s.jumping,
-			s.launched, s.lock_ticks, s.dead_ticks, cd, held].hash()
+			s.launched, s.lock_ticks, s.dead_ticks, s.rings_used, cd, held].hash()
 
 
 func _h(s: MazeSim) -> int:
@@ -161,6 +162,9 @@ func _h(s: MazeSim) -> int:
 
 func _search(lv: MazeLevel) -> String:
 	var root := MazeSim.new(lv)
+	# extras count as thrown rings so rings_used scores them
+	for i in range(_level.preset_rings.size(), root.rings.size()):
+		root.rings[i]["preset"] = false
 	var nodes: Array = [[root, false, -1, []]]
 	var seen := {_key(root, false): true}
 	var heap: Array = [[_h(root) * H_WEIGHT, 0]] # [f, node index]
@@ -194,7 +198,7 @@ func _search(lv: MazeLevel) -> String:
 					continue
 				seen[key] = true
 				nodes.append([n, hh, idx, macro])
-				_push(heap, [n.tick + _h(n) * H_WEIGHT, nodes.size() - 1])
+				_push(heap, [n.tick + _h(n) * H_WEIGHT + n.rings_used * RING_WEIGHT, nodes.size() - 1])
 	print("  nodes %d, open %d" % [nodes.size(), heap.size()])
 	return ""
 
