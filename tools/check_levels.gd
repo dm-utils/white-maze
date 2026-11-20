@@ -19,10 +19,25 @@ func _check(dir: String) -> int:
 	var problems := 0
 	var solutions := WhitePuzzleStore.load_json(SOLUTIONS)
 	var ids := MazeLevels.ids(dir)
+	var raw: Variant = WhitePuzzleStore.load_json(dir.path_join("index.json")).get("levels")
+	if raw is Array:
+		var seen := {}
+		for v in raw:
+			if not v is String:
+				print("error index: item %s is not a string" % str(v))
+				problems += 1
+			elif seen.has(v):
+				print("error index: id %s is listed twice" % v)
+				problems += 1
+			seen[v] = true
 	if ids.is_empty():
 		print("error index: no levels in %s" % dir.path_join("index.json"))
 		problems += 1
+	var done := {}
 	for id in ids:
+		if done.has(id):
+			continue # reported above
+		done[id] = true
 		var lv := MazeLevels.load_level(id, dir)
 		if not lv.valid():
 			for e in lv.errors:

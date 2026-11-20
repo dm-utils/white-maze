@@ -293,4 +293,8 @@ func _tool(check: Callable) -> void:
 	check.call(
 		_run_tool(PackedStringArray(["--dir=" + path])) == 0, "check_levels exits 0 on a folder with only good levels"
 	)
+	_write(TMP + "/index.json", JSON.stringify({"format": 1, "levels": ["l001", "l001"]}))
+	check.call(_run_tool(PackedStringArray(["--dir=" + path])) == 1, "check_levels exits 1 on a duplicate id")
+	_write(TMP + "/index.json", JSON.stringify({"format": 1, "levels": ["l001", 5]}))
+	check.call(_run_tool(PackedStringArray(["--dir=" + path])) == 1, "check_levels exits 1 on a non-string item")
 	_clean()
