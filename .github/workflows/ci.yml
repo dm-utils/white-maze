@@ -1,0 +1,78 @@
+# CI: tests, level check and the web build on develop/main, superseded runs cancelled. There is no play version yet:
+# the Pages job and play.white-maze.steefbeest.nl are added when the GitHub repository exists. Debug screenshots and
+# the web build are build artifacts.
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MIN_CHECKS: "0" # the number of checks of the game's own tests, so skipped tests fail the build
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Kit pin (the submodule must be exactly the release tag)
+        run: |
+          v=$(cat addons/white_kit/VERSION)
+          git -C addons/white_kit fetch --depth=1 origin "refs/tags/v$v:refs/tags/v$v"
+          tagged=$(git -C addons/white_kit rev-parse "v$v^{commit}")
+          head=$(git -C addons/white_kit rev-parse HEAD)
+          if [ "$tagged" != "$head" ]; then echo "::error::addons/white_kit is not at tag v$v"; exit 1; fi
+          echo "White Kit v$v" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: ./addons/white_kit/ci/setup-godot
+
+      - name: Import project
+        run: timeout 600 godot --headless --path . --import
+
+      - name: Kit tests
+        run: timeout 300 godot --headless --path . res://addons/white_kit/tests/run_kit_tests.tscn -- --min-checks=764
+
+      - name: Game tests
+        run: timeout 300 godot --headless --path . res://tests/run_tests.tscn -- --min-checks=${{ env.MIN_CHECKS }}
+
+      - name: Level check
+        run: godot --headless --path . -s res://tools/check_levels.gd
+
+      - name: Debug screenshots (tools/shots.txt)
+        if: hashFiles('tools/shots.txt') != ''
+        run: |
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri >/dev/null
+          addons/white_kit/tools/shots.sh run . tools/shots.txt build/shots
+
+      - uses: actions/upload-artifact@v7
+        if: always() && hashFiles('tools/shots.txt') != ''
+        with:
+          name: shots
+          path: build/shots
+          retention-days: 7
+
+      - name: Export Web
+        run: |
+          mkdir -p build/web && touch build/.gdignore
+          timeout 600 godot --headless --path . --export-release "Web" build/web/index.html
+          ls -la build/web | awk '{print "    " $5 "  " $9}' >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web
+          path: build/web
+          retention-days: 7
