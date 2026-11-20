@@ -2,6 +2,11 @@ extends WhiteTestRunner
 ## Test runner: godot --headless --path . res://tests/run_tests.tscn [-- --min-checks=N]
 
 const SUITES := [
+	"res://tests/tuning_tests.gd",
+	"res://tests/aim_tests.gd",
+	"res://tests/move_tests.gd",
+	"res://tests/ring_tests.gd",
+	"res://tests/rules_tests.gd",
 ]
 
 
