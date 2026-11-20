@@ -348,8 +348,10 @@ Counting (ADR 0009): when the launching ring has `preset == false` and `used == 
    - air: `move == 0`: `approach(vx, 0, AIR_DRAG)`; input in the motion direction (or `vx == 0`): `AIR_ACCEL` when
      `abs(vx) <= RUN_SPEED`, else `AIR_DRAG`; input opposite to the motion: `AIR_TURN`.
    - When not locked and `move != 0`: `facing = move`.
-9. Jump: `coyote = COYOTE_TICKS` when grounded, else `maxi(0, coyote - 1)`. `buffer = JUMP_BUFFER_TICKS` when
-   `input.jump_pressed`, else `maxi(0, buffer - 1)`. When `buffer > 0` and `coyote > 0`: `vy = -JUMP_SPEED`,
+9. Jump (read, then update; see section 14): first read `can_jump = grounded or coyote > 0` and `wants_jump =
+   input.jump_pressed or buffer > 0`, with `coyote` and `buffer` as the previous tick left them. Then
+   `coyote = COYOTE_TICKS` when grounded, else `maxi(0, coyote - 1)`, and `buffer = JUMP_BUFFER_TICKS` when
+   `input.jump_pressed`, else `maxi(0, buffer - 1)`. When `can_jump and wants_jump`: `vy = -JUMP_SPEED`,
    `jumping = true`, `launched = false`, `buffer = coyote = 0`, `grounded = false`; event `jump`.
 10. Gravity: `g = APEX_GRAVITY` when `jumping and input.jump_held and abs(vy) < APEX_THRESHOLD`; else `GRAVITY_UP` when
     `vy < 0` and ((`jumping` and `input.jump_held`) or `launched`); else `GRAVITY_DOWN`. `vy = mini(vy + g, MAX_FALL)`.
