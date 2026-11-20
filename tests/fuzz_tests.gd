@@ -23,6 +23,7 @@ func run(check: Callable, _node: Node) -> void:
 			var a := MazeSim.new(lv)
 			var b := MazeSim.new(lv)
 			var held := false
+			var prev_used := 0
 			for i in TICKS:
 				var inp := _random_input(rng, held, a)
 				held = inp.jump_held
@@ -38,10 +39,15 @@ func run(check: Callable, _node: Node) -> void:
 					bad["two sims diverge"] = true
 				if was_finished and H.snap_no_tick(a) != frozen:
 					bad["state changes after the finish"] = true
+				var counted := 0
 				for e in a.events:
+					counted += 1 if (e["type"] == "launch" and e["counted"]) else 0
 					launches += 1 if e["type"] == "launch" else 0
 					throws += 1 if e["type"] == "throw" else 0
 					deaths += 1 if e["type"] == "death" else 0
+				if a.rings_used < prev_used or a.rings_used - prev_used != counted:
+					bad["rings_used does not follow the counted launches"] = true
+				prev_used = a.rings_used
 				_invariants(a, lv, bad)
 	check.call(bad.is_empty(), "random play keeps every invariant (%s)" % str(bad.keys()))
 	check.call(
@@ -91,8 +97,13 @@ func _invariants(s: MazeSim, lv: MazeLevel, bad: Dictionary) -> void:
 	if s.beads_left < 0 or s.beads_left > lv.beads:
 		bad["beads_left outside 0..beads"] = true
 	var thrown := 0
+	var used := 0
 	var seen := {}
 	for r in s.rings:
+		if r["used"]:
+			used += 1
+			if r["preset"]:
+				bad["a preset ring is marked used"] = true
 		if not r["preset"]:
 			thrown += 1
 		var key := "%s/%d" % [r["cell"], r["face"]]
@@ -114,6 +125,8 @@ func _invariants(s: MazeSim, lv: MazeLevel, bad: Dictionary) -> void:
 		seen[key] = true
 		if f["arrive_tick"] <= s.tick - 1:
 			bad["a flight outlived its arrival"] = true
+	if used > s.rings_used or s.rings_used > s.throw_count:
+		bad["rings_used outside used rings..throws"] = true
 	if s.beads_left + thrown != lv.beads:
 		bad["beads are not conserved"] = true
 	var last := -2

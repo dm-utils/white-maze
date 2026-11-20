@@ -22,7 +22,9 @@ func _shipped(check: Callable) -> void:
 		check.call(lv.valid(), "%s is valid (%s)" % [id, str(lv.errors)])
 		var file := WhitePuzzleStore.load_json("res://levels/%s.json" % id)
 		check.call(lv.render() == PackedStringArray(file["rows"]), "%s: render() gives the file rows back" % id)
-		check.call(lv.id == id and lv.beads == 3 and lv.par >= 1 and lv.par <= lv.beads, "%s: id, beads and par" % id)
+		check.call(
+			lv.id == id and lv.beads == 3 and lv.par >= 1 and lv.par <= MazeLevel.MAX_PAR, "%s: id, beads and par" % id
+		)
 		check.call(
 			lv.hints.has("nl") and lv.hints.has("en") and lv.names["nl"] != "" and lv.names["en"] != "",
 			"%s: names and hints in both languages" % id
@@ -83,7 +85,8 @@ func _validation(check: Callable) -> void:
 		["name", {"name": {"nl": "x"}}, "name needs non-empty nl and en"],
 		["difficulty", {"difficulty": "extreme"}, "difficulty must be easy, medium or hard"],
 		["beads", {"beads": 0}, "beads 0 is outside 1..9"],
-		["par", {"par": 4}, "par 4 is outside 0..3"],
+		["par", {"par": 21}, "par 21 is outside 0..20"],
+		["par negative", {"par": -1}, "par -1 is outside 0..20"],
 		["hint", {"hint": {"nl": "x"}}, "hint needs non-empty nl and en"],
 		["rows type", {"rows": "abc"}, "rows must be a list of strings"],
 		["rows entry", {"rows": [1, 2]}, "rows must be a list of strings"],
@@ -188,6 +191,14 @@ func _validation(check: Callable) -> void:
 		),
 		"whole floats from JSON are accepted"
 	)
+	var par_base := _base()
+	par_base["rows"] = valid_rows
+	var par_ok := true
+	for case in [[0, 1], [1, 1], [5, 3], [20, 1], [20, 9]]:
+		par_base["par"] = case[0]
+		par_base["beads"] = case[1]
+		par_ok = par_ok and MazeLevel.from_dict(par_base).valid()
+	check.call(par_ok, "par 0..20 is valid whatever the number of beads")
 
 
 func _with(rows: Array, at: Vector2i, ch: String) -> Array:

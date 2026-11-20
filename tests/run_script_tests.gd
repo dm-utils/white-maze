@@ -148,6 +148,6 @@ func _round_trip(check: Callable) -> void:
 			break
 	var again := MazeRunScript.run(lv, MazeRunScript.encode(recorded))
 	check.call(
-		again.finished() and again.finish_tick == first.finish_tick and again.beads_used() == first.beads_used(),
+		again.finished() and again.finish_tick == first.finish_tick and again.rings_used == first.rings_used,
 		"an encoded recording replays to the same finish tick and beads"
 	)

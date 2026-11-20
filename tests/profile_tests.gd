@@ -66,9 +66,9 @@ func _sanitize(check: Callable) -> void:
 			"l001":
 			{
 				"best_ticks": 100.0,
-				"best_beads": -1,
+				"best_rings": 2.0,
 				"best_run": 5,
-				"fewest_beads": 1.5,
+				"fewest_rings": 1.5,
 				"first_finish": 7,
 				"last_played": 9,
 				"unknown_level_key": "kept",
@@ -92,8 +92,16 @@ func _sanitize(check: Callable) -> void:
 		e["best_ticks"] == 100 and e["best_ticks"] is int and e["first_finish"] == 7, "valid numbers are kept as ints"
 	)
 	check.call(
-		not e.has("best_beads") and not e.has("fewest_beads") and not e.has("best_run"),
-		"negative, fractional and wrongly typed fields are dropped"
+		e["best_rings"] == 2 and e["best_rings"] is int and not e.has("fewest_rings") and not e.has("best_run"),
+		"fractional and wrongly typed fields are dropped, whole floats kept"
+	)
+	var pairs: Dictionary = MazeProfile.sanitize({"format": 1, "levels": {"l001": {
+		"best_ticks": 100, "best_rings": -1, "fewest_rings": 1, "best_run": "R5",
+	}}})["profile"]["levels"]["l001"]
+	check.call(
+		not pairs.has("best_ticks") and not pairs.has("best_rings") and not pairs.has("fewest_rings")
+		and not pairs.has("best_run"),
+		"linked fields go together: a bad partner drops the pair (best_run without best_ticks too)"
 	)
 	check.call(e["unknown_level_key"] == "kept", "unknown keys inside a level are kept")
 	check.call(e["counts"].keys() == [DEV_A], "counts with a bad device key are dropped")
@@ -137,9 +145,9 @@ func _stats(check: Callable) -> void:
 			r["new_best"]
 			and r["new_fewest"]
 			and e["best_ticks"] == 900
-			and e["best_beads"] == 2
+			and e["best_rings"] == 2
 			and e["best_run"] == "R40"
-			and e["fewest_beads"] == 2
+			and e["fewest_rings"] == 2
 			and e["fewest_ticks"] == 900
 			and e["first_finish"] == 30
 		),
@@ -164,9 +172,9 @@ func _stats(check: Callable) -> void:
 			not r["new_best"]
 			and r["new_fewest"]
 			and e["best_ticks"] == 900
-			and e["fewest_beads"] == 1
+			and e["fewest_rings"] == 1
 			and e["fewest_ticks"] == 1500
-			and r["fewest_beads"] == 1
+			and r["fewest_rings"] == 1
 		),
 		"fewer beads but slower updates only fewest"
 	)
@@ -174,7 +182,7 @@ func _stats(check: Callable) -> void:
 	check.call(r["new_fewest"] and e["fewest_ticks"] == 1400, "same beads and faster updates fewest")
 	r = MazeProfile.record_finish(p, "l001", 800, 3, "fast", 70)
 	check.call(
-		r["new_best"] and not r["new_fewest"] and e["best_beads"] == 3 and e["best_run"] == "fast",
+		r["new_best"] and not r["new_fewest"] and e["best_rings"] == 3 and e["best_run"] == "fast",
 		"faster finish with more beads updates only best"
 	)
 	MazeProfile.record_finish(p, "l002", 100, 1, "R".repeat(MazeProfile.MAX_RUN + 1), 80)
@@ -196,9 +204,9 @@ func _level(
 ) -> Dictionary:
 	var e := {
 		"best_ticks": best,
-		"best_beads": beads,
+		"best_rings": beads,
 		"best_run": "run%d" % best,
-		"fewest_beads": fewest_b,
+		"fewest_rings": fewest_b,
 		"fewest_ticks": fewest_t,
 		"first_finish": 100 + best,
 		"last_played": best,
@@ -223,10 +231,10 @@ func _merge(check: Callable) -> void:
 	var m := MazeProfile.merge(local, remote)
 	var e: Dictionary = m["levels"]["l001"]
 	check.call(
-		e["best_ticks"] == 800 and e["best_beads"] == 3 and e["best_run"] == "run800",
+		e["best_ticks"] == 800 and e["best_rings"] == 3 and e["best_run"] == "run800",
 		"best comes from remote as a group"
 	)
-	check.call(e["fewest_beads"] == 1 and e["fewest_ticks"] == 1500, "fewest comes from remote as a group")
+	check.call(e["fewest_rings"] == 1 and e["fewest_ticks"] == 1500, "fewest comes from remote as a group")
 	check.call(
 		e["first_finish"] == 900 and e["last_played"] == 900, "first_finish is the minimum, last_played the maximum"
 	)
@@ -243,10 +251,15 @@ func _merge(check: Callable) -> void:
 	var tie_r := _profile(DEV_B, 70, "en", {"l001": _level(800, 2, 2, 800, c2, {"best_run": "remote"})})
 	var tie := MazeProfile.merge(tie_l, tie_r)
 	check.call(tie["levels"]["l001"]["best_run"] == "local" and tie["lang"] == "nl", "ties go to local (best, lang)")
-	# tie on ticks broken by beads
+	# tie on ticks broken by rings
 	var b_l := _profile(DEV_A, 1, "nl", {"l001": _level(800, 3, 3, 800, c1)})
 	var b_r := _profile(DEV_B, 1, "nl", {"l001": _level(800, 2, 2, 800, c2)})
-	check.call(MazeProfile.merge(b_l, b_r)["levels"]["l001"]["best_beads"] == 2, "equal best ticks: fewer beads wins")
+	check.call(MazeProfile.merge(b_l, b_r)["levels"]["l001"]["best_rings"] == 2, "equal best ticks: fewer rings wins")
+	# equal fewest rings: the faster finish wins, as a group
+	var f_l := _profile(DEV_A, 1, "nl", {"l001": _level(900, 3, 2, 900, c1)})
+	var f_r := _profile(DEV_B, 1, "nl", {"l001": _level(950, 3, 2, 700, c2)})
+	var f_e: Dictionary = MazeProfile.merge(f_l, f_r)["levels"]["l001"]
+	check.call(f_e["fewest_rings"] == 2 and f_e["fewest_ticks"] == 700, "equal fewest rings: faster finish wins")
 	# an absent best counts as infinite
 	var none_l := _profile(DEV_A, 1, "nl", {"l001": {"counts": c1, "last_played": 5}})
 	var none := MazeProfile.merge(none_l, remote)

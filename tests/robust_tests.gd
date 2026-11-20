@@ -126,7 +126,7 @@ func _sanitize_garbage(check: Callable) -> void:
 	var oks := 0
 	for i in 500:
 		var d := {"format": 1, "device": DEV_A, "lang": "en", "updated": 5, "levels": {"l001": {
-			"best_ticks": 100, "best_beads": 1, "best_run": "R5", "fewest_beads": 1, "fewest_ticks": 100,
+			"best_ticks": 100, "best_rings": 1, "best_run": "R5", "fewest_rings": 1, "fewest_ticks": 100,
 			"first_finish": 3, "last_played": 4,
 			"counts": {DEV_A: {"starts": 1, "finishes": 1, "deaths": 0, "play_ticks": 9}},
 		}}}
@@ -158,9 +158,9 @@ func _sanitize_garbage(check: Callable) -> void:
 			q["device"] = DEV_B
 		MazeProfile.record_start(q, "l001", 10)
 		MazeProfile.add_play(q, "l002", 50, 1, 11)
-		# fewest_beads without fewest_ticks is covered by _sanitize_partial_pairs
+		# fewest_rings without fewest_ticks is covered by _sanitize_partial_pairs
 		var e: Dictionary = q["levels"]["l001"]
-		if e.has("fewest_beads") != e.has("fewest_ticks") or e.has("best_ticks") != e.has("best_beads"):
+		if e.has("fewest_rings") != e.has("fewest_ticks") or e.has("best_ticks") != e.has("best_rings"):
 			continue
 		var res := MazeProfile.record_finish(q, "l001", 90, 1, "R9", 12)
 		ops_ok = ops_ok and res.has("new_best") and MazeProfile.level_totals(q, "l001")["starts"] >= 1
@@ -186,11 +186,11 @@ func _sanitize_lang_types(check: Callable) -> void:
 func _sanitize_partial_pairs(check: Callable) -> void:
 	# a damaged entry keeps one field of a pair; later play must not raise
 	var cases := [
-		{"fewest_beads": 1},
+		{"fewest_rings": 1},
 		{"fewest_ticks": 100},
 		{"best_ticks": 100},
-		{"best_beads": 1},
-		{"best_ticks": 100, "fewest_beads": 2},
+		{"best_rings": 1},
+		{"best_ticks": 100, "fewest_rings": 2},
 	]
 	for entry in cases:
 		var d := {"format": 1, "device": DEV_A, "levels": {"l001": entry.duplicate()}}
@@ -289,7 +289,7 @@ func _no_ties(a: Dictionary, b: Dictionary) -> bool:
 		var y: Dictionary = b["levels"][id]
 		if x.has("best_ticks") and y.has("best_ticks") and x["best_ticks"] == y["best_ticks"]:
 			return false
-		if x.has("fewest_beads") and y.has("fewest_beads") and x["fewest_beads"] == y["fewest_beads"] \
+		if x.has("fewest_rings") and y.has("fewest_rings") and x["fewest_rings"] == y["fewest_rings"] \
 				and x["fewest_ticks"] == y["fewest_ticks"]:
 			return false
 	return a["lang"] == b["lang"] or a["updated"] != b["updated"]

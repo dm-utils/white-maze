@@ -117,6 +117,15 @@ func _determinism(check: Callable) -> void:
 		same = same and a.snapshot() == _replay_to(lv, i + 1).snapshot()
 	b = _replay_to(lv, 600)
 	check.call(same and a.snapshot() == b.snapshot(), "the same level and inputs give equal snapshots after every tick")
+	var c := MazeSim.new(lv)
+	var before := c.snapshot()
+	c.rings_used = 1
+	var used_changed := c.snapshot() != before
+	c.rings_used = 0
+	c.rings.append({"cell": Vector2i(10, 12), "face": 0, "preset": false, "order": 0, "cooldown": 0, "used": false})
+	var plain := c.snapshot()
+	c.rings[0]["used"] = true
+	check.call(used_changed and c.snapshot() != plain, "the snapshot contains rings_used and each ring's used flag")
 
 
 func _replay_to(lv: MazeLevel, ticks: int) -> MazeSim:

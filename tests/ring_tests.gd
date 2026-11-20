@@ -1,5 +1,5 @@
 extends RefCounted
-## S8-S14: ring launches, cooldown, throws and invalid throws, undo.
+## S8-S14 and S19: ring launches, cooldown, throws and invalid throws, undo, rings used.
 
 const H := preload("res://tests/helpers.gd")
 const T := MazeTuning.TILE
@@ -17,6 +17,7 @@ func run(check: Callable, _node: Node) -> void:
 	_throw_and_invalid(check)
 	_throw_down(check)
 	_undo(check)
+	_rings_used(check)
 
 
 func _ring(x: int, y: int, face: String) -> Dictionary:
@@ -211,8 +212,8 @@ func _throw_and_invalid(check: Callable) -> void:
 	)
 	sim.step(H.inp(0, false, false, 0))
 	check.call(
-		sim.beads_left == 2 and sim.flights.size() == 1 and H.has_event(sim, "throw"),
-		"a valid throw spends a bead and starts a flight"
+		sim.beads_left == 2 and sim.flights.size() == 1 and H.has_event(sim, "throw") and sim.rings_used == 0,
+		"a valid throw spends a bead, starts a flight and leaves rings used unchanged"
 	)
 	var arrive: int = sim.flights[0]["arrive_tick"]
 	check.call(arrive > sim.tick and sim.rings.is_empty(), "the ring does not exist before the bead arrives")
@@ -309,6 +310,7 @@ func _throw_down(check: Callable) -> void:
 		),
 		"the floor ring under the player launches it on arrival"
 	)
+	check.call(sim.rings_used == 1 and H.event(sim, "launch")["counted"], "that launch counts one ring used")
 
 
 func _undo(check: Callable) -> void:
@@ -319,7 +321,8 @@ func _undo(check: Callable) -> void:
 	check.call(sim.flights.size() == 1 and sim.beads_left == 2, "throw before undo")
 	sim.step(H.inp(0, false, false, -1, true))
 	check.call(
-		sim.flights.is_empty() and sim.beads_left == 3 and H.has_event(sim, "undo"), "undo takes back a bead in flight"
+		sim.flights.is_empty() and sim.beads_left == 3 and H.has_event(sim, "undo") and sim.rings_used == 0,
+		"undo takes back a bead in flight and leaves rings used unchanged"
 	)
 	sim = MazeSim.new(lv)
 	sim.px = 6 * T
@@ -351,3 +354,107 @@ func _undo(check: Callable) -> void:
 		not H.has_event(sim, "undo") and H.snap_no_tick(sim) == before,
 		"undo with nothing thrown changes nothing (preset stays)"
 	)
+
+
+## S19: rings used (ADR 0009)
+func _rings_used(check: Callable) -> void:
+	var lv := H.level(H.rows(30, 14, {Vector2i(8, 12): "#"}), {"par": 5})
+	# a) landed ring, never touched; undo returns the bead
+	var sim := MazeSim.new(lv)
+	sim.step(H.inp(0, false, false, 0))
+	_settle(sim)
+	check.call(sim.rings.size() == 1 and sim.rings_used == 0, "S19a: a landed ring nobody touched counts 0")
+	sim.step(H.inp(0, false, false, -1, true))
+	check.call(sim.beads_left == 3 and sim.rings_used == 0, "S19a: undo returns the bead, still 0")
+	# b) taken back in flight
+	sim = MazeSim.new(lv)
+	sim.step(H.inp(0, false, false, 0))
+	sim.step(H.inp(0, false, false, -1, true))
+	_settle(sim)
+	check.call(sim.rings_used == 0 and sim.beads_left == 3, "S19b: a bead taken back in flight counts 0")
+	# c) bounce on an own floor ring at least three times
+	var floor_lv := H.level(H.rows(20, 12), {"par": 3})
+	sim = MazeSim.new(floor_lv)
+	sim.step(H.inp(0, false, false, 108))
+	var counted: Array[bool] = []
+	for i in 200:
+		sim.step(H.inp())
+		for e in sim.events:
+			if e["type"] == "launch":
+				counted.append(e["counted"])
+	check.call(
+		counted.size() >= 3 and counted[0] and not counted.slice(1).has(true) and sim.rings_used == 1,
+		"S19c: %d bounces on one own ring count 1, only the first launch is counted" % counted.size()
+	)
+	# d) undo after the launch, throw to the same face again: second ring used
+	check.call(sim.beads_left == 2, "S19d: one bead is out before the undo")
+	sim.step(H.inp(0, false, false, -1, true))
+	check.call(
+		sim.beads_left == floor_lv.beads and sim.rings_used == 1, "S19d: undo after the launch returns the bead, 1 stays"
+	)
+	sim.step(H.inp(0, false, false, 108))
+	var guard := 0
+	while sim.rings_used < 2 and guard < 300:
+		sim.step(H.inp())
+		guard += 1
+	check.call(sim.rings_used == 2, "S19d: the same face thrown again and used counts 2")
+	# e) preset ring
+	var preset_lv := H.level(H.rows(20, 16), _ring(2, 15, "up"))
+	sim = MazeSim.new(preset_lv)
+	sim.step(H.inp())
+	var launch := H.event(sim, "launch")
+	check.call(
+		not launch.is_empty() and launch["counted"] == false and sim.rings_used == 0,
+		"S19e: a preset ring launches without counting"
+	)
+	# f) misuse: one bead, three cycles of throw, launch, undo
+	var one := H.level(H.rows(20, 12), {"beads": 1, "par": 3})
+	sim = MazeSim.new(one)
+	for cycle in 3:
+		sim.step(H.inp(0, false, false, 108))
+		guard = 0
+		var before := sim.rings_used
+		while sim.rings_used == before and guard < 100:
+			sim.step(H.inp())
+			guard += 1
+		sim.step(H.inp(0, false, false, -1, true))
+	check.call(
+		sim.beads_left == 1 and sim.rings_used == 3,
+		"S19f: three throw, launch, undo cycles with one bead count 3 (%d)" % sim.rings_used
+	)
+	# g) death keeps the count; a new sim starts at 0
+	var spike := H.level(H.rows(20, 12, {Vector2i(8, 10): "^", Vector2i(9, 10): "^"}), {"par": 1})
+	sim = MazeSim.new(spike)
+	sim.step(H.inp(0, false, false, 108))
+	guard = 0
+	while sim.rings_used == 0 and guard < 100:
+		sim.step(H.inp())
+		guard += 1
+	sim.px = 8 * T + T
+	sim.py = 10 * T
+	sim.grounded = false
+	guard = 0
+	while sim.alive() and guard < 100:
+		sim.step(H.inp())
+		guard += 1
+	check.call(not sim.alive() and sim.rings_used == 1, "S19g: a death after a counted launch keeps rings used")
+	check.call(MazeSim.new(spike).rings_used == 0, "S19g: a new sim starts at 0")
+	# h) finish event carries rings
+	sim = MazeSim.new(H.level(H.rows(20, 12, {"F": Vector2i(), Vector2i(9, 10): "F"}), {"par": 1}))
+	sim.step(H.inp(0, false, false, 108))
+	guard = 0
+	while not sim.finished() and guard < 300:
+		sim.step(H.inp(1))
+		guard += 1
+	var fin := H.event(sim, "finish")
+	check.call(
+		sim.finished() and fin.get("rings", -1) == sim.rings_used and sim.rings_used >= 1,
+		"S19h: the finish event carries rings (%s)" % str(fin)
+	)
+
+
+func _settle(sim: MazeSim) -> void:
+	var guard := 0
+	while not sim.flights.is_empty() and guard < 200:
+		sim.step(H.inp())
+		guard += 1

@@ -17,14 +17,14 @@ func run(check: Callable, _node: Node) -> void:
 			continue
 		print(
 			(
-				"solution %s: %d ticks, %d beads, par %d, %d deaths"
-				% [id, sim.time_ticks(), sim.beads_used(), lv.par, sim.deaths]
+				"solution %s: %d ticks, %d rings, par %d, %d deaths"
+				% [id, sim.time_ticks(), sim.rings_used, lv.par, sim.deaths]
 			)
 		)
 		check.call(
-			sim.beads_used() <= lv.par, "%s: the solution uses %d beads, par is %d" % [id, sim.beads_used(), lv.par]
+			sim.rings_used <= lv.par, "%s: the solution uses %d rings, par is %d" % [id, sim.rings_used, lv.par]
 		)
-		check.call(sim.beads_used() >= 1, "%s: the solution needs at least one bead" % id)
+		check.call(sim.rings_used >= 1, "%s: the solution launches off at least one thrown ring" % id)
 		check.call(sim.time_ticks() > 0, "%s: the solution takes time" % id)
 		# replay twice: equal snapshots tick by tick
 		var inputs: Array = MazeRunScript.parse(solutions[id])["inputs"]
@@ -42,6 +42,6 @@ func run(check: Callable, _node: Node) -> void:
 		check.call(same and a.finish_tick == sim.finish_tick, "%s: replaying twice gives equal snapshots" % id)
 		var again := MazeRunScript.run(lv, MazeRunScript.encode(recorded))
 		check.call(
-			again.finished() and again.finish_tick == sim.finish_tick and again.beads_used() == sim.beads_used(),
+			again.finished() and again.finish_tick == sim.finish_tick and again.rings_used == sim.rings_used,
 			"%s: the encoded recording replays to the same finish" % id
 		)
