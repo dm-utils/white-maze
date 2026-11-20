@@ -37,11 +37,18 @@ func _spike_death(check: Callable) -> void:
 		alive_early = alive_early or sim.alive()
 	check.call(not alive_early and sim.tick == death_tick + 29, "dead for 29 ticks after the death tick")
 	sim.step(H.inp())
-	check.call(sim.alive() and H.has_event(sim, "respawn") and sim.tick == death_tick + 30, "respawn exactly 30 ticks after death")
-	check.call(sim.px == 2 * T + T / 2 and sim.py == 11 * T and sim.vx == 0 and sim.vy == 0 and sim.facing == 1,
-			"respawn at the spawn with zero velocity")
-	check.call(sim.beads_left == beads and sim.clock_start == clock and sim.deaths == 1,
-			"beads, clock and death count survive a death")
+	check.call(
+		sim.alive() and H.has_event(sim, "respawn") and sim.tick == death_tick + 30,
+		"respawn exactly 30 ticks after death"
+	)
+	check.call(
+		sim.px == 2 * T + T / 2 and sim.py == 11 * T and sim.vx == 0 and sim.vy == 0 and sim.facing == 1,
+		"respawn at the spawn with zero velocity"
+	)
+	check.call(
+		sim.beads_left == beads and sim.clock_start == clock and sim.deaths == 1,
+		"beads, clock and death count survive a death"
+	)
 	check.call(sim.rings.size() + flights >= 1, "rings and flights survive a death")
 
 
@@ -80,7 +87,9 @@ func _clock(check: Callable) -> void:
 	check.call(ticks == sim.finish_tick - sim.clock_start + 1, "time counts first active tick to finish tick inclusive")
 	var frozen := H.snap_no_tick(sim)
 	H.steps(sim, 30, H.inp(1, true, true))
-	check.call(sim.time_ticks() == ticks and H.snap_no_tick(sim) == frozen, "after the finish only the tick counter changes")
+	check.call(
+		sim.time_ticks() == ticks and H.snap_no_tick(sim) == frozen, "after the finish only the tick counter changes"
+	)
 	var jump_clock := MazeSim.new(H.level(H.rows(30, 12)))
 	jump_clock.step(H.inp(0, true, true))
 	check.call(jump_clock.time_ticks() == 1, "a jump press starts the clock")

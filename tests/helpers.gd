@@ -23,15 +23,21 @@ static func rows(width: int, height: int, edits: Dictionary = {}) -> Array:
 
 static func level(grid: Array, extra: Dictionary = {}) -> MazeLevel:
 	var d := {
-		"format": 1, "id": "t001", "name": {"nl": "T", "en": "T"}, "difficulty": "easy", "beads": 3, "par": 1,
+		"format": 1,
+		"id": "t001",
+		"name": {"nl": "T", "en": "T"},
+		"difficulty": "easy",
+		"beads": 3,
+		"par": 1,
 		"rows": grid,
 	}
 	d.merge(extra, true)
 	return MazeLevel.from_dict(d)
 
 
-static func inp(move: int = 0, held: bool = false, pressed: bool = false, throw_dir: int = -1,
-		undo: bool = false) -> MazeInput:
+static func inp(
+	move: int = 0, held: bool = false, pressed: bool = false, throw_dir: int = -1, undo: bool = false
+) -> MazeInput:
 	var i := MazeInput.new()
 	i.move = move
 	i.jump_held = held

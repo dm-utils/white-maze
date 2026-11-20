@@ -39,7 +39,10 @@ func _floor_ring(check: Callable) -> void:
 		var sim := MazeSim.new(lv)
 		var low := _apex(sim, H.inp(0, held), 120)
 		var lift := (15 * T - low) / float(T)
-		check.call(lift >= 5.5 and lift <= 6.3, "floor ring lifts the feet 5.5 to 6.3 tiles, jump held %s (%.2f)" % [held, lift])
+		check.call(
+			lift >= 5.5 and lift <= 6.3,
+			"floor ring lifts the feet 5.5 to 6.3 tiles, jump held %s (%.2f)" % [held, lift]
+		)
 	for incoming in [-8000, 0, 6000, MazeTuning.MAX_FALL]:
 		var sim := MazeSim.new(lv)
 		sim.py = 15 * T - 3 * T
@@ -47,12 +50,16 @@ func _floor_ring(check: Callable) -> void:
 		sim.grounded = false
 		var low := _apex(sim, H.inp(), 120)
 		var lift := (15 * T - low) / float(T)
-		check.call(lift >= 5.5 and lift <= 6.8,
-				"floor ring gives the same bounce after incoming speed %d (lift %.2f)" % [incoming, lift])
+		check.call(
+			lift >= 5.5 and lift <= 6.8,
+			"floor ring gives the same bounce after incoming speed %d (lift %.2f)" % [incoming, lift]
+		)
 	var sim := MazeSim.new(lv)
 	sim.step(H.inp())
-	check.call(H.has_event(sim, "launch") and sim.vy == -MazeTuning.FLOOR_LAUNCH and not sim.grounded,
-			"standing on a floor ring launches at once with vy = -FLOOR_LAUNCH (vy %d)" % sim.vy)
+	check.call(
+		H.has_event(sim, "launch") and sim.vy == -MazeTuning.FLOOR_LAUNCH and not sim.grounded,
+		"standing on a floor ring launches at once with vy = -FLOOR_LAUNCH (vy %d)" % sim.vy
+	)
 
 
 func _wall_ring(check: Callable) -> void:
@@ -68,8 +75,10 @@ func _wall_ring(check: Callable) -> void:
 	while not H.has_event(sim, "launch") and guard < 100:
 		sim.step(H.inp(-1))
 		guard += 1
-	check.call(H.has_event(sim, "launch") and sim.vx == MazeTuning.WALL_LAUNCH_X and sim.vy <= -MazeTuning.WALL_LAUNCH_LIFT,
-			"wall ring on a RIGHT face: vx = WALL_LAUNCH_X, vy <= -WALL_LAUNCH_LIFT (vx %d vy %d)" % [sim.vx, sim.vy])
+	check.call(
+		H.has_event(sim, "launch") and sim.vx == MazeTuning.WALL_LAUNCH_X and sim.vy <= -MazeTuning.WALL_LAUNCH_LIFT,
+		"wall ring on a RIGHT face: vx = WALL_LAUNCH_X, vy <= -WALL_LAUNCH_LIFT (vx %d vy %d)" % [sim.vx, sim.vy]
+	)
 	var held_ok := true
 	for i in 12:
 		sim.step(H.inp(-1))
@@ -88,8 +97,15 @@ func _wall_ring(check: Callable) -> void:
 	while not H.has_event(sim, "launch") and guard < 100:
 		sim.step(H.inp(1))
 		guard += 1
-	check.call(H.has_event(sim, "launch") and sim.vx == -MazeTuning.WALL_LAUNCH_X and sim.vy <= -MazeTuning.WALL_LAUNCH_LIFT and sim.facing == -1,
-			"wall ring on a LEFT face mirrors it (vx %d vy %d)" % [sim.vx, sim.vy])
+	check.call(
+		(
+			H.has_event(sim, "launch")
+			and sim.vx == -MazeTuning.WALL_LAUNCH_X
+			and sim.vy <= -MazeTuning.WALL_LAUNCH_LIFT
+			and sim.facing == -1
+		),
+		"wall ring on a LEFT face mirrors it (vx %d vy %d)" % [sim.vx, sim.vy]
+	)
 	held_ok = true
 	for i in 12:
 		sim.step(H.inp(1))
@@ -103,7 +119,9 @@ func _wall_ring(check: Callable) -> void:
 	sim.vy = -16000
 	sim.grounded = false
 	sim.step(H.inp())
-	check.call(H.has_event(sim, "launch") and sim.vy < -MazeTuning.WALL_LAUNCH_LIFT, "a faster rise is kept by a wall launch")
+	check.call(
+		H.has_event(sim, "launch") and sim.vy < -MazeTuning.WALL_LAUNCH_LIFT, "a faster rise is kept by a wall launch"
+	)
 
 
 func _ceiling_ring(check: Callable) -> void:
@@ -116,8 +134,9 @@ func _ceiling_ring(check: Callable) -> void:
 		if H.has_event(sim, "launch"):
 			launched = true
 			break
-	check.call(launched and sim.vy == MazeTuning.CEILING_LAUNCH,
-			"ceiling ring sets vy = CEILING_LAUNCH (vy %d)" % sim.vy)
+	check.call(
+		launched and sim.vy == MazeTuning.CEILING_LAUNCH, "ceiling ring sets vy = CEILING_LAUNCH (vy %d)" % sim.vy
+	)
 	check.call(not sim.launched, "a ceiling launch does not count as rising")
 
 
@@ -133,7 +152,10 @@ func _cooldown_and_order(check: Callable) -> void:
 		for e in sim.events:
 			if e["type"] == "launch" and e["face"] == UP:
 				floor_launches.append(sim.tick)
-	check.call(floor_launches.size() >= 2, "the corridor bounces the player repeatedly (%d floor launches)" % floor_launches.size())
+	check.call(
+		floor_launches.size() >= 2,
+		"the corridor bounces the player repeatedly (%d floor launches)" % floor_launches.size()
+	)
 	var gap_ok := true
 	for i in range(1, floor_launches.size()):
 		gap_ok = gap_ok and floor_launches[i] - floor_launches[i - 1] >= MazeTuning.RING_COOLDOWN_TICKS
@@ -142,7 +164,9 @@ func _cooldown_and_order(check: Callable) -> void:
 	var edits := {}
 	for y in range(13, 15):
 		edits[Vector2i(4, y)] = "#"
-	lv = H.level(H.rows(12, 16, edits), {"rings": [{"x": 5, "y": 15, "face": "up"}, {"x": 4, "y": 14, "face": "right"}]})
+	lv = H.level(
+		H.rows(12, 16, edits), {"rings": [{"x": 5, "y": 15, "face": "up"}, {"x": 4, "y": 14, "face": "right"}]}
+	)
 	check.call(lv.valid(), "overlapping rings level is valid (%s)" % str(lv.errors))
 	sim = MazeSim.new(lv)
 	sim.px = 5 * T + 15000
@@ -163,27 +187,49 @@ func _throw_case(check: Callable, name: String, sim: MazeSim, dir: int, reason: 
 	var ring_count := sim.rings.size()
 	sim.step(H.inp(0, false, false, dir))
 	var ev := H.event(sim, "throw_invalid")
-	check.call(ev.get("reason", "") == reason and sim.beads_left == beads and sim.flights.is_empty()
-			and sim.rings.size() == ring_count, "invalid throw (%s) reports '%s' and changes nothing" % [name, reason])
+	check.call(
+		(
+			ev.get("reason", "") == reason
+			and sim.beads_left == beads
+			and sim.flights.is_empty()
+			and sim.rings.size() == ring_count
+		),
+		"invalid throw (%s) reports '%s' and changes nothing" % [name, reason]
+	)
 
 
 func _throw_and_invalid(check: Callable) -> void:
 	# valid throw to the right at a block: ring on its left face
 	var sim := _throw_sim({Vector2i(8, 12): "#"})
 	var cast := sim.cast(0)
-	check.call(cast["valid"] and cast["cell"] == Vector2i(8, 12) and cast["face"] == LEFT and cast["reason"] == "ok",
-			"cast to the right hits the left face of the block")
-	check.call(cast["dist"] > 0 and cast["origin"] == Vector2i(sim.px, sim.py - 16000), "cast reports origin and distance")
+	check.call(
+		cast["valid"] and cast["cell"] == Vector2i(8, 12) and cast["face"] == LEFT and cast["reason"] == "ok",
+		"cast to the right hits the left face of the block"
+	)
+	check.call(
+		cast["dist"] > 0 and cast["origin"] == Vector2i(sim.px, sim.py - 16000), "cast reports origin and distance"
+	)
 	sim.step(H.inp(0, false, false, 0))
-	check.call(sim.beads_left == 2 and sim.flights.size() == 1 and H.has_event(sim, "throw"), "a valid throw spends a bead and starts a flight")
+	check.call(
+		sim.beads_left == 2 and sim.flights.size() == 1 and H.has_event(sim, "throw"),
+		"a valid throw spends a bead and starts a flight"
+	)
 	var arrive: int = sim.flights[0]["arrive_tick"]
 	check.call(arrive > sim.tick and sim.rings.is_empty(), "the ring does not exist before the bead arrives")
 	while sim.tick < arrive - 1:
 		sim.step(H.inp())
 	check.call(sim.rings.is_empty(), "no ring one tick before arrival")
 	sim.step(H.inp())
-	check.call(sim.rings.size() == 1 and H.has_event(sim, "ring") and sim.rings[0]["cell"] == Vector2i(8, 12)
-			and sim.rings[0]["face"] == LEFT and not sim.rings[0]["preset"], "the ring appears at the arrival tick")
+	check.call(
+		(
+			sim.rings.size() == 1
+			and H.has_event(sim, "ring")
+			and sim.rings[0]["cell"] == Vector2i(8, 12)
+			and sim.rings[0]["face"] == LEFT
+			and not sim.rings[0]["preset"]
+		),
+		"the ring appears at the arrival tick"
+	)
 	check.call(sim.time_ticks() > 0, "a valid throw starts the clock")
 
 	_throw_case(check, "no-ring block", _throw_sim({Vector2i(8, 12): "X"}), 0, "no_ring")
@@ -199,8 +245,10 @@ func _throw_and_invalid(check: Callable) -> void:
 	sim.px = 2 * T + 20000
 	sim.py = 12 * T + 36000
 	cast = sim.cast(126)
-	check.call(cast["valid"] and cast["cell"] == Vector2i(3, 13) and cast["face"] == UP,
-			"a diagonal corner hit picks the vertical face when |dy| >= |dx|")
+	check.call(
+		cast["valid"] and cast["cell"] == Vector2i(3, 13) and cast["face"] == UP,
+		"a diagonal corner hit picks the vertical face when |dy| >= |dx|"
+	)
 	sim = _throw_sim({Vector2i(6, 12): "^"})
 	sim.px = 6 * T + 20000
 	_throw_case(check, "spike in front", sim, 108, "hazard")
@@ -235,8 +283,15 @@ func _throw_case_keep(check: Callable, name: String, sim: MazeSim, dir: int, rea
 	var flight_count := sim.flights.size()
 	sim.step(H.inp(0, false, false, dir))
 	var ev := H.event(sim, "throw_invalid")
-	check.call(ev.get("reason", "") == reason and sim.beads_left == beads and sim.flights.size() == flight_count
-			and sim.rings.size() == ring_count, "invalid throw (%s) reports '%s' and changes nothing" % [name, reason])
+	check.call(
+		(
+			ev.get("reason", "") == reason
+			and sim.beads_left == beads
+			and sim.flights.size() == flight_count
+			and sim.rings.size() == ring_count
+		),
+		"invalid throw (%s) reports '%s' and changes nothing" % [name, reason]
+	)
 
 
 func _throw_down(check: Callable) -> void:
@@ -245,8 +300,15 @@ func _throw_down(check: Callable) -> void:
 	check.call(H.has_event(sim, "throw") and sim.beads_left == 2, "throwing straight down while standing is valid")
 	var throw_tick := sim.tick
 	sim.step(H.inp())
-	check.call(sim.tick == throw_tick + 1 and H.has_event(sim, "ring") and H.has_event(sim, "launch")
-			and sim.vy == -MazeTuning.FLOOR_LAUNCH, "the floor ring under the player launches it on arrival")
+	check.call(
+		(
+			sim.tick == throw_tick + 1
+			and H.has_event(sim, "ring")
+			and H.has_event(sim, "launch")
+			and sim.vy == -MazeTuning.FLOOR_LAUNCH
+		),
+		"the floor ring under the player launches it on arrival"
+	)
 
 
 func _undo(check: Callable) -> void:
@@ -256,7 +318,9 @@ func _undo(check: Callable) -> void:
 	sim.step(H.inp(0, false, false, 72))
 	check.call(sim.flights.size() == 1 and sim.beads_left == 2, "throw before undo")
 	sim.step(H.inp(0, false, false, -1, true))
-	check.call(sim.flights.is_empty() and sim.beads_left == 3 and H.has_event(sim, "undo"), "undo takes back a bead in flight")
+	check.call(
+		sim.flights.is_empty() and sim.beads_left == 3 and H.has_event(sim, "undo"), "undo takes back a bead in flight"
+	)
 	sim = MazeSim.new(lv)
 	sim.px = 6 * T
 	sim.step(H.inp(0, false, false, 0))
@@ -270,15 +334,20 @@ func _undo(check: Callable) -> void:
 	var thrown: int = sim.rings.filter(func(r: Dictionary) -> bool: return not r["preset"]).size()
 	check.call(thrown == 2, "both beads became rings (%d)" % thrown)
 	sim.step(H.inp(0, false, false, -1, true))
-	var order_ok: bool = sim.rings.filter(func(r: Dictionary) -> bool: return not r["preset"]).size() == 1 \
-			and sim.beads_left == 2
+	var order_ok: bool = (
+		sim.rings.filter(func(r: Dictionary) -> bool: return not r["preset"]).size() == 1 and sim.beads_left == 2
+	)
 	check.call(order_ok, "undo removes the latest thrown ring")
 	var remaining: Dictionary = sim.rings.filter(func(r: Dictionary) -> bool: return not r["preset"])[0]
 	check.call(remaining["order"] == 0, "the earlier ring stays")
 	sim.step(H.inp(0, false, false, -1, true))
 	var presets_left: int = sim.rings.filter(func(r: Dictionary) -> bool: return r["preset"]).size()
-	check.call(sim.rings.size() == 1 and presets_left == 1 and sim.beads_left == 3, "second undo leaves only the preset ring")
+	check.call(
+		sim.rings.size() == 1 and presets_left == 1 and sim.beads_left == 3, "second undo leaves only the preset ring"
+	)
 	var before := H.snap_no_tick(sim)
 	sim.step(H.inp(0, false, false, -1, true))
-	check.call(not H.has_event(sim, "undo") and H.snap_no_tick(sim) == before,
-			"undo with nothing thrown changes nothing (preset stays)")
+	check.call(
+		not H.has_event(sim, "undo") and H.snap_no_tick(sim) == before,
+		"undo with nothing thrown changes nothing (preset stays)"
+	)

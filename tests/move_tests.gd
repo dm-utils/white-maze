@@ -89,7 +89,10 @@ func _coyote(check: Callable) -> void:
 		for i in n:
 			sim.step(H.inp(1, false, i == n - 1))
 			jumped = jumped or H.has_event(sim, "jump")
-		check.call(jumped == (n == 6), "jump pressed %d ticks after leaving the ledge %s" % [n, "jumps" if n == 6 else "does not jump"])
+		check.call(
+			jumped == (n == 6),
+			"jump pressed %d ticks after leaving the ledge %s" % [n, "jumps" if n == 6 else "does not jump"]
+		)
 
 
 func _buffer(check: Callable) -> void:
@@ -112,8 +115,10 @@ func _buffer(check: Callable) -> void:
 			sim.step(H.inp(0, false, press))
 			if second_jump < 0 and H.has_event(sim, "jump"):
 				second_jump = sim.tick
-		check.call((second_jump == landed_tick) == (n == 8),
-				"jump pressed %d ticks before the landing tick %s" % [n, "jumps on landing" if n == 8 else "is forgotten"])
+		check.call(
+			(second_jump == landed_tick) == (n == 8),
+			"jump pressed %d ticks before the landing tick %s" % [n, "jumps on landing" if n == 8 else "is forgotten"]
+		)
 
 
 func _corner(check: Callable) -> void:
@@ -130,11 +135,15 @@ func _corner(check: Callable) -> void:
 		sim.grounded = false
 		sim.step(H.inp())
 		if case[1]:
-			check.call(sim.px == case[2] and sim.vy == -4000 and sim.py == 230000,
-					"corner clipped by 6 px: slid left and kept rising (px %d vy %d)" % [sim.px, sim.vy])
+			check.call(
+				sim.px == case[2] and sim.vy == -4000 and sim.py == 230000,
+				"corner clipped by 6 px: slid left and kept rising (px %d vy %d)" % [sim.px, sim.vy]
+			)
 		else:
-			check.call(sim.px == case[2] and sim.vy == 0 and sim.py == 232000,
-					"corner clipped by 10 px: rise stops (px %d vy %d)" % [sim.px, sim.vy])
+			check.call(
+				sim.px == case[2] and sim.vy == 0 and sim.py == 232000,
+				"corner clipped by 10 px: rise stops (px %d vy %d)" % [sim.px, sim.vy]
+			)
 	# mirror: block ends at x = 12 tiles; left edge 6 px / 10 px inside it
 	var mirror := MazeSim.new(lv)
 	mirror.px = 12 * T + 9000
@@ -142,7 +151,10 @@ func _corner(check: Callable) -> void:
 	mirror.vy = -5000
 	mirror.grounded = false
 	mirror.step(H.inp())
-	check.call(mirror.px == 12 * T + 15000 and mirror.vy == -4000, "mirror corner: slid right and kept rising (px %d)" % mirror.px)
+	check.call(
+		mirror.px == 12 * T + 15000 and mirror.vy == -4000,
+		"mirror corner: slid right and kept rising (px %d)" % mirror.px
+	)
 	var blocked := MazeSim.new(lv)
 	blocked.px = 12 * T + 5000
 	blocked.py = 234000
@@ -165,15 +177,31 @@ func _collisions(check: Callable) -> void:
 	var sim := MazeSim.new(lv)
 	var clean := H.steps(sim, 120, H.inp(1))
 	check.call(clean, "never overlaps a solid cell while walking into a wall")
-	check.call(sim.px == 10 * T - 15000 and sim.vx == 0, "full speed into a wall stops flush at the wall (px %d)" % sim.px)
+	check.call(
+		sim.px == 10 * T - 15000 and sim.vx == 0, "full speed into a wall stops flush at the wall (px %d)" % sim.px
+	)
 	sim = MazeSim.new(H.level(H.rows(20, 8, {Vector2i(5, 6): "#", Vector2i(5, 5): "#", Vector2i(5, 4): "#"})))
 	sim.px = 9 * T
 	sim.step(H.inp(-1))
 	var left_clean := H.steps(sim, 100, H.inp(-1))
 	check.call(left_clean and sim.px == 6 * T + 15000, "walking left into a wall stops flush (px %d)" % sim.px)
 	# jumping around: no overlap ever
-	sim = MazeSim.new(H.level(H.rows(30, 12, {Vector2i(8, 10): "#", Vector2i(9, 10): "#", Vector2i(9, 9): "#",
-			Vector2i(14, 6): "#", Vector2i(15, 6): "#", Vector2i(16, 6): "#"})))
+	sim = MazeSim.new(
+		H.level(
+			H.rows(
+				30,
+				12,
+				{
+					Vector2i(8, 10): "#",
+					Vector2i(9, 10): "#",
+					Vector2i(9, 9): "#",
+					Vector2i(14, 6): "#",
+					Vector2i(15, 6): "#",
+					Vector2i(16, 6): "#"
+				}
+			)
+		)
+	)
 	var ok := true
 	for i in 600:
 		var jump_now := i % 40 == 0

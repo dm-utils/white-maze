@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  MIN_CHECKS: "0" # the number of checks of the game's own tests, so skipped tests fail the build
+  MIN_CHECKS: "333" # the number of checks of the game's own tests, so skipped tests fail the build
 
 jobs:
   build:
@@ -69,7 +69,7 @@ jobs:
         run: |
           mkdir -p build/web && touch build/.gdignore
           timeout 600 godot --headless --path . --export-release "Web" build/web/index.html
-          ls -la build/web | awk '{print "    " $5 "  " $9}' >> "$GITHUB_STEP_SUMMARY"
+          find build/web -maxdepth 1 -type f -printf '    %s  %f\n' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
         with:
