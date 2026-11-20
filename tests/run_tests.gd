@@ -13,6 +13,9 @@ const SUITES := [
 	"res://tests/solution_tests.gd",
 	"res://tests/fuzz_tests.gd",
 	"res://tests/robust_tests.gd",
+	"res://tests/controls_tests.gd",
+	"res://tests/profile_store_tests.gd",
+	"res://tests/ui_tests.gd",
 ]
 
 
