@@ -1,5 +1,5 @@
 extends RefCounted
-## P1-P3, P5, P6: profile format, sanitize, statistics, merge. (The file store comes with the screens.)
+## P1-P3, P5, P6: profile format, sanitize, statistics, merge. The file store is in profile_store_tests.gd.
 
 const DEV_A := "9f2c4a1b7e3d5a60"
 const DEV_B := "00112233445566ff"
