@@ -264,6 +264,10 @@ func _process(delta: float) -> void:
 func advance(delta: float) -> void:
 	_check_rotate()
 	controls.update(delta)
+	if overlays.rotate_visible() and not overlays.result_visible():
+		# rotate hint keeps the game paused; drop pause/restart keys until landscape
+		controls.take_pause()
+		controls.take_restart()
 	if controls.take_pause():
 		if overlays.result_visible():
 			leave()
