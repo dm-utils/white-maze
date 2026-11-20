@@ -5,7 +5,8 @@ a white bead in a straight line: where it hits a surface it becomes a bounce rin
 from a floor, sideways from a wall, down from a ceiling. Three beads per level, a par for the fewest beads, and a clock
 that only measures, never hurries. Keyboard first, touch in landscape.
 
-Status: phase 1 (playable prototype) designed, not built. No play version yet.
+Status: phase 1 (playable prototype). The headless core (simulation, levels, run scripts, profile logic, level check)
+is built and tested; screens, controls and the web build polish follow. No play version yet.
 
 - Design: `docs/design.md`, decisions in `docs/adr/`, terms in `docs/glossary.md`, rules for code, levels and tests in
   `docs/conventions.md`.

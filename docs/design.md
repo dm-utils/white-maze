@@ -1,7 +1,8 @@
 # White Maze - design
 
-Status: phase 1 (playable prototype) designed, not built. Later phases are outlined and marked **[later]**; they are not
-built in phase 1.
+Status: phase 1 (playable prototype) designed; the headless core (card #002: `sim/`, levels, run scripts, profile logic,
+level check, CI file) is built, screens and controls (card #004) are not. Later phases are outlined and marked
+**[later]**; they are not built in phase 1.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
 
@@ -1259,3 +1260,39 @@ screens are built.
 - Kit candidates (9) are not needed now; the project lead may create kit cards when a second game needs them.
 - [later] Moving obstacles as sim entities, gamepad, sound, a per-level finish history (last N times), a visual level
   editor, showing the best run as a ghost.
+
+## 14. Deviations and results of the headless core (card #002)
+
+Built as designed, except for the points below. None changes a rule or a tuning value.
+
+- **Coyote and buffer counting (3.8 step 9, S4, S5).** The counters are read as the previous tick left them and then
+  updated. With the literal order of step 9 (update, then read) a jump pressed 6 ticks after the walk-off tick, or 8
+  ticks before the landing tick, would already be too late; with read-then-update S4 and S5 hold exactly. "Walk-off
+  tick" is the tick in which `grounded` becomes false; "landing tick" is the first tick that starts grounded.
+- **`prev_px`, `prev_py` after the finish (3.8 step 1).** They are no longer updated once the level is finished, so
+  that only `tick` changes in `snapshot()` (S16).
+- **`MazeLevels.ids` and `load_level`** take an optional folder argument (default `res://levels/`), used by
+  `tools/check_levels.gd --dir` and the tests.
+- **`MazeTuning`** also holds `UNITS_PER_PX`, `TILE` and `TICK_HZ`.
+- **`MazeSim.cast`:** the reasons `dead` and `no_beads` take precedence over the face rules; `valid` is then false.
+- **Run scripts:** an empty script is an error (the grammar needs at least one token). `MazeRunScript.run` stops at
+  the finish.
+- **Level check:** also reports a level file that is not in the index (`error <id>: level file is not in the index`).
+- **Project:** `rendering/textures/vram_compression/import_etc2_astc=true` is set (as in White Sum); without it the web
+  preset refuses to export.
+- **CI:** the screenshot step runs only when `tools/shots.txt` exists (it comes with card #004); `MIN_CHECKS` is 333.
+
+Level geometry (5.4) is unchanged; all three levels are solvable within par with the designed rows and the start
+tuning. Stored solutions (`tests/solutions.json`), found with a throw-away search over the simulation, not by playing:
+
+| Level | Par | Beads | Ticks | Time | Deaths |
+|---|---|---|---|---|---|
+| l001 | 1 | 1 | 391 | 0:06.51 | 0 |
+| l002 | 2 | 2 | 256 | 0:04.26 | 0 |
+| l003 | 3 | 3 | 295 | 0:04.91 | 0 |
+
+Facts found while solving, for the playtest: a floor-ring jump from standing lifts the feet 5.85 tiles; the wall ring
+of l003 can only be reached at cell (0, 4) (from a floor-ring jump, throwing from about x = 2.4 tiles, index 41); a
+throw to (0, 4) from the spawn point itself hits the corner and is invalid. The solutions are replayed by
+`tests/solution_tests.gd` and `tools/check_levels.gd`; after a tuning change record them again (a played run with
+`--print-run` once the screens exist).
