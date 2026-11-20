@@ -1419,6 +1419,15 @@ Built as designed (sections 4, 7.4, 8, 10.4, 10.5), except for the points below.
 - **Camera.** `Camera2D` with smoothing speed 8; its limits are recomputed every frame and a level smaller than the
   viewport is centred in the area under the HUD band.
 
+- **Profile entry without a fewest pair (B8).** `MazeProfile.sanitize` keeps accepting an entry with only a best pair
+  (existing tests require that the fewest pair is not invented). The level select therefore falls back to `best_rings`
+  for the card text instead of deriving a pair in `sanitize`; the UI never reads a field that `sanitize` does not
+  guarantee. The next finish writes the full pair.
+- **Rotate hint keeps the game paused (B9).** While the rotate hint shows, pause, resume and restart keys are dropped;
+  the game stays paused until the window is landscape again.
+- **Cosmetics (B10).** Hint sits 16 px higher at the bottom; the move-stick label `lopen` moved inside the stick ring and
+  is fainter; the level grid has 6 px padding so the focus border is not clipped by the scroll area.
+
 ### 16.2 Par search tool (B7)
 
 `tools/search_par.gd` is back to its old meaning: extra rings are pre-placed as presets and the number of extras is the
@@ -1429,7 +1438,7 @@ and l003 and is run by hand after a change of the simulation or the tool.
 
 ### 16.3 Results
 
-- Game tests: 564 checks (controls C1-C6 in `controls_tests.gd`, store P4 in `profile_store_tests.gd`, screens U1-U7
+- Game tests: 662 checks (controls C1-C6 in `controls_tests.gd`, store P4 in `profile_store_tests.gd`, screens U1-U7
   and U9 in `ui_tests.gd`); kit tests 764; level check and web export green.
 - `--print-run` on l001 prints the run of the stored solution unchanged, so the recording matches the run script.
 - Screenshots of `tools/shots.txt` (10 scenarios, among them `easy-touch` and `phone-wide` with touch controls) are
