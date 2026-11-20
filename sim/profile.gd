@@ -6,6 +6,7 @@ const FORMAT := 1
 const GAME := "white-maze"
 const MAX_RUN := 20000
 const COUNTERS := ["starts", "finishes", "deaths", "play_ticks"]
+const MAX_COUNT := 1 << 53
 const NO_VALUE := 1 << 60
 
 
@@ -35,7 +36,7 @@ static func sanitize(data: Variant) -> Dictionary:
 		else:
 			out.erase("id")
 	out["updated"] = int(src["updated"]) if _count(src.get("updated")) else 0
-	out["lang"] = src["lang"] if (src.get("lang") == "nl" or src.get("lang") == "en") else "nl"
+	out["lang"] = _lang(src.get("lang"))
 	var levels := {}
 	if src.get("levels") is Dictionary:
 		for key in src["levels"]:
@@ -66,26 +67,26 @@ static func add_play(p: Dictionary, level_id: String, ticks: int, deaths: int, n
 	p["updated"] = now
 
 
-## {"new_best": bool, "new_fewest": bool, "best_ticks": int, "fewest_beads": int}
-static func record_finish(p: Dictionary, level_id: String, ticks: int, beads: int, run: String, now: int) -> Dictionary:
+## {"new_best": bool, "new_fewest": bool, "best_ticks": int, "fewest_rings": int}
+static func record_finish(p: Dictionary, level_id: String, ticks: int, rings: int, run: String, now: int) -> Dictionary:
 	var entry := _entry(p, level_id)
 	_counts(p, entry)["finishes"] += 1
 	var new_best: bool = not entry.has("best_ticks") or ticks < entry["best_ticks"]
 	if new_best:
 		entry["best_ticks"] = ticks
-		entry["best_beads"] = beads
+		entry["best_rings"] = rings
 		entry["best_run"] = run if run.length() <= MAX_RUN else ""
-	var new_fewest: bool = not entry.has("fewest_beads") or beads < entry["fewest_beads"] \
-			or (beads == entry["fewest_beads"] and ticks < entry["fewest_ticks"])
+	var new_fewest: bool = not entry.has("fewest_rings") or rings < entry["fewest_rings"] \
+			or (rings == entry["fewest_rings"] and ticks < entry["fewest_ticks"])
 	if new_fewest:
-		entry["fewest_beads"] = beads
+		entry["fewest_rings"] = rings
 		entry["fewest_ticks"] = ticks
 	if not entry.has("first_finish"):
 		entry["first_finish"] = now
 	entry["last_played"] = now
 	p["updated"] = now
 	return {"new_best": new_best, "new_fewest": new_fewest, "best_ticks": entry["best_ticks"],
-			"fewest_beads": entry["fewest_beads"]}
+			"fewest_rings": entry["fewest_rings"]}
 
 
 ## starts, finishes, deaths, play_ticks summed over devices
@@ -131,7 +132,7 @@ static func merge(local: Dictionary, remote: Dictionary) -> Dictionary:
 	var lu: int = local.get("updated", 0)
 	var ru: int = remote.get("updated", 0)
 	out["updated"] = maxi(lu, ru)
-	out["lang"] = remote.get("lang", "nl") if ru > lu else local.get("lang", "nl")
+	out["lang"] = _lang(remote.get("lang")) if ru > lu else _lang(local.get("lang"))
 	var levels := {}
 	var ll: Dictionary = local.get("levels", {})
 	var rl: Dictionary = remote.get("levels", {})
@@ -149,17 +150,17 @@ static func merge(local: Dictionary, remote: Dictionary) -> Dictionary:
 static func _merge_level(a: Dictionary, b: Dictionary) -> Dictionary:
 	var out: Dictionary = b.duplicate(true)
 	out.merge(a.duplicate(true), true)
-	for key in ["best_ticks", "best_beads", "best_run", "fewest_beads", "fewest_ticks"]:
+	for key in ["best_ticks", "best_rings", "best_run", "fewest_rings", "fewest_ticks"]:
 		out.erase(key)
 	var pick_best := _better_best(a, b)
-	if pick_best.has("best_ticks"):
-		for key in ["best_ticks", "best_beads", "best_run"]:
+	if pick_best.has("best_ticks") and pick_best.has("best_rings"):
+		for key in ["best_ticks", "best_rings", "best_run"]:
 			if pick_best.has(key):
 				out[key] = pick_best[key]
 	var pick_fewest := _better_fewest(a, b)
-	if pick_fewest.has("fewest_beads"):
-		out["fewest_beads"] = pick_fewest["fewest_beads"]
-		out["fewest_ticks"] = pick_fewest.get("fewest_ticks", 0)
+	if pick_fewest.has("fewest_rings") and pick_fewest.has("fewest_ticks"):
+		out["fewest_rings"] = pick_fewest["fewest_rings"]
+		out["fewest_ticks"] = pick_fewest["fewest_ticks"]
 	var firsts := []
 	for e in [a, b]:
 		if e.has("first_finish"):
@@ -186,14 +187,14 @@ static func _merge_level(a: Dictionary, b: Dictionary) -> Dictionary:
 static func _better_best(a: Dictionary, b: Dictionary) -> Dictionary:
 	var ta: int = a.get("best_ticks", NO_VALUE)
 	var tb: int = b.get("best_ticks", NO_VALUE)
-	if ta < tb or (ta == tb and a.get("best_beads", NO_VALUE) <= b.get("best_beads", NO_VALUE)):
+	if ta < tb or (ta == tb and a.get("best_rings", NO_VALUE) <= b.get("best_rings", NO_VALUE)):
 		return a
 	return b
 
 
 static func _better_fewest(a: Dictionary, b: Dictionary) -> Dictionary:
-	var fa: int = a.get("fewest_beads", NO_VALUE)
-	var fb: int = b.get("fewest_beads", NO_VALUE)
+	var fa: int = a.get("fewest_rings", NO_VALUE)
+	var fb: int = b.get("fewest_rings", NO_VALUE)
 	if fa < fb or (fa == fb and a.get("fewest_ticks", NO_VALUE) <= b.get("fewest_ticks", NO_VALUE)):
 		return a
 	return b
@@ -220,8 +221,14 @@ static func _counts(p: Dictionary, entry: Dictionary) -> Dictionary:
 	return counts
 
 
+static func _lang(v: Variant) -> String:
+	return v if (v is String and (v == "nl" or v == "en")) else "nl"
+
+
+## whole number 0..MAX_COUNT; beyond that int() would wrap
 static func _count(v: Variant) -> bool:
-	return (v is int and v >= 0) or (v is float and is_finite(v) and v == floorf(v) and v >= 0.0)
+	return (v is int and v >= 0 and v <= MAX_COUNT) or (v is float and is_finite(v) and v == floorf(v) and v >= 0.0 \
+			and v <= float(MAX_COUNT))
 
 
 static func _is_hex16(s: String) -> bool:
@@ -236,7 +243,7 @@ static func _is_hex16(s: String) -> bool:
 
 static func _sanitize_level(src: Dictionary) -> Dictionary:
 	var out: Dictionary = src.duplicate(true)
-	for key in ["best_ticks", "best_beads", "fewest_beads", "fewest_ticks", "first_finish", "last_played"]:
+	for key in ["best_ticks", "best_rings", "fewest_rings", "fewest_ticks", "first_finish", "last_played"]:
 		if src.has(key):
 			if _count(src[key]):
 				out[key] = int(src[key])
@@ -247,6 +254,13 @@ static func _sanitize_level(src: Dictionary) -> Dictionary:
 			out["best_run"] = src["best_run"]
 		else:
 			out.erase("best_run")
+	# linked fields stay whole or go together
+	for pair in [["best_ticks", "best_rings"], ["fewest_rings", "fewest_ticks"]]:
+		if not (out.has(pair[0]) and out.has(pair[1])):
+			out.erase(pair[0])
+			out.erase(pair[1])
+	if not out.has("best_ticks"):
+		out.erase("best_run")
 	var counts := {}
 	if src.get("counts") is Dictionary:
 		for device in src["counts"]:
