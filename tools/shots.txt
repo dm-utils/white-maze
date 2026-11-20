@@ -1,0 +1,11 @@
+# debug screenshot scenarios: <name> <WxH> [arguments]; see design 10.5
+select 1280x720
+select-en 1280x720 --lang=en --all-levels
+easy 1280x720 --level=l001
+easy-touch 1280x720 --level=l001 --touch
+medium-aim 1280x720 --level=l002 --keys=-1 --aim=30
+hard 1280x720 --level=l003
+result 1280x720 --level=l001 --solve
+pause 1280x720 --level=l001 --pause
+phone-wide 1600x720 --level=l002 --touch --safe=60,0,60,24
+portrait 720x1280 --level=l001
