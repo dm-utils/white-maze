@@ -295,9 +295,8 @@ func _no_ties(a: Dictionary, b: Dictionary) -> bool:
 	return a["lang"] == b["lang"] or a["updated"] != b["updated"]
 
 
-## Taking back every ring right after its launch must not lower the par count. Under ADR 0005 (beads left at the
-## finish) it does: every shipped level finishes with 0 beads used. ADR 0009 counts rings used, which closes this;
-## the check follows whichever rule the sim implements (sim.rings_used exists from then on).
+## Taking back every ring right after its launch must not lower the par count (ADR 0009): rings used never
+## decreases, so each level still counts exactly its par. Under ADR 0005 (beads left) this ended with 0 beads used.
 func _take_back_and_par(check: Callable) -> void:
 	var sols := WhitePuzzleStore.load_json("res://tests/solutions.json")
 	for id in MazeLevels.ids():
@@ -318,18 +317,11 @@ func _take_back_and_par(check: Callable) -> void:
 					for r in sim.rings:
 						if r["cell"] == e["cell"] and r["face"] == e["face"] and not r["preset"]:
 							undo_next = true
-		var used: Variant = sim.get("rings_used")
-		if used == null:
-			check.call(
-				sim.finished() and sim.beads_left == lv.beads,
-				"%s: ADR 0005 only: taking back each used ring finishes with 0 beads used (par %d)" % [id, lv.par]
-			)
-		else:
-			check.call(
-				sim.finished() and used == lv.par,
-				"%s: taking back each used ring after its launch still counts %d rings used (par %d)"
-				% [id, used, lv.par]
-			)
+		check.call(
+			sim.finished() and sim.rings_used == lv.par,
+			"%s: taking back each used ring after its launch still counts %d rings used (par %d)"
+			% [id, sim.rings_used, lv.par]
+		)
 
 
 func _solution_determinism(check: Callable) -> void:
