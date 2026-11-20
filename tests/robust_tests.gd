@@ -1,6 +1,6 @@
 extends RefCounted
 ## Independent robustness and property tests: garbage into the level parser, run script parser and profile
-## sanitize; merge laws on random profiles; take-back consequence for par (ADR 0005); solution determinism.
+## sanitize; merge laws on random profiles; take-back and par (ADR 0005/0009); solution determinism.
 
 const H := preload("res://tests/helpers.gd")
 const DEV_A := "9f2c4a1b7e3d5a60"
@@ -295,8 +295,9 @@ func _no_ties(a: Dictionary, b: Dictionary) -> bool:
 	return a["lang"] == b["lang"] or a["updated"] != b["updated"]
 
 
-## ADR 0005: par is compared with the beads still on the field at the finish, so taking back every ring right
-## after its launch finishes each shipped level with 0 beads. Pins the behaviour so a rule change is deliberate.
+## Taking back every ring right after its launch must not lower the par count. Under ADR 0005 (beads left at the
+## finish) it does: every shipped level finishes with 0 beads used. ADR 0009 counts rings used, which closes this;
+## the check follows whichever rule the sim implements (sim.rings_used exists from then on).
 func _take_back_and_par(check: Callable) -> void:
 	var sols := WhitePuzzleStore.load_json("res://tests/solutions.json")
 	for id in MazeLevels.ids():
@@ -317,11 +318,18 @@ func _take_back_and_par(check: Callable) -> void:
 					for r in sim.rings:
 						if r["cell"] == e["cell"] and r["face"] == e["face"] and not r["preset"]:
 							undo_next = true
-		check.call(
-			sim.finished() and sim.beads_used() < lv.par,
-			"%s: finishing after taking back each used ring gives beads used %d < par %d (ADR 0005)"
-			% [id, sim.beads_used(), lv.par]
-		)
+		var used: Variant = sim.get("rings_used")
+		if used == null:
+			check.call(
+				sim.finished() and sim.beads_left == lv.beads,
+				"%s: ADR 0005 only: taking back each used ring finishes with 0 beads used (par %d)" % [id, lv.par]
+			)
+		else:
+			check.call(
+				sim.finished() and used == lv.par,
+				"%s: taking back each used ring after its launch still counts %d rings used (par %d)"
+				% [id, used, lv.par]
+			)
 
 
 func _solution_determinism(check: Callable) -> void:
