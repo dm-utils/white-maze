@@ -1,9 +1,9 @@
 # White Maze - design
 
-Status: phase 1 (playable prototype) designed; the headless core (card #002: `sim/`, levels, run scripts, profile logic,
-level check, CI file) is built, screens and controls (card #004) are not. Later phases are outlined and marked
-**[later]**; they are not built in phase 1. ADR 0009 (par counts rings used) changes the score rule after #002; the
-code changes it needs are listed in section 15.
+Status: phase 1 (playable prototype) is built: the headless core (card #002, par counts rings used per ADR 0009) and
+the screens, controls, profile store, screenshots and the Pages deploy (cards #004 and #006); deviations in sections 14
+and 16. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
+**[later]**; they are not built in phase 1.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
 
@@ -1250,9 +1250,11 @@ From the kit template, without the Pages job:
 5. Debug screenshots from `tools/shots.txt`, artifact `shots`.
 6. Export Web (release), artifact `web`.
 
-Triggers, concurrency and permissions as in White Sum. The header comment says there is no play version yet. The
-Pages job and the play address `play.white-maze.steefbeest.nl` are added when the GitHub repository exists (owner).
-Until then the developer and tester run the same steps locally.
+Triggers, concurrency and permissions as in White Sum. Since card #006 the workflow also has the Pages job of White
+Sum: on `develop` (not on pull requests) the release web build is uploaded with `upload-pages-artifact` and published by
+a `pages` job with `deploy-pages`; the play address is `https://play.white-maze.steefbeest.nl`. The custom domain is a
+repository setting (Pages source "GitHub Actions" plus the domain), not a `CNAME` file. A step runs
+`tools/check_search_par.sh` (16.2).
 
 ## 11. Tests
 
@@ -1391,3 +1393,45 @@ A rule change on the built core. No tuning, geometry or level file changes. Orde
 
 The screens (card #004) are built directly against sections 8.2 to 8.7 as they stand now (`hud_rings`,
 `card_rings`, `result_rings`, `help_par`, U9).
+
+## 16. Deviations and results of the screens (card #004, #006)
+
+Built as designed (sections 4, 7.4, 8, 10.4, 10.5), except for the points below. None changes a rule or a tuning value.
+
+### 16.1 Deviations
+
+- **Hint place in touch mode (8.3).** With touch controls on, the level hint sits under the HUD band instead of at the
+  bottom, where the stick labels and the jump button are.
+- **Mouse and keys reach `MazeControls` from `_unhandled_input`.** A press on a HUD or overlay button never starts an
+  aim; the touch overlay reads touches in `_input` and is disabled while an overlay is open.
+- **Enter on the result overlay** is handled by `MazeGame._input` (next level, or the level select on the last level),
+  not by the focused button, so the last level behaves as 8.4 says.
+- **`MazeControls`** has extra methods: `queue_undo` (HUD button), `release_all`, `reset_attempt` (elevation back to
+  +3, latches dropped), `clear_latches`, `update(delta)` (real-time repeat of the aim keys), `can_aim`, `elevation`.
+- **`MazeGame.advance(delta)`** is the per-frame step that `_process` calls; the tests call it with fixed deltas.
+  While paused the rate is 0 and ramps back to 1 over 0.107 s after resuming.
+- **`MazeMain`**: `parse_args` is a static function; `args` and `use_cmdline` let the tests inject arguments. `--keys`,
+  `--solve` and `--aim` freeze the simulation in every mode, `--shot` always (not only after `--keys`/`--solve`).
+- **`MazeProfileStore.open_memory`** gives `--shot` a profile that is never read or written, so the result screenshot
+  can show a new record.
+- **Input map** uses physical keys (layout independent): `A`/`Left`, `D`/`Right`, `Space`/`W`/`Up`, `J`, `S`/`Down`,
+  `K`, `Z`/`Backspace`, `R`, `Esc`/`P`.
+- **Camera.** `Camera2D` with smoothing speed 8; its limits are recomputed every frame and a level smaller than the
+  viewport is centred in the area under the HUD band.
+
+### 16.2 Par search tool (B7)
+
+`tools/search_par.gd` is back to its old meaning: extra rings are pre-placed as presets and the number of extras is the
+score; `rings_used` stays in the state key. The change of 451b7f7 (extras as thrown rings, a ring weight in the cost)
+made the search lose its known results. Calibration: `tools/check_search_par.sh` runs l001 (extra ring `38,11,up`,
+weight 3, under a second) in CI; `tools/check_search_par.sh --full` also finds l002 (about 2 minutes at 300000 nodes)
+and l003 and is run by hand after a change of the simulation or the tool.
+
+### 16.3 Results
+
+- Game tests: 564 checks (controls C1-C6 in `controls_tests.gd`, store P4 in `profile_store_tests.gd`, screens U1-U7
+  and U9 in `ui_tests.gd`); kit tests 764; level check and web export green.
+- `--print-run` on l001 prints the run of the stored solution unchanged, so the recording matches the run script.
+- Screenshots of `tools/shots.txt` (10 scenarios, among them `easy-touch` and `phone-wide` with touch controls) are
+  produced by `shots.sh` without errors; reviewed by the developer, the tester reviews them against the mockup (U8).
+- Not checked here: feel on a real phone, multi-touch on hardware, browser behaviour (11.3).

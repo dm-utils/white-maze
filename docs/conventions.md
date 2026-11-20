@@ -24,7 +24,7 @@ addons/white_kit/tools/shots.sh before-after . tools/shots.txt v<old> v<new>
 | `sim/` | Simulation, tuning, aim table, levels, run scripts, profile logic, time format. No scenes, nodes, input, rendering, time source, randomness or `user://`. |
 | `ui/` | Main scene, level select, game screen, world view, HUD, controls, touch overlay, overlays, profile file store, texts. Depends on `sim/` and the kit, never the other way round. |
 | `levels/` | `index.json` and one `<id>.json` per level. |
-| `tools/` | Headless scripts (`check_levels.gd`) and the screenshot scenario file `shots.txt`. |
+| `tools/` | Headless scripts (`check_levels.gd`, `search_par.gd` with its calibration `check_search_par.sh`) and the screenshot scenario file `shots.txt`. |
 | `tests/` | Headless test runner (extends `WhiteTestRunner`), suites, `solutions.json`. |
 | `addons/white_kit/` | White Kit (submodule). |
 | `build/` | Local output (exports, screenshots). Ignored by git. |
@@ -114,8 +114,8 @@ godot --headless --path . -s res://tools/check_levels.gd
 ## Git and CI
 
 - `develop` is the working branch; `main` is protected and updated through pull requests only (once a remote exists).
-- `.github/workflows/ci.yml` comes from the kit template (`addons/white_kit/templates/ci.yml`) plus the level check;
-  the Pages deploy is added when the GitHub repository exists.
+- `.github/workflows/ci.yml` comes from the kit template (`addons/white_kit/templates/ci.yml`) plus the level check and
+  the par search calibration; `develop` is deployed to GitHub Pages (`play.white-maze.steefbeest.nl`).
 - Branch names: `feature/<description>`, `fix/<description>`, `chore/<description>`.
 - Commit messages in English, imperative, short subject line.
 - CI (or, without a remote, the same steps locally) must be green before merging. Do not commit build output.

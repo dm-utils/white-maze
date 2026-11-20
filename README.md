@@ -2,12 +2,13 @@
 
 A calm 2D platformer in the White series. Walk and jump from start to finish through a fixed series of levels. Throw
 a white bead in a straight line: where it hits a surface it becomes a bounce ring that launches you away from it, up
-from a floor, sideways from a wall, down from a ceiling. Three beads per level, a par for the fewest beads, and a clock
-that only measures, never hurries. Keyboard first, touch in landscape.
+from a floor, sideways from a wall, down from a ceiling. Three beads per level, a par for the fewest rings you bounce
+off, and a clock that only measures, never hurries. Keyboard first, touch in landscape.
 
-Status: phase 1 (playable prototype). The headless core (simulation, levels, run scripts, profile logic, level check)
-is built and tested; screens, controls and the web build polish follow. No play version yet.
+Status: phase 1 (playable prototype): simulation, three levels, level select, game screen with keyboard, mouse and touch
+controls, a local profile with times, and the web version. Waiting for the first playtest.
 
+- Play version: https://play.white-maze.steefbeest.nl
 - Design: `docs/design.md`, decisions in `docs/adr/`, terms in `docs/glossary.md`, rules for code, levels and tests in
   `docs/conventions.md`.
 
@@ -27,6 +28,7 @@ Run the tests and the level check headless:
 godot --headless --path . --import
 godot --headless --path . res://tests/run_tests.tscn
 godot --headless --path . -s res://tools/check_levels.gd
+tools/check_search_par.sh
 ```
 
 Play one level directly and print the run when you finish it:
