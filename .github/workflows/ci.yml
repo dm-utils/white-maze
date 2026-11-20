@@ -1,6 +1,5 @@
-# CI: tests, level check and the web build on develop/main, superseded runs cancelled. There is no play version yet:
-# the Pages job and play.white-maze.steefbeest.nl are added when the GitHub repository exists. Debug screenshots and
-# the web build are build artifacts.
+# CI: tests, level check and the web build on develop/main, superseded runs cancelled. The release web build of develop
+# is the play version on GitHub Pages (play.white-maze.steefbeest.nl). Debug screenshots are a build artifact.
 name: CI
 
 on:
@@ -18,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  MIN_CHECKS: "396" # the number of checks of the game's own tests, so skipped tests fail the build
+  MIN_CHECKS: "564" # the number of checks of the game's own tests, so skipped tests fail the build
 
 jobs:
   build:
@@ -52,6 +51,9 @@ jobs:
       - name: Level check
         run: godot --headless --path . -s res://tools/check_levels.gd
 
+      - name: Par search calibration
+        run: tools/check_search_par.sh
+
       - name: Debug screenshots (tools/shots.txt)
         if: hashFiles('tools/shots.txt') != ''
         run: |
@@ -76,3 +78,24 @@ jobs:
           name: web
           path: build/web
           retention-days: 7
+
+      - name: Play version for GitHub Pages (develop only)
+        if: github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/web
+
+  # GitHub Pages: free for public repos, files up to 100 MB
+  pages:
+    needs: build
+    if: github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
