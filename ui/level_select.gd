@@ -97,7 +97,13 @@ func build() -> void:
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", WhiteTheme.SPACING)
 	grid.add_theme_constant_override("v_separation", WhiteTheme.SPACING)
-	scroll.add_child(grid)
+	# room for the focus border, the scroll clip cuts it off otherwise
+	var pad := MarginContainer.new()
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["left", "right", "top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 6)
+	scroll.add_child(pad)
+	pad.add_child(grid)
 	var first_open := -1
 	for i in levels.size():
 		var card := _card(i)
@@ -121,7 +127,7 @@ func _card(i: int) -> Button:
 		var entry: Dictionary = store.data.get("levels", {}).get(lv.id, {})
 		if open and MazeProfile.is_finished(store.data, lv.id):
 			lines.append(MazeStrings.s("card_time") % MazeFormat.time(int(entry["best_ticks"])))
-			lines.append(MazeStrings.s("card_rings") % [int(entry["fewest_rings"]), lv.par])
+			lines.append(MazeStrings.s("card_rings") % [int(entry.get("fewest_rings", entry.get("best_rings", 0))), lv.par])
 		elif open:
 			lines.append(MazeStrings.s("not_done"))
 			lines.append(str(WhiteText.t("par")) % lv.par)
