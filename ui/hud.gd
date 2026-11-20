@@ -134,7 +134,7 @@ func _process(_delta: float) -> void:
 	var right_w := _right.get_combined_minimum_size().x
 	_right.size = Vector2(right_w, BTN_H)
 	_right.position = Vector2(vs.x - WhiteTheme.MARGIN - ins["right"] - right_w, ins["top"] + 12)
-	_hint.position = Vector2(0, BAND + ins["top"] + 6) if hint_at_top else Vector2(0, vs.y - 40 - ins["bottom"])
+	_hint.position = Vector2(0, BAND + ins["top"] + 6) if hint_at_top else Vector2(0, vs.y - 56 - ins["bottom"])
 	_hint.size = Vector2(vs.x, 30)
 	_name.text = level_text()
 	_score.text = score_text()

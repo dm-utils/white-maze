@@ -199,7 +199,7 @@ func _draw() -> void:
 	draw_circle(mbase, MOVE_R, Color(FAINT, FAINT.a * malpha))
 	draw_arc(mbase, MOVE_R, 0, TAU, 48, Color(FAINT_LINE, FAINT_LINE.a * malpha), 2.0)
 	draw_circle(mknob, KNOB_R, Color(1, 1, 1, 0.4 * malpha))
-	_label(font, WhiteText.t("ctl_move"), mbase + Vector2(0, MOVE_R + 26), malpha)
+	_label(font, WhiteText.t("ctl_move"), mbase + Vector2(0, MOVE_R - 22), malpha * 0.6)
 	# throw stick
 	var tc := throw_center()
 	var talpha := 1.0 if controls.can_aim() else 0.4
