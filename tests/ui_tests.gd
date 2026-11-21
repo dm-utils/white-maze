@@ -102,7 +102,7 @@ func _select() -> void:
 	WhiteText.lang = "nl"
 	var m := _main()
 	var s := m.select
-	_check.call(s != null and s.cards.size() == 3, "U1: the main scene opens the level select with three cards")
+	_check.call(s != null and s.cards.size() == 9, "U1: the main scene opens the level select with nine cards")
 	_check.call(
 		not s.cards[0].disabled and s.cards[1].disabled and s.cards[2].disabled,
 		"U1: with an empty profile only card 1 is enabled"
@@ -115,10 +115,10 @@ func _select() -> void:
 	_check.call(not s.cards[1].disabled and s.cards[2].disabled, "U1: after a finish of l001 card 2 is enabled")
 	_check.call("Beste tijd 0:06.51" in s.cards[0].text, "U1: card 1 shows the best time")
 	_check.call("Minste ringen 1 · par 1" in s.cards[0].text, "U1: card 1 shows the fewest rings line")
-	_check.call("Gehaald 1/3" in s.subtitle.text, "the subtitle counts finished levels")
+	_check.call("Gehaald 1/9" in s.subtitle.text, "the subtitle counts finished levels")
 	_close(m)
 	var all := _main(["--all-levels"])
-	_check.call(not all.select.cards[2].disabled, "--all-levels opens every level")
+	_check.call(not all.select.cards[8].disabled, "--all-levels opens every level")
 	_close(all)
 	# a damaged profile shows its notice
 	var f := FileAccess.open(PROFILE, FileAccess.WRITE)

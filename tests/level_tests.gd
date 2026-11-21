@@ -15,22 +15,24 @@ func run(check: Callable, _node: Node) -> void:
 
 func _shipped(check: Callable) -> void:
 	var ids := MazeLevels.ids()
-	check.call(ids == PackedStringArray(["l001", "l002", "l003"]), "the index lists l001, l002, l003 in order")
+	var series := PackedStringArray(["l001", "l002", "l003", "l004", "l005", "l006", "l007", "l008", "l009"])
+	check.call(ids == series, "the index lists l001 to l009 in order")
+	var beads := [3, 3, 3, 1, 3, 3, 3, 3, 3]
+	var pars := [1, 2, 3, 3, 2, 4, 2, 2, 4]
 	var diffs := []
 	for id in ids:
 		var lv := MazeLevels.load_level(id)
 		check.call(lv.valid(), "%s is valid (%s)" % [id, str(lv.errors)])
 		var file := WhitePuzzleStore.load_json("res://levels/%s.json" % id)
 		check.call(lv.render() == PackedStringArray(file["rows"]), "%s: render() gives the file rows back" % id)
-		check.call(
-			lv.id == id and lv.beads == 3 and lv.par >= 1 and lv.par <= MazeLevel.MAX_PAR, "%s: id, beads and par" % id
-		)
+		var n := ids.find(id)
+		check.call(lv.id == id and lv.beads == beads[n] and lv.par == pars[n], "%s: id, beads and par" % id)
 		check.call(
 			lv.hints.has("nl") and lv.hints.has("en") and lv.names["nl"] != "" and lv.names["en"] != "",
 			"%s: names and hints in both languages" % id
 		)
 		diffs.append(lv.difficulty)
-	check.call(diffs == [0, 1, 2], "difficulties are easy, medium, hard")
+	check.call(diffs == [0, 1, 2, 0, 1, 1, 1, 2, 2], "difficulties follow the series: easy, medium, hard, easy, ...")
 	var l1 := MazeLevels.load_level("l001")
 	check.call(
 		l1.width == 48 and l1.height == 14 and l1.spawn == Vector2i(2, 10) and l1.finish == Vector2i(44, 5),

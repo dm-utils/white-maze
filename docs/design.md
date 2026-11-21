@@ -43,14 +43,14 @@ In scope:
 
 - Fixed-step simulation of player, beads, rings, hazards and finish (sections 2 and 3), fully testable headless.
 - Controls: keyboard, optional mouse, touch overlay (section 4); slow motion while aiming.
-- Handmade level format, loading and validation, a level check tool, and three test levels (easy, medium, hard) built
+- Handmade level format, loading and validation, a level check tool, and nine levels (the first three easy, medium, hard as test levels; l004 to l009 added by card #007) built
   from grey blocks (section 5).
 - Run scripts: a text format for input sequences, used for solution tests and to store the best run (section 6).
 - Time measurement per level and a local profile with statistics, versioned and merge-ready (section 7).
 - Screens: level select, game with HUD, pause, result, rotate hint; Dutch and English (section 8).
 - CI workflow (tests, level check, screenshots, web export) ready for when a remote exists; no deploy (section 10).
 
-Out of scope for phase 1: moving obstacles, sound, gamepad, more than three levels, a visual level editor, ghosts or
+Out of scope for phase 1: moving obstacles, sound, gamepad, more than nine levels, a visual level editor, ghosts or
 replays on screen, an online profile or leaderboard, Android/iOS builds, a settings screen, the play version on
 GitHub Pages (needs a remote).
 
@@ -611,10 +611,10 @@ One JSON file per level, `levels/<id>.json`, made by hand in a text editor:
 | `rings` | Optional list of preset rings: `x`, `y` of a `#` cell and `face`; the face must be exposed (cell in front not solid, not a spike); no duplicates. |
 | `rows` | Strings, top row first, all the same length; width 8 to 256, height 8 to 64; characters `. # X ^ S F`; exactly one `S` with a solid cell below it; exactly one `F`. |
 
-`levels/index.json` lists the series in order: `{"format": 1, "levels": ["l001", "l002", "l003"]}`.
+`levels/index.json` lists the series in order: `{"format": 1, "levels": ["l001", ..., "l009"]}`.
 
 The level `format` stays 1: `par` keeps its type and only its upper bound and meaning change, and every shipped level
-(l001 to l003) has the same par under both readings (5.4).
+(l001 to l003) has the same par under both readings (5.4); l004 to l009 are made for the new reading (section 17).
 
 ### 5.2 Loading and validation
 
@@ -669,7 +669,7 @@ static func load_level(id: String) -> MazeLevel  # from DIR + id + ".json"; a mi
 
 A visual editor (for example importing a `TileMapLayer` scene) is **[later]**.
 
-### 5.4 The three test levels
+### 5.4 The levels
 
 Rows are given in blocks of 8 columns for readability; the JSON row is the concatenation without spaces. The level
 check verifies lengths. Intended solutions are the designer's; the solution tests (11.2) prove that each level can be
@@ -754,6 +754,182 @@ at (1, 11) replaces l002's preset; then a precise jump onto the one-tile pillar 
 ring on the pillar to get over the last 5-high wall. Hint: nl "Op donkere blokken blijft geen kraal hangen." en "Beads
 do not stick to dark blocks."
 
+**l004, "Eén kraal" / "One bead", easy, beads 1, par 3** (48 x 14), no preset rings
+
+```
+            0-7      8-15     16-23    24-31    32-39    40-47
+row  0      ######## ######## ######## ######## ######## ########
+row  1      #....... ........ ........ ........ ........ .......#
+row  2      #....... ........ ........ ........ ........ .......#
+row  3      #....... ........ ........ ........ ........ .......#
+row  4      #....... ........ ........ ........ ........ .......#
+row  5      #....... ........ ........ ........ ........ ...F...#
+row  6      #....... .###.... .....### ........ ######## ########
+row  7      #....... .###.... .....### ........ ######## ########
+row  8      #....... .###.... .....### ........ ######## ########
+row  9      #....... .###.... .....### ........ ######## ########
+row 10      #.S..... .###.... .....### ........ ######## ########
+row 11      ######## ######## ..###### ######## ######## ########
+row 12      ######## ######## ^^###### ######## ######## ########
+row 13      ######## ######## ######## ######## ######## ########
+```
+
+Teaches bead back (`Z`): three walls of 5 tiles, one bead. Throw a floor ring in front of a wall, bounce over it, take
+the ring back, throw the next one. Hint: nl "Je hebt één kraal. Gebruikt? Haal hem terug met {undo}." en "One bead.
+Used it? Take it back with {undo}."
+
+**l005, "Schoorsteen" / "Chimney", medium, beads 3, par 2** (32 x 18), preset ring `{"x": 22, "y": 16, "face": "up"}`
+
+```
+            0-7      8-15     16-23    24-31
+row  0      ######## ######## ######## ########
+row  1      #....... ........ ........ ..######
+row  2      #....... ........ ........ ..######
+row  3      #....... ........ ........ ..######
+row  4      #....... ........ ........ ..######
+row  5      #....... ........ ........ ..######
+row  6      #....... ........ ........ ..######
+row  7      #....F.. ........ ........ ..######
+row  8      ######## ######## ######.. ..######
+row  9      ######## ######## ######.. ..######
+row 10      ######## ######## ######.. ..######
+row 11      ######## ######## ######.. ..######
+row 12      ######## ######## ######.. ..######
+row 13      ######## ######## ######.. ..######
+row 14      ######## ######## ######.. .......#
+row 15      ######## ######## ######.. .....S.#
+row 16      ######## ######## ######## ########
+row 17      ######## ######## ######## ########
+```
+
+Teaches bouncing between two walls of a 4-wide shaft: the preset floor ring lifts the player along the left wall, a
+wall ring on (21, 9) throws it right, a wall ring on (26, 9) back left over the edge of the plateau (rows 8 and 9 both
+work for the second ring). Hint: nl "Ringen op allebei de muren: kaats omhoog." en "Rings on both walls: bounce your way
+up."
+
+**l006, "Torens" / "Towers", medium, beads 3, par 4** (32 x 24), no preset rings
+
+```
+            0-7      8-15     16-23    24-31
+row  0      ######## ######## ######## ########
+row  1      #....... ........ ........ .......#
+row  2      #....... ........ ........ .......#
+row  3      #....... ........ ........ .......#
+row  4      #....... ........ ........ ...F...#
+row  5      #....... ........ .....### ########
+row  6      #....... ........ .....### ########
+row  7      #....... ........ .....### ########
+row  8      #....... ........ .....### ########
+row  9      #....... ........ .#...### ########
+row 10      #....... ........ .#...### ########
+row 11      #....... ........ .#...### ########
+row 12      #....... ........ .#...### ########
+row 13      #....... .....#.. .#...### ########
+row 14      #....... .....#.. .#...### ########
+row 15      #....... .....#.. .#...### ########
+row 16      #....... .....#.. .#...### ########
+row 17      #....... .#...#.. .#...### ########
+row 18      #....... .#...#.. .#...### ########
+row 19      #....... .#...#.. .#...### ########
+row 20      #.S..... .#...#.. .#...### ########
+row 21      ######.. .#...#.. .#...### ########
+row 22      ######^^ ^#^^^#^^ ^#^^^### ########
+row 23      ######## ######## ######## ########
+```
+
+Teaches precision and reuse: three towers of one tile, each 4 higher than the last, over spikes. Four floor rings are
+needed with three beads, so the ring on the middle tower is taken back once it has launched. Throw the ring on a tower
+while still falling onto it (it launches on touch). Hint: nl "Sta op een toren en werp recht omlaag. Op? {undo}." en
+"Stand on a tower and throw straight down. Out of beads? {undo}."
+
+**l007, "Opvangen" / "Catch", medium, beads 3, par 2** (36 x 18), no preset rings
+
+```
+            0-7      8-15     16-23    24-31    32-35
+row  0      ######## ######## ######## ######## ####
+row  1      ######## ###..... ........ ........ ...#
+row  2      ######## ###..... ........ ........ ...#
+row  3      ######## ###..... ........ ........ ...#
+row  4      ######## ###..... ........ ........ ...#
+row  5      ######## ###..... ........ ........ ...#
+row  6      #....... ........ ........ ........ F..#
+row  7      #.S..... ........ ........ ....#### ####
+row  8      ######## ###..... ........ ....#### ####
+row  9      ######## ###..... ........ ....#### ####
+row 10      ######## ###..... ........ ....#### ####
+row 11      ######## ###..... ........ ....#### ####
+row 12      ######## ###..... ...##### ######## ####
+row 13      ######## ###..... ...##### ######## ####
+row 14      ######## ###..... ...##### ######## ####
+row 15      ######## ###..... ...##### ######## ####
+row 16      ######## ###^^^^^ ^^^##### ######## ####
+row 17      ######## ######## ######## ######## ####
+```
+
+Teaches catching a fall: walk off the end of the low tunnel, throw a bead at the wall ring cell (10, 9) while sliding
+down along that wall (row 9: the player is level with it a moment after stepping off, one row lower is too late); the wall
+ring throws the player over the 8-wide pit. Then a floor ring on (27, 12) for the 5-high wall. Hint: nl "Val langs de muur en werp
+terug. Een muurring vangt je op." en "Fall along the wall and throw back. A wall ring catches you."
+
+**l008, "Vaart" / "Momentum", hard, beads 3, par 2** (40 x 16), preset ring `{"x": 1, "y": 13, "face": "up"}`
+
+```
+            0-7      8-15     16-23    24-31    32-39
+row  0      ######## ######## ######## ######## ########
+row  1      #....... ........ ........ ........ .......#
+row  2      #....... ........ ........ ........ .......#
+row  3      #....... ........ ........ ........ .......#
+row  4      #....... ........ ........ ........ .......#
+row  5      #....... ........ ........ ........ .......#
+row  6      #....... ........ ........ ........ .......#
+row  7      #....... ........ ........ ........ ....F..#
+row  8      #....... ........ .####### ######## ########
+row  9      #....... ........ .####### ######## ########
+row 10      #....... ........ .####### ######## ########
+row 11      #....... ........ .####### ######## ########
+row 12      #...S... ........ .####### ######## ########
+row 13      ######## ###..... .####### ######## ########
+row 14      ######## ###^^^^^ ^####### ######## ########
+row 15      ######## ######## ######## ######## ########
+```
+
+Teaches that a floor ring keeps the horizontal speed: the preset ring and a wall ring on (0, 6) (near the apex of the climb;
+the ring on row 7 fires too early and lands short) throw the player over the
+ground at about 500 px/s; a floor ring on (10, 13), thrown during the flight, carries that speed over the 6-wide pit
+onto the ledge. Hint: nl "Een vloerring houdt je vaart vast. Land er vliegend op." en "A floor ring keeps your speed.
+Land on it while flying."
+
+**l009, "Opruimen" / "Tidy up", hard, beads 3, par 4** (40 x 16), no preset rings
+
+```
+            0-7      8-15     16-23    24-31    32-39
+row  0      ######## ######## ######## ######## ########
+row  1      X....... ........ ........ ........ .......#
+row  2      X....... ........ ........ ........ .......#
+row  3      X....... ........ ........ ........ .......#
+row  4      X....... ........ ........ ........ .......#
+row  5      X....... ........ ........ ........ .......#
+row  6      X....... ..#..... ........ ........ .......#
+row  7      X....... ..X..... ........ ........ ....F..#
+row  8      X....... .#X..... ........ ...##### ########
+row  9      X....... .#X..... ........ ...##### ########
+row 10      X....... .#X..... ........ ...##### ########
+row 11      X....... .#X..... ........ ...##### ########
+row 12      X..S.... .#X..... ........ ...##### ########
+row 13      ######## ######## #####... ...##### ########
+row 14      ######## ######## #####^^^ ^^^##### ########
+row 15      ######## ######## ######## ######## ########
+```
+
+The finale. Ring T on (8, 13) lifts the player over the stepped wall (columns 9 and 10; below its top cell column 10
+is `X`); then l008 without a preset:
+floor ring F1 (11, 13), wall ring W1 (10, 6) and floor ring K (20, 13). Four rings, three beads, so T must be taken
+back before F1 and W1 are thrown; the left wall is `X` (no flight from the start). Hint: nl "Ruim op wat je niet meer
+nodig hebt. {undo} pakt altijd de laatste." en "Clear away what you no longer need. {undo} always takes the last
+one."
+
+Par of l004 to l009 is the number of rings used by the stored solution, counted as in ADR 0009 (section 17).
+
 ### 5.5 Level check tool (`tools/check_levels.gd`, `extends SceneTree`)
 
 For every id in the index: load, validate, print `ok <id> <w>x<h> beads <b> par <p>` or each error as
@@ -765,7 +941,7 @@ checks another level folder (for tests).
 
 ### 5.6 Acceptance (levels)
 
-- L1 The three shipped levels and the index are valid; `render()` gives the file rows back.
+- L1 The nine shipped levels and the index are valid; `render()` gives the file rows back.
 - L2 Each validation rule of 5.1 has a test with a minimal bad level that produces exactly its error (at least 14
   cases), and no case produces engine error output. The par cases are: `par` -1 and 21 give `par <v> is outside
   0..20`; `par` 3 with `beads` 1 is valid (par may exceed beads).
@@ -1122,7 +1298,7 @@ The keys `card_beads` and `result_beads` of the first design are replaced by `ca
 
 ### 8.7 Acceptance (screens)
 
-- U1 Headless: the main scene opens the level select with three cards; with an empty profile only card 1 is enabled;
+- U1 Headless: the main scene opens the level select with nine cards; with an empty profile only card 1 is enabled;
   after a recorded finish of l001 card 2 is enabled and card 1 shows the best time and the fewest rings line
   (`t("card_rings")`).
 - U2 The language toggle switches every visible text and is saved in the profile; `--lang=en` overrides for the
@@ -1178,7 +1354,7 @@ white-maze/
   sim/        tuning.gd  level.gd  levels.gd  aim.gd  input.gd  sim.gd  run_script.gd  profile.gd  format.gd
   ui/         main.tscn  main.gd  level_select.gd  game.gd  world_view.gd  hud.gd  controls.gd  touch_overlay.gd
               overlays.gd  profile_store.gd  strings.gd
-  levels/     index.json  l001.json  l002.json  l003.json
+  levels/     index.json  l001.json ... l009.json
   tests/      run_tests.tscn  run_tests.gd  *_tests.gd  solutions.json
   tools/      check_levels.gd  shots.txt
   .github/workflows/ci.yml
@@ -1444,3 +1620,75 @@ and l003 and is run by hand after a change of the simulation or the tool.
 - Screenshots of `tools/shots.txt` (10 scenarios, among them `easy-touch` and `phone-wide` with touch controls) are
   produced by `shots.sh` without errors; reviewed by the developer, the tester reviews them against the mockup (U8).
 - Not checked here: feel on a real phone, multi-touch on hardware, browser behaviour (11.3).
+
+## 17. Levels 4 to 9 (card #007)
+
+The six sketched levels (designer's note of 2026-11-20) are in `levels/` and `levels/index.json` lists l001 to l009.
+Par is counted as rings used (ADR 0009); the sketch's "A" column was the starting point. Solutions are in
+`tests/solutions.json`, found with scratch scripts over the simulation (hand-guided runs and a throw-away search that
+also plans throws), not by playing. Every solution is replayed by `tests/solution_tests.gd` and
+`tools/check_levels.gd`, and survives the robustness test that takes back every thrown ring right after its first
+launch (so each ring is thrown just before it is needed).
+
+| Level | Difficulty | Beads | Par | Rings used | Ticks | Rings of the solution |
+|---|---|---|---|---|---|---|
+| l004 | easy | 1 | 3 | 3 | 371 | floor rings (7, 11), (19, 11), (31, 11); each taken back after use |
+| l005 | medium | 3 | 2 | 2 | 215 | wall rings (21, 9) right, (26, 9) left; preset floor ring |
+| l006 | medium | 3 | 4 | 4 | 214 | floor rings (5, 21), (9, 17), (13, 13) (taken back), (17, 9) |
+| l007 | medium | 3 | 2 | 2 | 227 | wall ring (10, 9) right, floor ring (27, 12) |
+| l008 | hard | 3 | 2 | 2 | 264 | wall ring (0, 6) right, floor ring (10, 13); preset floor ring |
+| l009 | hard | 3 | 4 | 4 | 337 | floor ring T (8, 13) (taken back), F1 (11, 13), W1 (10, 6) right, K (20, 13) |
+
+### 17.1 Changes to the sketch
+
+- **l007: the pit is 8 wide, not 9** (the far side starts at column 19 instead of 20; rows 12 to 16 of column 19 are
+  solid). With the sketched geometry the flight over the pit reached the far side with about 3 px to spare (the
+  sketch estimated 21 px); with the shorter pit it is about 60 px. A coyote jump from the tunnel is still hopeless: the
+  tunnel is two tiles high, so a jump is cut short by the ceiling.
+- **l008 and l009: the ground ends one tile earlier** (l008: pit of 6 instead of 5, columns 11 to 16, the ring on the
+  ground goes on (10, 13); l009 the same ten columns further, ring K on (20, 13)). With the sketched geometry
+  `tools/search_par.gd` found a route with one ring: run, jump, and touch the floor ring on the last ground tile in
+  the air at its far edge; that launches about 50 px further than the sketch assumed (it estimated 50 px short) and
+  reaches the ledge. With the ring on the new last tile the search finds no one-ring route, and the stored two-ring
+  route is unchanged (the flight meets the ring at the same x).
+- **l009: column 10 is `X` below its top cell** (rows 7 to 12). The sketch's second route (walk off the top of column
+  10, fall along the wall and use W1 as a catching ring, as in l007) was found with three rings: T, a wall ring on row
+  7 and K (a brute-force scan over the throw time and a few ticks of air control finds it for several starting
+  variants). With only the top cell `#` the wall ring has to go on (10, 6), which the intended route needs anyway;
+  the same scan found no three-ring route then.
+- All other grids are as sketched, tile for tile.
+- l004 to l006, l008 and l009: the sketched routes work with small differences in where the rings go. l004's first
+  ring can go on (7, 11) as well as (8, 11): a ring in the player's path launches at running speed, the player hits
+  the wall, climbs along it and lands on top. The solutions of l008 and l009 use the wall ring on row 6; rows 7 and 8
+  (the sketch allowed rows 6 to 8) land about 9 ticks earlier, so the ring on the ground would have to move.
+- Measured margins of the stored solutions: l005 feet 16 px above the plateau edge on the way back; l007 about 60 px
+  above the far edge of the pit; l008 and l009 about 25 px above the edge of the ledge.
+- The wall flights are as sketched: 640 px/s, landing about 390 px from the wall at about 500 px/s. The air drag
+  takes 5 px/s per tick, so the floor ring of l008 and l009 is thrown in the air during the flight and takes the
+  player on landing.
+
+### 17.2 Cheaper routes
+
+Par is the number of rings of the designer's route; the level should not have a cheaper one. Checked with
+`tools/search_par.gd` (extra rings pre-placed, `--subset=1`, weight 1, 150000 nodes per set, so every extra ring is
+free and the search is generous) and with reasoning:
+
+| Level | Result | Strength of the evidence |
+|---|---|---|
+| l004 | no route with 2 rings | The three walls are 5 tiles high and a jump reaches 3.6; each needs its own launch and a ring cannot launch the player over two walls 12 tiles apart. A planner with throws and bead back (`--par=2`, 18 candidate faces, 250000 nodes) found nothing; the same planner finds the 3-ring route in under 13000 nodes. |
+| l005 | no route with 1 wall ring | The sketch's calculation: one wall ring falls about 44 px short of the plateau edge. `search_par.gd --subset=1` over the 21 faces of the shaft and a planner run found nothing, but both failed to find the known 2-ring route as well, so they prove nothing here. |
+| l006 | no route with 3 rings | Each of the four steps (shore to tower 1, 1 to 2, 2 to 3, tower 3 to the plateau) is 4 tiles up, a jump reaches 3.6, a floor ring 6.1 and a tower is too far from the next to share a launch; wall rings on a tower add only about 65 px (sketch: tower 2 is out of reach with floor ring and wall ring together). The planner could not find even the known 4-ring route, so this is reasoning only. |
+| l007 | no route with 1 ring | `search_par.gd --subset=1` over the 46 faces right of the tunnel, weight 1, 150000 nodes per set: no finish. The same settings find the known 2-ring route when both rings are pre-placed (calibration). |
+| l008 | no route with 1 ring | Same search over the 74 faces of columns 0 to 20: no finish. Before the change of 17.1 it found one: floor ring on the last ground tile reached from a jump. |
+| l009 | no route with 3 rings found | The wall and the pit each need a ring besides T (stepped wall, wall flight, ring on the ground), and the one-ring jump of l008 is closed in the same way. The sketch's catch route with three rings was found on the first geometry (17.1) and is no longer found: a scan over 30 launch variants of W1 on (10, 6), the time of the throw of K at four ground cells and two segments of air control (about 100000 runs per variant) gives no finish. The same scan finds the intended route on the main variant, so it is a fair, not an exhaustive, test. |
+
+Par stays the designer's: l004 3, l005 2, l006 4, l007 2, l008 2, l009 4. Where the evidence is thin (l005, l006) the
+playtest or the tester can still find a cheaper route; then par drops and the card is edited here.
+
+### 17.3 Tests and tools
+
+- `tests/level_tests.gd`: the series is nine levels, with their beads, par and difficulty; `tests/ui_tests.gd`: nine
+  cards, `Gehaald 1/9`, `--all-levels` opens card 9.
+- Game tests 636 checks (`MIN_CHECKS` 636); kit tests untouched; level check, web export and the `tools/shots.sh`
+  scenarios (checked: `select-en` with nine cards, `l006` with `--solve`) are green.
+- The level select (3 columns) fits nine cards on 1280 x 720 without scrolling.
