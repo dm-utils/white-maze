@@ -201,7 +201,7 @@ func _unlock_chain() -> void:
 	_check.call(m3.select.cards[2].disabled, "unlock: starting l003 does not open it in the profile")
 	_close(m3)
 	# last level: Enter leaves to the select
-	var m4 := _main(["--level=l003", "--solve"])
+	var m4 := _main(["--level=l009", "--solve"])
 	var left := [false]
 	m4.game.levels_requested.connect(func() -> void: left[0] = true)
 	m4.game._input(_key(KEY_ENTER))
