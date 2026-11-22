@@ -8,6 +8,10 @@ const DOOR_POST := 5.0
 const DOOR_LINTEL := 6.0
 const DOOR_ALPHA_BOTTOM := 0.9
 const DOOR_ALPHA_TOP := 0.15
+# half extents of a motif, line widths included
+const MOTIF_HALF := {
+	"glyph": Vector2(10.5, 5.5), "moss": Vector2(9.0, 7.0), "crack": Vector2(4.0, 9.0), "crystal": Vector2(3.5, 4.0),
+}
 
 
 ## primitives of chunk (cx, cy); cracks: Vector2i -> decor shapes of the crack items
@@ -100,6 +104,78 @@ static func _stone(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, r
 	var face: Color = (pal["block"] as Color).lerp(towards, absf(v) * float(skin["stones"]["shade"]))
 	for pg in Geometry2D.offset_polygon(o, -b):
 		_add_poly(out, pg, face)
+	_motif(out, level, skin, rect)
+
+
+## at most one motif per stone, inside an area that keeps clear of trims, chamfers and bevels (21.6.3)
+static func _motif(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, rect: Rect2i) -> void:
+	var anchor := rect.position
+	var pick := -1
+	var motifs: Array = skin["motifs"]
+	for i in motifs.size():
+		if MazeArt.chance(anchor.x, anchor.y, MazeSkin.SALT_MOTIF + i, motifs[i]["chance"]):
+			pick = i
+			break
+	if pick < 0:
+		return
+	var st: Dictionary = skin["stones"]
+	var plain := maxf(st["chamfer"], st["bevel"]) + MazeSkin.MOTIF_MARGIN
+	var area := Rect2(Vector2(rect.position) * T, Vector2(rect.size) * T)
+	var margins := {}
+	for f in 4:
+		var lip := false
+		for c in MazeSkin._side_cells(rect, f):
+			lip = lip or MazeSkin.rim_face(level, c, f)
+		var m := plain
+		if lip:
+			m = MazeSkin.CONTOUR_W + _trim_w(f) + MazeSkin.TRIM_SHADOW_W + MazeSkin.MOTIF_MARGIN
+		margins[f] = m
+	var lo := area.position + Vector2(margins[MazeLevel.Face.LEFT], margins[MazeLevel.Face.UP])
+	var hi := area.end - Vector2(margins[MazeLevel.Face.RIGHT], margins[MazeLevel.Face.DOWN])
+	var kind: String = motifs[pick]["kind"]
+	var half: Vector2 = MOTIF_HALF[kind]
+	if hi.x - lo.x < 12.0 or hi.y - lo.y < 12.0:
+		return
+	var span := (hi - lo) - half * 2.0
+	if span.x < 0.0 or span.y < 0.0:
+		return
+	var salt := MazeSkin.SALT_MOTIF_POS + pick * 3
+	var c := lo + half + Vector2(
+		MazeArt.pick(anchor.x, anchor.y, salt, int(span.x) + 1), MazeArt.pick(anchor.x, anchor.y, salt + 1, int(span.y) + 1)
+	)
+	var pal: Dictionary = skin["pal"]
+	match kind:
+		"glyph":
+			var ring := PackedVector2Array()
+			for i in 13:
+				ring.append(c + Vector2.from_angle(TAU * i / 12.0) * 4.5)
+			out.append(polyline(ring, pal["joint"], 2.0))
+			out.append(line(c + Vector2(-9.5, 0), c + Vector2(-6.5, 0), pal["joint"], 2.0))
+			out.append(line(c + Vector2(6.5, 0), c + Vector2(9.5, 0), pal["joint"], 2.0))
+		"moss":
+			var col := Color(pal["motif"], 0.85)
+			out.append(poly(_ellipse(c, 9.0, 4.5), col))
+			out.append(poly(_ellipse(c + Vector2(5.0, -2.5), 4.0, 6.0), col))
+		"crack":
+			var x := c.x + MazeArt.pick(anchor.x, anchor.y, salt + 2, 3) - 1.0
+			var pts := PackedVector2Array()
+			for i in 4:
+				pts.append(Vector2(x, c.y - 8.0 + i * 5.33))
+				x = clampf(x + MazeArt.pick(anchor.x + i, anchor.y, salt + 2, 5) - 2.0, c.x - 3.0, c.x + 3.0)
+			out.append(polyline(pts, pal["joint"], 2.0))
+		"crystal":
+			var hexa := PackedVector2Array()
+			for i in 6:
+				hexa.append(c + Vector2.from_angle(TAU * i / 6.0 + PI / 2.0) * 4.0)
+			out.append(poly(hexa, pal["block_hi"]))
+
+
+static func _ellipse(c: Vector2, rx: float, ry: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in 12:
+		var a := TAU * i / 12.0
+		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+	return pts
 
 
 static func _add_poly(out: Array[Dictionary], pts: PackedVector2Array, col: Color) -> void:
@@ -270,6 +346,8 @@ static func _door(out: Array[Dictionary], pal: Dictionary, o: Vector2) -> void:
 	out.append(rect(Rect2(o, Vector2(DOOR_POST, T)), frame))
 	out.append(rect(Rect2(o + Vector2(T - DOOR_POST, 0), Vector2(DOOR_POST, T)), frame))
 	out.append(rect(Rect2(o, Vector2(T, DOOR_LINTEL)), frame))
+	var contour := PackedVector2Array([o + Vector2(5, T - 1), o + Vector2(5, 6), o + Vector2(35, 6), o + Vector2(35, T - 1)])
+	out.append(polyline(contour, pal["contour"], 2.0))
 
 
 static func _trim_w(face: int) -> float:
