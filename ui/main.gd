@@ -2,7 +2,7 @@ class_name MazeMain
 extends Control
 ## Root scene: parses the debug arguments, opens the profile and switches between level select and game.
 ## Debug (after --): --level=<id> --all-levels --lang=nl|en --touch --safe=l,t,r,b --profile=<path> --print-run
-## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --shot=<png>
+## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
 
 const BG := Color("#1B1F26")
 const SHOT_WAIT_S := 0.5
@@ -23,7 +23,7 @@ var current_index := -1
 static func parse_args(list: PackedStringArray) -> Dictionary:
 	var o := {
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
-		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "",
+		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -50,6 +50,14 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 			o["pause"] = true
 		elif a.begins_with("--shot="):
 			o["shot"] = a.substr(7)
+		elif a.begins_with("--world="):
+			var w := a.get_slice("=", 1)
+			if MazeWorlds.from_name(w) >= 0:
+				o["world"] = w
+			else:
+				push_warning("--world: unknown world '%s'" % w)
+		elif a == "--fps":
+			o["fps"] = true
 		elif a.begins_with("--camera="):
 			var v := a.get_slice("=", 1)
 			if v == "door" or v == "overview":
@@ -99,7 +107,7 @@ func _debug_game_options() -> Dictionary:
 	return {
 		"keys": opts["keys"], "solve": opts["solve"], "aim": opts["aim"], "pause": opts["pause"],
 		"shot": opts["shot_mode"], "print_run": opts["print_run"], "touch": opts["touch"], "safe": opts["safe"],
-		"camera": opts["camera"],
+		"camera": opts["camera"], "world": opts["world"], "fps": opts["fps"],
 	}
 
 

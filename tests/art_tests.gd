@@ -1,5 +1,6 @@
 extends RefCounted
-## Look and feel step 1 (design 18.12): Lilith's bounds (A2), pose table (A7), simulation untouched (A1), name.
+## Look and feel (design 18.12): Lilith's bounds (A2), pose table (A7), simulation untouched (A1), name; palettes (A3),
+## lip faces (A4), static layers (A6), worlds (A8), readability backings.
 
 const PROFILE := "user://white_maze_test_art.json"
 const SOLUTIONS := "res://tests/solutions.json"
@@ -9,6 +10,8 @@ const BODIES := [B.IDLE, B.RUN, B.JUMP, B.LAUNCH, B.FALL]
 const ARMS := [A.REST, A.AIM, A.THROW, A.UP]
 const VELS := [0.0, 300.0, -300.0, 1080.0, -1080.0]
 const HITBOX := Rect2(-15.0, -32.0, 30.0, 32.0)
+const H := preload("res://tests/helpers.gd")
+const HASH_PINS := [0, 2476996174, 1019855091, 3867735071]
 
 var _check: Callable
 var _node: Node
@@ -22,6 +25,11 @@ func run(check: Callable, node: Node) -> void:
 	_figure()
 	await _game()
 	_names()
+	_palettes()
+	_lips()
+	_worlds()
+	await _static_layers()
+	await _backings()
 	DirAccess.remove_absolute(PROFILE)
 	DirAccess.remove_absolute(PROFILE + ".tmp")
 
@@ -144,7 +152,7 @@ func _figure() -> void:
 	_check.call(filled == 2 and empty == 1, "the bandolier shows the beads left")
 	_check.call(shapes[0]["part"] == "outline", "outlines are drawn first")
 	var band: Color = MazeLilith.HEADBAND
-	_check.call(band.to_html(false) == "dc3150", "the headband is crimson")
+	_check.call(band.to_html(false) == "e0306e", "the headband is rose-crimson")
 	var aim := MazeLilith.shapes(_pose(B.IDLE, A.AIM, {"aim_angle": 0.0}))
 	var beads := 0
 	for s in aim:
@@ -223,3 +231,206 @@ func _names() -> void:
 	_check.call(nl in sub and "Gehaald" in sub, "the level select subtitle carries the tagline")
 	_node.remove_child(m)
 	m.free()
+
+
+static func _hue_gap(a: Color, b: Color) -> float:
+	var d := absf(a.h - b.h) * 360.0
+	return minf(d, 360.0 - d)
+
+
+func _near_white(c: Color) -> bool:
+	return c.s < 0.2 and c.v > 0.8
+
+
+## A3 for each world
+func _palettes() -> void:
+	var hz := MazeWorlds.HAZARD
+	for w in MazeWorlds.COUNT:
+		var p := MazeWorlds.palette(w)
+		var name: String = MazeWorlds.NAMES[w]
+		var top: Color = p["back_top"]
+		var bottom: Color = p["back_bottom"]
+		_check.call(MazeArt.contrast(p["lip"], p["block"]) >= 1.8, "A3 %s: lip against block" % name)
+		_check.call(
+			MazeArt.contrast(p["noring"], top) >= 1.5 and MazeArt.contrast(p["noring"], bottom) >= 1.5,
+			"A3 %s: X against the back wall" % name
+		)
+		_check.call(
+			MazeArt.contrast(hz, top) >= 3.0 and MazeArt.contrast(hz, bottom) >= 3.0,
+			"A3 %s: hazard against the back wall" % name
+		)
+		var lj := MazeArt.luminance(p["joint"])
+		var lb := MazeArt.luminance(p["block"])
+		var ll := MazeArt.luminance(p["lip"])
+		_check.call(lj < lb and lb < ll, "A3 %s: joint darker than block darker than lip" % name)
+		_check.call(
+			MazeArt.luminance(p["noring_edge"]) < MazeArt.luminance(p["noring"]), "A3 %s: X border is darker" % name
+		)
+		var calm := true
+		for key in ["back_decor", "back_line"]:
+			calm = calm and MazeArt.contrast(p[key], top) <= 1.6 and MazeArt.contrast(p[key], bottom) <= 1.6
+		_check.call(calm, "A3 %s: back decor and lines stay calm" % name)
+		var white_free := true
+		var hazard_free := true
+		for key in p:
+			var c: Color = p[key]
+			white_free = white_free and not _near_white(c)
+			hazard_free = hazard_free and not (_hue_gap(c, hz) < 15.0 and c.s > 0.4 and c.v > 0.45)
+		_check.call(white_free, "A3 %s: nothing but the ring colour is near white" % name)
+		_check.call(hazard_free, "A3 %s: no palette colour near the hazard hue" % name)
+	_check.call(_near_white(MazeWorlds.RING), "A3 the ring colour is the near-white one")
+	_check.call(
+		_hue_gap(MazeLilith.HEADBAND, hz) >= 25.0, "A3 the headband hue is at least 25 degrees from the hazard (B3)"
+	)
+
+
+## independent text-based version of the ring-face rule: # next to a cell that is not # X ^ (below the grid is empty)
+func _text_lip(rows: PackedStringArray, x: int, y: int, face: int) -> bool:
+	if rows[y][x] != "#":
+		return false
+	var n: Vector2i = Vector2i(x, y) + MazeLevel.FACE_STEP[face]
+	if n.x < 0 or n.x >= rows[0].length() or n.y < 0:
+		return false
+	if n.y >= rows.size():
+		return true
+	return not rows[n.y][n.x] in ["#", "X", "^"]
+
+
+## A4
+func _lips() -> void:
+	var fixture := H.level(
+		["......F.", ".#.X....", ".#^#....", "........", "........", "........", ".....S..", "########"], {"beads": 1}
+	)
+	_check.call(fixture.valid(), "A4 fixture is a valid level: %s" % fixture.errors)
+	var U := MazeLevel.Face.UP
+	var D := MazeLevel.Face.DOWN
+	var L := MazeLevel.Face.LEFT
+	var R := MazeLevel.Face.RIGHT
+	_check.call(
+		MazeArt.lip_face(fixture, Vector2i(1, 1), U) and MazeArt.lip_face(fixture, Vector2i(1, 1), L)
+		and MazeArt.lip_face(fixture, Vector2i(1, 1), R) and not MazeArt.lip_face(fixture, Vector2i(1, 1), D),
+		"A4 a block next to empty cells gets lips, not towards a block"
+	)
+	_check.call(
+		MazeArt.lip_face(fixture, Vector2i(1, 2), L) and not MazeArt.lip_face(fixture, Vector2i(1, 2), R),
+		"A4 no lip towards a spike"
+	)
+	_check.call(
+		not MazeArt.lip_face(fixture, Vector2i(3, 2), U) and not MazeArt.lip_face(fixture, Vector2i(3, 2), L)
+		and MazeArt.lip_face(fixture, Vector2i(3, 2), R),
+		"A4 no lip towards X or a spike, lip towards empty"
+	)
+	var x_any := false
+	for f in 4:
+		x_any = x_any or MazeArt.lip_face(fixture, Vector2i(3, 1), f)
+	_check.call(not x_any, "A4 X never gets a lip")
+	_check.call(not MazeArt.lip_face(fixture, Vector2i(0, 7), L), "A4 no lip towards the out-of-bounds side")
+	_check.call(MazeArt.lip_face(fixture, Vector2i(0, 7), U), "A4 the floor next to the empty cell above has a lip")
+	var same := true
+	var rings_on_lips := true
+	var lips := 0
+	for id in MazeLevels.ids():
+		var lv := MazeLevels.load_level(id)
+		var rows := lv.render()
+		for y in lv.height:
+			for x in lv.width:
+				for f in 4:
+					var got := MazeArt.lip_face(lv, Vector2i(x, y), f)
+					lips += 1 if got else 0
+					same = same and got == _text_lip(rows, x, y, f)
+		for r in lv.preset_rings:
+			rings_on_lips = rings_on_lips and MazeArt.lip_face(lv, r["cell"], r["face"])
+	_check.call(same and lips > 0, "A4 on every shipped level the lip faces follow the ring rule")
+	_check.call(rings_on_lips, "A4 every preset ring sits on a lip face")
+
+
+## A8, and the hash pins and spread
+func _worlds() -> void:
+	var ok := true
+	for n in [1, 2, 3]:
+		ok = ok and MazeWorlds.for_number(n) == MazeWorlds.World.TEMPLE
+	for n in [4, 5, 6]:
+		ok = ok and MazeWorlds.for_number(n) == MazeWorlds.World.JUNGLE
+	for n in [7, 8, 9, 10, 40]:
+		ok = ok and MazeWorlds.for_number(n) == MazeWorlds.World.CAVE
+	_check.call(ok, "A8 worlds per series position")
+	_check.call(MazeWorlds.for_number(0) == MazeWorlds.World.TEMPLE, "A8 position 0 stays in the temple")
+	_check.call(
+		MazeWorlds.from_name("jungle") == MazeWorlds.World.JUNGLE and MazeWorlds.from_name("cave") == 2
+		and MazeWorlds.from_name("temple") == 0 and MazeWorlds.from_name("moon") == -1,
+		"A8 world names"
+	)
+	_check.call(MazeWorlds.palette(99) == MazeWorlds.TEMPLE, "A8 an unknown world gives the temple palette")
+	var o := MazeMain.parse_args(PackedStringArray(["--world=cave", "--fps"]))
+	var bad := MazeMain.parse_args(PackedStringArray(["--world=moon"]))
+	_check.call(o["world"] == "cave" and o["fps"] and bad["world"] == "" and not bad["fps"], "A8 --world and --fps")
+	var h := [MazeArt.hash3(0, 0, 0), MazeArt.hash3(1, 2, 3), MazeArt.hash3(39, 17, 5), MazeArt.hash3(-4, 9, 1)]
+	_check.call(h == HASH_PINS, "hash3 gives the pinned values: %s" % [h])
+	var counts := [0, 0, 0, 0]
+	for y in 24:
+		for x in 28:
+			counts[MazeArt.pick(x, y, 7, 4)] += 1
+	var even := true
+	for c in counts:
+		even = even and c >= 0.15 * 672 and c <= 0.35 * 672
+	_check.call(even, "pick spreads over four values: %s" % [counts])
+	_check.call(MazeArt.pick(3, 4, 5, 9) == MazeArt.pick(3, 4, 5, 9), "pick is deterministic")
+
+
+func _game_with(extra: PackedStringArray) -> MazeMain:
+	var m: MazeMain = load("res://ui/main.tscn").instantiate()
+	m.use_cmdline = false
+	m.args = PackedStringArray(["--profile=" + PROFILE]) + extra
+	_node.add_child(m)
+	return m
+
+
+## A6, A8 with the real game screen
+func _static_layers() -> void:
+	var m := _game_with(PackedStringArray(["--level=l001"]))
+	var g := m.game
+	g.set_process(false)
+	_check.call(g.world.world_id == MazeWorlds.World.TEMPLE, "A8 level 1 is a temple level")
+	for i in 120:
+		var inp := H.inp(1 if i % 2 == 0 else 0, false, i % 40 == 5)
+		_feed(g, inp)
+		await _node.get_tree().process_frame
+	var chunks: int = g.world.chunk_count()
+	_check.call(chunks > 0 and g.world.static_draws() == chunks, "A6 every chunk is drawn once (%d)" % chunks)
+	g.restart()
+	await _node.get_tree().process_frame
+	_check.call(
+		g.world.build_count == 1 and g.world.static_draws() == chunks, "A6 a restart does not rebuild the layers"
+	)
+	_node.remove_child(m)
+	m.free()
+	var j := _game_with(PackedStringArray(["--level=l001", "--world=jungle"]))
+	_check.call(j.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 --world=jungle gives the jungle world")
+	_node.remove_child(j)
+	j.free()
+	var u := _game_with(PackedStringArray(["--level=l005", "--world=moon"]))
+	_check.call(u.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 an unknown --world is ignored")
+	_node.remove_child(u)
+	u.free()
+
+
+## the readability backings and --fps
+func _backings() -> void:
+	var m := _game_with(PackedStringArray(["--level=l001", "--fps"]))
+	var g := m.game
+	g.set_process(false)
+	g.advance(1.0 / 60.0)
+	await _node.get_tree().process_frame
+	var hint: Label = g.hud._hint
+	var box := hint.get_theme_stylebox("normal") as StyleBoxFlat
+	_check.call(box != null and absf(box.bg_color.a - 0.7) < 0.001, "the hint has a backing of alpha 0.7")
+	_check.call(hint.size.x < g.hud.size.x, "the hint backing wraps the text, not the screen")
+	_check.call(g.hud._fps.visible and g.hud._fps.text.ends_with("fps"), "--fps shows a frame rate label")
+	_node.remove_child(m)
+	m.free()
+	var q := _game_with(PackedStringArray(["--level=l001"]))
+	q.game.set_process(false)
+	q.game.advance(1.0 / 60.0)
+	_check.call(not q.game.hud._fps.visible, "no frame rate label without --fps")
+	_node.remove_child(q)
+	q.free()

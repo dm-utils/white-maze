@@ -97,6 +97,12 @@ func _ready() -> void:
 
 	rig.debug_view = str(options.get("camera", ""))
 	_start_attempt(false)
+	world.world_id = MazeWorlds.for_number(number)
+	var forced := MazeWorlds.from_name(str(options.get("world", "")))
+	if forced >= 0:
+		world.world_id = forced
+	world.build()
+	hud.show_fps = options.get("fps", false)
 	_debug_setup()
 	_update_camera(0.0, true)
 	if _intro_wanted():
