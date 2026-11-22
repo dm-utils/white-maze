@@ -17,6 +17,7 @@ const BEAD_HALO_R := 11.0
 const BEAD_HALO_ALPHA := 0.2
 const FLASH_TICKS := 10
 const FADE_IN_TICKS := 10
+const LOOK_FOLLOW := 0.35 # per tick, share of the velocity change taken by the look velocity
 const BEAD_R := 7.0
 const DOT_R := 1.5
 const DOT_STEP := 14.0
@@ -37,6 +38,8 @@ var view_zoom := 1.0
 var overview_k := 0.0 # 0..1, weight of the overview view
 var world_id := MazeWorlds.World.TEMPLE
 var build_count := 0 # tests: static layers are built once per level
+var blend := MazePoseBlend.new()
+var last_rig := {} # joints as last drawn, local frame
 
 var _bake: MazeStaticBake
 
@@ -47,6 +50,8 @@ var _throw_tick := NEVER
 var _death_tick := NEVER
 var _throw_dir := Vector2.RIGHT # px, from the newest throw
 var _face := 1 # view-only facing: follows the aim and the throw
+var _look_prev := Vector2.ZERO # smoothed velocity in px/s, see after_tick
+var _look_cur := Vector2.ZERO
 
 
 func _init() -> void:
@@ -60,6 +65,9 @@ func notify_events(events: Array[Dictionary]) -> void:
 			_flash[[e["cell"], e["face"]]] = sim.tick
 		elif e["type"] == "respawn":
 			_respawn_tick = sim.tick
+			blend.reset()
+			_look_prev = Vector2.ZERO
+			_look_cur = Vector2.ZERO
 		elif e["type"] == "land":
 			_land_tick = sim.tick
 		elif e["type"] == "death":
@@ -78,6 +86,21 @@ func reset() -> void:
 	_throw_tick = NEVER
 	_death_tick = NEVER
 	_face = 1
+	_look_prev = Vector2.ZERO
+	_look_cur = Vector2.ZERO
+	last_rig = {}
+	blend.reset()
+
+
+## after the events of every tick: smooths the velocity that drives tails and launch tilt (20.3.4)
+func after_tick() -> void:
+	_look_prev = _look_cur
+	_look_cur = _look_cur.lerp(Vector2(sim.vx, sim.vy) * 60.0 / 1000.0, LOOK_FOLLOW)
+
+
+## render time in ticks: the state that lerp(prev, current, alpha) shows
+func render_time() -> float:
+	return float(sim.tick) - 1.0 + alpha
 
 
 ## interpolated player centre in world px
@@ -176,13 +199,30 @@ func _draw_beads() -> void:
 
 
 func _draw_player() -> void:
-	var fade := 1.0
-	if not sim.alive():
-		fade = float(sim.dead_ticks) / MazeTuning.DEATH_TICKS
-	else:
-		fade = clampf(float(sim.tick - _respawn_tick) / FADE_IN_TICKS, 0.0, 1.0)
-	if fade <= 0.0:
+	var p := player_params()
+	if p.is_empty():
 		return
+	draw_set_transform(player_centre() + Vector2(0.0, 16.0), 0.0, Vector2(_face, 1.0))
+	for s in MazeLilith.shapes(p):
+		_draw_shape(s)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## pose of Lilith for this frame, or {} when she is not visible; also advances the pose blend
+func player_params() -> Dictionary:
+	var t := render_time()
+	var fade := 1.0
+	var dead_k := 0.0
+	if not sim.alive():
+		var born := float(sim.tick - (MazeTuning.DEATH_TICKS - sim.dead_ticks))
+		if _death_tick != NEVER:
+			born = float(_death_tick)
+		dead_k = clampf(t - born, 0.0, float(MazeTuning.DEATH_TICKS)) / MazeTuning.DEATH_TICKS
+		fade = 1.0 - dead_k
+	else:
+		fade = clampf((t - float(_respawn_tick)) / FADE_IN_TICKS, 0.0, 1.0)
+	if fade <= 0.0:
+		return {}
 	var feet := player_centre() + Vector2(0.0, 16.0)
 	var aiming := aim_index >= 0
 	var since_throw := sim.tick - _throw_tick
@@ -199,21 +239,26 @@ func _draw_player() -> void:
 	var arm := MazeLilith.arm_mode(aiming, since_throw, body)
 	var squash := 0.0
 	if sim.grounded and sim.alive():
-		squash = maxf(0.0, 1.0 - float(sim.tick - _land_tick) / MazeLilith.LAND_TICKS)
-	var vel := Vector2(sim.vx, sim.vy) * 60.0 / 1000.0
+		var age := t - float(_land_tick)
+		if age < 0.0:
+			squash = 0.0
+		elif age < 1.0:
+			squash = age
+		else:
+			squash = maxf(0.0, 1.0 - (age - 1.0) / MazeLilith.LAND_TICKS)
+	var look := _look_prev.lerp(_look_cur, alpha)
 	var p := {
-		"body": body, "arm": arm, "tick": sim.tick, "fade": fade, "squash_k": squash,
+		"body": body, "arm": arm, "tick": t, "fade": fade, "squash_k": squash,
 		"phase": fposmod(feet.x / MazeLilith.STRIDE_PX, 1.0),
 		"aim_angle": atan2(dir.y, dir.x * _face),
-		"throw_k": clampf(float(since_throw) / MazeLilith.THROW_TICKS, 0.0, 1.0),
-		"dead_k": 1.0 - float(sim.dead_ticks) / MazeTuning.DEATH_TICKS if not sim.alive() else 0.0,
-		"vel": Vector2(vel.x * _face, vel.y),
+		"throw_k": clampf((t - float(_throw_tick)) / MazeLilith.THROW_TICKS, 0.0, 1.0),
+		"dead_k": dead_k,
+		"vel": Vector2(look.x * _face, look.y),
 		"slots": mini(sim.level.beads, LILITH_SLOTS), "filled": mini(sim.beads_left, LILITH_SLOTS),
 	}
-	draw_set_transform(feet, 0.0, Vector2(_face, 1.0))
-	for s in MazeLilith.shapes(p):
-		_draw_shape(s)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	p["rig"] = blend.apply(Vector2i(body, arm), MazeLilith.rig(p), t)
+	last_rig = p["rig"]
+	return p
 
 
 func _draw_player_marker() -> void:

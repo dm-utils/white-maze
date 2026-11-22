@@ -145,6 +145,7 @@ func _debug_setup() -> void:
 				_inputs.append(inp)
 				sim.step(inp)
 				world.notify_events(sim.events)
+				world.after_tick()
 				hud.notify_events(sim.events)
 				if sim.finished():
 					break
@@ -163,6 +164,7 @@ func _debug_setup() -> void:
 		frozen = true
 	if str(options.get("camera", "")) != "":
 		frozen = true
+	world.blend.enabled = not frozen
 	if options.get("pause", false):
 		pause()
 
@@ -340,7 +342,10 @@ func advance(delta: float) -> void:
 			if sim.finished():
 				break
 		_acc = minf(_acc, TICK_S * 0.999)
-	world.alpha = clampf(_acc / TICK_S, 0.0, 1.0) if active else 1.0
+	# paused and overview keep the interpolation, so nothing jumps forward by a tick
+	var tweened := not frozen and not sim.finished()
+	world.alpha = clampf(_acc / TICK_S, 0.0, 1.0) if tweened else 1.0
+	world.blend.enabled = not frozen
 	world.modulate = Color(SLOW_DIM, SLOW_DIM, SLOW_DIM) if (active and rate < 1.0) else Color.WHITE
 	rig.set_overview(_overview)
 	_update_camera(delta, false)
@@ -363,6 +368,7 @@ func _tick() -> void:
 	_inputs.append(inp)
 	sim.step(inp)
 	world.notify_events(sim.events)
+	world.after_tick()
 	hud.notify_events(sim.events)
 	for e in sim.events:
 		match e["type"]:

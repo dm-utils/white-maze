@@ -24,6 +24,7 @@ func run(check: Callable, node: Node) -> void:
 	_check = check
 	_node = node
 	_bounds()
+	_blended_bounds()
 	_poses()
 	_figure()
 	await _game()
@@ -110,6 +111,29 @@ func _bounds() -> void:
 		for f in n + 1:
 			slots_ok = slots_ok and _violation(_pose(B.IDLE, A.REST, {"slots": n, "filled": f})) == ""
 	_check.call(slots_ok, "A2: every number of bandolier slots stays inside the hitbox")
+
+
+## F8: A2 also holds for every blend between two poses
+func _blended_bounds() -> void:
+	for a: int in BODIES:
+		for b: int in BODIES:
+			var bad := ""
+			for arm_a: int in ARMS:
+				for arm_b: int in ARMS:
+					for d in range(0, MazeAim.STEPS, 24):
+						var v := Vector2(MazeAim.dir(d))
+						for k in [0.0, 0.5, 1.0]:
+							for ph in [0.0, 0.3, 0.6]:
+								var extra := {
+									"aim_angle": atan2(v.y, v.x), "throw_k": k, "phase": ph, "tick": d,
+									"vel": Vector2(300.0 * (k - 0.5), 0.0),
+								}
+								var ra := MazeLilith.rig(_pose(a, arm_a, extra))
+								var pb := _pose(b, arm_b, extra)
+								for w in [0.25, 0.5, 0.75]:
+									pb["rig"] = MazeLilith.blend_rig(ra, MazeLilith.rig(pb), w)
+									bad = bad if bad != "" else _violation(pb)
+			_check.call(bad == "", "F8: blend from pose %d to %d stays inside the hitbox %s" % [a, b, bad])
 
 
 func _poses() -> void:
@@ -283,6 +307,17 @@ func _palettes() -> void:
 		_check.call(white_free, "A3 %s: nothing but the ring colour is near white" % name)
 		_check.call(hazard_free, "A3 %s: no palette colour near the hazard hue" % name)
 	_check.call(_near_white(MazeWorlds.RING), "A3 the ring colour is the near-white one")
+	var hair := MazeLilith.HAIR
+	for w in MazeWorlds.COUNT:
+		var p := MazeWorlds.palette(w)
+		var name: String = MazeWorlds.NAMES[w]
+		_check.call(
+			MazeArt.contrast(hair, p["back_top"]) >= 3.0 and MazeArt.contrast(hair, p["back_bottom"]) >= 3.0,
+			"F7 %s: the hair against the back wall" % name
+		)
+	_check.call(_hue_gap(hair, hz) >= 20.0, "F7 the hair hue is at least 20 degrees from the hazard")
+	_check.call(_hue_gap(hair, MazeLilith.HEADBAND) >= 30.0, "F7 the hair hue is at least 30 degrees from the headband")
+	_check.call(MazeArt.contrast(hair, MazeLilith.SKIN) >= 1.5, "F7 the hair against the skin")
 	_check.call(
 		_hue_gap(MazeLilith.HEADBAND, hz) >= 25.0, "A3 the headband hue is at least 25 degrees from the hazard (B3)"
 	)
