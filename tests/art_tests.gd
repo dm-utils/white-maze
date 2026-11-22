@@ -416,6 +416,7 @@ func _static_layers() -> void:
 	_node.remove_child(m)
 	m.free()
 	_baked_memory()
+	_bottom_lip()
 	var j := _game_with(PackedStringArray(["--level=l001", "--world=jungle"]))
 	_check.call(j.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 --world=jungle gives the jungle world")
 	_node.remove_child(j)
@@ -424,6 +425,28 @@ func _static_layers() -> void:
 	_check.call(u.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 an unknown --world is ignored")
 	_node.remove_child(u)
 	u.free()
+
+
+## no lip along the bottom edge of the level, lips elsewhere unchanged
+func _bottom_lip() -> void:
+	var gone := true
+	var same := true
+	var bottom_had_lip := false
+	for id in MazeLevels.ids():
+		var lv := MazeLevels.load_level(id)
+		for y in lv.height:
+			for x in lv.width:
+				for f in 4:
+					var cell := Vector2i(x, y)
+					var last_row_down: bool = f == MazeLevel.Face.DOWN and y == lv.height - 1
+					if last_row_down:
+						bottom_had_lip = bottom_had_lip or MazeArt.lip_face(lv, cell, f)
+						gone = gone and not MazeStaticLayer.lip_drawn(lv, cell, f)
+					else:
+						same = same and MazeStaticLayer.lip_drawn(lv, cell, f) == MazeArt.lip_face(lv, cell, f)
+	_check.call(bottom_had_lip, "L2 precondition: lip_face still gives the last row a bottom lip (sim rule 3.10)")
+	_check.call(gone, "L2 no lip drawn on the bottom of the last row in any level")
+	_check.call(same, "L2 every other lip face is drawn as lip_face says")
 
 
 ## chunk textures: one sprite per chunk, memory per level within the phone budget

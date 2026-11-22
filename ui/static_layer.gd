@@ -157,14 +157,21 @@ func _draw_block(ci: Node2D, x: int, y: int, o: Vector2) -> void:
 	_draw_joints(ci, x, y, o)
 	var lip: Color = _pal["lip"]
 	var cell := Vector2i(x, y)
-	if MazeArt.lip_face(level, cell, MazeLevel.Face.UP):
+	if lip_drawn(level, cell, MazeLevel.Face.UP):
 		ci.draw_rect(Rect2(o, Vector2(T, LIP)), lip)
-	if MazeArt.lip_face(level, cell, MazeLevel.Face.DOWN):
+	if lip_drawn(level, cell, MazeLevel.Face.DOWN):
 		ci.draw_rect(Rect2(o + Vector2(0, T - LIP), Vector2(T, LIP)), lip)
-	if MazeArt.lip_face(level, cell, MazeLevel.Face.LEFT):
+	if lip_drawn(level, cell, MazeLevel.Face.LEFT):
 		ci.draw_rect(Rect2(o, Vector2(LIP, T)), lip)
-	if MazeArt.lip_face(level, cell, MazeLevel.Face.RIGHT):
+	if lip_drawn(level, cell, MazeLevel.Face.RIGHT):
 		ci.draw_rect(Rect2(o + Vector2(T - LIP, 0), Vector2(LIP, T)), lip)
+
+
+## lip_face, but no lip on the bottom of the last row: the other level edges have none either
+static func lip_drawn(lv: MazeLevel, cell: Vector2i, face: int) -> bool:
+	if face == MazeLevel.Face.DOWN and cell.y == lv.height - 1:
+		return false
+	return MazeArt.lip_face(lv, cell, face)
 
 
 ## joints are drawn before the lips, so a lip is never interrupted
