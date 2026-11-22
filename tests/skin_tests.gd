@@ -7,6 +7,8 @@ const PALETTE_USED := [
 	"noring_edge", "sheen", "detail", "light", "door_frame",
 ]
 
+const PROFILE := "user://white_maze_test_skins.json"
+
 var _check: Callable
 var _node: Node
 
@@ -25,6 +27,8 @@ func run(check: Callable, node: Node) -> void:
 	_groups()
 	_keys_argument()
 	_spikes_rings()
+	_bake_memory()
+	await _first_frame()
 	_lip_at_a_glance()
 	_bake_times()
 
@@ -67,11 +71,15 @@ func _guard() -> void:
 		_check.call(_has(MazeSkin.validate(pack), "engine-owned"), "S3 palette.%s is engine-owned" % key)
 		var top := _with([key], "#112233")
 		_check.call(_has(MazeSkin.validate(top), "engine-owned"), "S3 top-level %s is engine-owned" % key)
-	_check.call(_has(MazeSkin.validate(_with(["palette", "lip"], "#FFFFFF")), "engine-owned"), "S3 palette.lip is engine-owned")
+	_check.call(
+		_has(MazeSkin.validate(_with(["palette", "lip"], "#FFFFFF")), "engine-owned"),
+		"S3 palette.lip is engine-owned"
+	)
+	var one_motif := {"kind": "moss", "chance": 1}
 	var bad := {
 		"rim.wall 9": _with(["rim", "wall"], 9),
 		"stones.chamfer 20": _with(["stones", "chamfer"], 20.0),
-		"3 motifs": _with(["motifs"], [{"kind": "moss", "chance": 1}, {"kind": "moss", "chance": 1}, {"kind": "moss", "chance": 1}]),
+		"3 motifs": _with(["motifs"], [one_motif, one_motif, one_motif]),
 		"unknown tint": _with(["lip"], "neon"),
 		"unknown motif": _with(["motifs"], [{"kind": "snake", "chance": 5}]),
 		"unknown key": _with(["extra"], 1),
@@ -164,7 +172,10 @@ func _bake_times() -> void:
 				% [id, MazeWorlds.NAMES[w], best / 1000.0, layer.command_count, points]
 			)
 			slow = maxf(slow, best / 1000.0)
-	_check.call(slow <= 1000.0, "S13 the primitive build of every level in every world stays under 1000 ms (%.1f)" % slow)
+	_check.call(
+		slow <= 1000.0,
+		"S13 the primitive build of every level in every world stays under 1000 ms (%.1f)" % slow
+	)
 	_check.call(worst <= 8000, "S13 at most 8000 primitives per chunk (%d)" % worst)
 
 
@@ -272,7 +283,8 @@ func _lip_at_a_glance() -> void:
 							runs += 1
 							var line: Array[Color] = []
 							for i in 40:
-								line.append(_colour_at(near, origin + along * 40.0 * t + inward * (0.25 + 0.5 * i), base))
+								var at: Vector2 = origin + along * 40.0 * t + inward * (0.25 + 0.5 * i)
+								line.append(_colour_at(near, at, base))
 							if not _lip_profile_ok(line, pal, lipish, base):
 								bad_lip.append("%s %s %s f%d t%.2f" % [job[0], job[1], cell, f, t])
 					elif kind == MazeLevel.Cell.NO_RING or MazeSkin.side(lv, cell, f) != MazeSkin.Side.AIR:
@@ -293,7 +305,10 @@ func _lip_at_a_glance() -> void:
 							var c := _colour_at(near, Vector2(cell) * 40.0 + q, base)
 							if not _same_colour(c, base) and MazeArt.contrast(lip, c) < 1.3:
 								bad_plain.append("%s %s %s inside %s" % [job[0], job[1], cell, q])
-	_check.call(runs > 100 and bad_lip.is_empty(), "S7 every ring face shows contour, lip and a dark edge (%d samples, bad %s)" % [runs, bad_lip.slice(0, 4)])
+	_check.call(
+		runs > 100 and bad_lip.is_empty(),
+		"S7 every ring face shows contour, lip and a dark edge (%d samples, bad %s)" % [runs, bad_lip.slice(0, 4)]
+	)
 	_check.call(bad_plain.is_empty(), "S7 nothing lip-like where no ring can go (bad %s)" % [bad_plain.slice(0, 4)])
 
 
@@ -460,7 +475,10 @@ func _continuity() -> void:
 						steps += 1
 						if MazeSkin.rim_d(lv, skin, c, f, 5) != MazeSkin.rim_d(lv, skin, m, f, 0):
 							bad.append("%s %s f%d" % [job[0], c, f])
-	_check.call(steps > 100 and bad.is_empty(), "S5 shared vertices get one offset (%d pairs, %s)" % [steps, bad.slice(0, 3)])
+	_check.call(
+		steps > 100 and bad.is_empty(),
+		"S5 shared vertices get one offset (%d pairs, %s)" % [steps, bad.slice(0, 3)]
+	)
 	var crossing := 0
 	var same := true
 	for id in ["l003", "l006", "l009"]:
@@ -487,13 +505,17 @@ func _continuity() -> void:
 					if not lists.has(key):
 						lists[key] = MazeTileShapes.chunk(lv, skin, {}, key.x, key.y)
 					same = same and _has_run(lists[key], parts) and MazeSkin.stone_of(lv, skin, corner) == st
-	_check.call(crossing > 0 and same, "S5 stones over a chunk border are the same primitives in both chunks (%d)" % crossing)
+	_check.call(
+		crossing > 0 and same,
+		"S5 stones over a chunk border are the same primitives in both chunks (%d)" % crossing
+	)
 	var slab_ok := true
 	var lv9 := MazeLevels.load_level("l009")
 	var skin9 := MazeSkins.skin(MazeWorlds.World.CAVE)
 	for cx in 2:
 		for cy in 2:
-			slab_ok = slab_ok and var_to_str(MazeTileShapes.chunk(lv9, skin9, {}, cx, cy)) == var_to_str(MazeTileShapes.chunk(lv9, skin9, {}, cx, cy))
+			var a := var_to_str(MazeTileShapes.chunk(lv9, skin9, {}, cx, cy))
+			slab_ok = slab_ok and a == var_to_str(MazeTileShapes.chunk(lv9, skin9, {}, cx, cy))
 	_check.call(same and slab_ok, "S5 two builds give equal primitive lists")
 
 
@@ -536,7 +558,8 @@ func _precision() -> void:
 				for f in 4:
 					for i in 6:
 						var d := MazeSkin.rim_d(lv, skin, c, f, i)
-						var cap := MazeSkin.THIN_RIM_MAX if MazeSkin.side(lv, c, MazeSkin.OPPOSITE[f]) == MazeSkin.Side.AIR else MazeSkin.RIM_MAX
+						var thin := MazeSkin.side(lv, c, MazeSkin.OPPOSITE[f]) == MazeSkin.Side.AIR
+						var cap := MazeSkin.THIN_RIM_MAX if thin else MazeSkin.RIM_MAX
 						if d > cap or (f == MazeLevel.Face.UP and d != 0):
 							bad.append("rim_d %s %s f%d" % [job[0], c, f])
 				for corner in 4:
@@ -581,8 +604,14 @@ func _precision_l003() -> void:
 	var straight := true
 	for p in MazeSkin.outline(lv, skin, ledge, false):
 		straight = straight and (p.y <= 440.001 or p.y > 443.0 or p.x < 400.0 + 3.001)
-	_check.call((chip == 2 or chip == 3) and straight, "S6 the ledge at (10, 11) has a chip of 2 or 3 px and a straight floor")
-	_check.call(MazeSkin.chip(lv, skin, Vector2i(19, 11), MazeSkin.Corner.TR) == 0, "S6 the ledge at (19, 11) next to spikes stays square")
+	_check.call(
+		(chip == 2 or chip == 3) and straight,
+		"S6 the ledge at (10, 11) has a chip of 2 or 3 px and a straight floor"
+	)
+	_check.call(
+		MazeSkin.chip(lv, skin, Vector2i(19, 11), MazeSkin.Corner.TR) == 0,
+		"S6 the ledge at (19, 11) next to spikes stays square"
+	)
 	_check.call(
 		MazeSkin.chip(lv, skin, Vector2i(2, 11), MazeSkin.Corner.TR) > 0
 		and not MazeSkin.rim_face(lv, Vector2i(0, 11), MazeLevel.Face.UP),
@@ -591,13 +620,19 @@ func _precision_l003() -> void:
 	var slab := MazeSkin.slab_of(lv, Vector2i(0, 5))
 	var o := MazeSkin.slab_outline(lv, skin, slab)
 	var left_flush := o.has(Vector2(0, 5 * 40 + 1.5)) and o.has(Vector2(0, 11 * 40 - 1.5))
-	_check.call(slab == Rect2i(0, 5, 1, 6) and left_flush and not o.has(Vector2(37, 5 * 40 + 1.5)), "S6 the X column is one slab, flush left, rounded right")
+	_check.call(
+		slab == Rect2i(0, 5, 1, 6) and left_flush and not o.has(Vector2(37, 5 * 40 + 1.5)),
+		"S6 the X column is one slab, flush left, rounded right"
+	)
 	var wall_ok := MazeSkin.rim_d(lv, skin, Vector2i(28, 10), MazeLevel.Face.LEFT, 0) == 0
 	var wall_max := 0
 	for y in range(6, 11):
 		for i in 6:
 			wall_max = maxi(wall_max, MazeSkin.rim_d(lv, skin, Vector2i(28, y), MazeLevel.Face.LEFT, i))
-	_check.call(wall_ok and wall_max <= 2 and MazeSkin.chip(lv, skin, Vector2i(28, 6), MazeSkin.Corner.TL) > 0, "S6 the wall before the door is crumbly up to 2 px, 0 at the spikes, chipped on top")
+	_check.call(
+		wall_ok and wall_max <= 2 and MazeSkin.chip(lv, skin, Vector2i(28, 6), MazeSkin.Corner.TL) > 0,
+		"S6 the wall before the door is crumbly up to 2 px, 0 at the spikes, chipped on top"
+	)
 	var ceiling := 0
 	var flush := true
 	for x in range(1, 47):
@@ -618,7 +653,8 @@ func _precision_l006() -> void:
 			top += 1
 		var o := MazeSkin.outline(lv, skin, Vector2i(x, top), false)
 		for p in o:
-			ok = ok and (p.y <= top * 40.0 + 0.001 or p.y > top * 40.0 + 3.001 or p.x - x * 40.0 <= 3.001 or (x + 1) * 40.0 - p.x <= 3.001)
+			var near_corner: bool = p.x - x * 40.0 <= 3.001 or (x + 1) * 40.0 - p.x <= 3.001
+			ok = ok and (p.y <= top * 40.0 + 0.001 or p.y > top * 40.0 + 3.001 or near_corner)
 		var y := top
 		while lv.cell(x, y) == MazeLevel.Cell.SOLID and lv.cell(x, y + 1) == MazeLevel.Cell.SOLID:
 			for f in [MazeLevel.Face.LEFT, MazeLevel.Face.RIGHT]:
@@ -645,10 +681,12 @@ func _groups() -> void:
 				var kind := lv.cell(x, y)
 				if kind == MazeLevel.Cell.SOLID:
 					var st := MazeSkin.stone_of(lv, skin, c)
-					var ok := st.has_point(c) and st.size.x <= 2 and st.size.y <= 2 and (st.size.x == st.size.y or st.size.y == 1)
+					var shape_ok := st.size.x <= 2 and st.size.y <= 2 and (st.size.x == st.size.y or st.size.y == 1)
+					var ok := st.has_point(c) and shape_ok
 					for yy in range(st.position.y, st.end.y):
 						for xx in range(st.position.x, st.end.x):
-							ok = ok and lv.cell(xx, yy) == MazeLevel.Cell.SOLID and MazeSkin.stone_of(lv, skin, Vector2i(xx, yy)) == st
+							var same_stone := MazeSkin.stone_of(lv, skin, Vector2i(xx, yy)) == st
+							ok = ok and lv.cell(xx, yy) == MazeLevel.Cell.SOLID and same_stone
 					if not ok:
 						bad.append("stone %s %s %s" % [job[0], job[1], c])
 					if job[0] == "random" and st.size == Vector2i(2, 2):
@@ -673,7 +711,10 @@ func _groups() -> void:
 					if not ok:
 						bad.append("slab %s %s %s" % [job[0], job[1], c])
 	_check.call(bad.is_empty(), "S10 stones and slabs are consistent groups (%s)" % [bad.slice(0, 4)])
-	_check.call(big_cave > 0 and big_temple == 0 and running, "S10 cave has 2 x 2 stones (%d), temple none, 2 x 1 follows the running bond" % big_cave)
+	_check.call(
+		big_cave > 0 and big_temple == 0 and running,
+		"S10 cave has 2 x 2 stones (%d), temple none, 2 x 1 follows the running bond" % big_cave
+	)
 
 
 func _x_at(lv: MazeLevel, x: int, y: int) -> bool:
@@ -700,7 +741,10 @@ func _polygons_valid() -> void:
 						count += 1
 						if Geometry2D.triangulate_polygon(s["pts"]).is_empty():
 							bad.append("%s %s chunk %d,%d" % [job[0], job[1], cx, cy])
-	_check.call(count > 1000 and bad.is_empty(), "S4 every polygon triangulates (%d, bad %s)" % [count, bad.slice(0, 3)])
+	_check.call(
+		count > 1000 and bad.is_empty(),
+		"S4 every polygon triangulates (%d, bad %s)" % [count, bad.slice(0, 3)]
+	)
 
 
 ## S11, S12, S9
@@ -708,7 +752,9 @@ func _spikes_rings() -> void:
 	var hz: Array[Color] = [MazeWorlds.HAZARD, MazeWorlds.HAZARD_HI, MazeWorlds.HAZARD_DARK, MazeWorlds.HAZARD_LINE]
 	var today := {
 		"spear": PackedVector2Array([Vector2(1, 40), Vector2(10, 20), Vector2(19, 40)]),
-		"thorn": PackedVector2Array([Vector2(1, 40), Vector2(6, 30), Vector2(11, 20), Vector2(14, 30), Vector2(19, 40)]),
+		"thorn": PackedVector2Array(
+			[Vector2(1, 40), Vector2(6, 30), Vector2(11, 20), Vector2(14, 30), Vector2(19, 40)]
+		),
 		"crystal": PackedVector2Array(
 			[Vector2(1, 40), Vector2(4, 27), Vector2(8, 20), Vector2(12, 20), Vector2(16, 27), Vector2(19, 40)]
 		),
@@ -722,7 +768,10 @@ func _spikes_rings() -> void:
 			var c: Color = s["col"]
 			colours = colours and hz.has(Color(c, 1.0))
 		var outline_ok: bool = parts[0]["pts"] == today[skin["spikes"]]
-		_check.call(colours and parts.size() > 8 and outline_ok, "S11 %s pins: shared colours, today's outline" % MazeWorlds.NAMES[w])
+		_check.call(
+			colours and parts.size() > 8 and outline_ok,
+			"S11 %s pins: shared colours, today's outline" % MazeWorlds.NAMES[w]
+		)
 	for flash in [false, true]:
 		var st := MazeWorldView.ring_strokes(flash)
 		var white: Color = WhiteTheme.ACCENT if flash else MazeWorlds.RING
@@ -737,3 +786,40 @@ func _spikes_rings() -> void:
 		and MazeWorldView.RING_OUTLINE_W > MazeWorldView.RING_STROKE,
 		"S9 the block contour is at least twice Lilith's outline per side, her outline is unchanged"
 	)
+
+
+## S13: texture memory per level is what 18.19 lists (this card changes the primitives, not the textures)
+func _bake_memory() -> void:
+	var expected := {
+		"l001": 17.2, "l002": 14.3, "l003": 17.2, "l004": 17.2, "l005": 14.7, "l006": 19.7, "l007": 16.6,
+		"l008": 16.4, "l009": 16.4,
+	}
+	var same := true
+	for id: String in expected:
+		var bake := MazeStaticBake.new()
+		bake.build(MazeLevels.load_level(id), MazeWorlds.World.TEMPLE)
+		same = same and roundi(bake.baked_bytes / 100000.0) == roundi(float(expected[id]) * 10.0)
+		bake.free()
+	_check.call(same, "S13 baked texture memory per level is unchanged")
+
+
+## S13: after the first frames every chunk's primitive list is empty and the first frame time is set
+func _first_frame() -> void:
+	var m: MazeMain = load("res://ui/main.tscn").instantiate()
+	m.use_cmdline = false
+	m.args = PackedStringArray(["--profile=" + PROFILE, "--speed=100", "--level=l006"])
+	_node.add_child(m)
+	for i in 6:
+		await _node.get_tree().process_frame
+	var bake: MazeStaticBake = m.game.world._bake
+	var empty: bool = bake._tiles._chunks.is_empty() and bake._back._chunks.is_empty()
+	_check.call(empty, "S13 every chunk's primitive list is freed after its first draw")
+	_check.call(
+		MazeStaticBake.first_frame_usec >= 0 and MazeStaticBake.command_count > 0,
+		"S13 the first frame time is noted"
+	)
+	_check.call(m.game.world.static_draws() == m.game.world.chunk_count(), "S13 every chunk is drawn once")
+	_node.remove_child(m)
+	m.free()
+	DirAccess.remove_absolute(PROFILE)
+	DirAccess.remove_absolute(PROFILE + ".tmp")

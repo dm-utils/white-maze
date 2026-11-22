@@ -33,5 +33,6 @@ func _init() -> void:
 			data[i] = g
 			data[i + 1] = g
 			data[i + 2] = g
-		Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data).save_png(base + "-grey.png")
+		var grey := Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
+		grey.save_png(base + "-grey.png")
 	quit(1 if failed else 0)

@@ -305,6 +305,9 @@ func _note_first_frame() -> void:
 	_frames_seen += 1
 	if _frames_seen >= 2:
 		MazeStaticBake.first_frame_usec = Time.get_ticks_usec() - MazeStaticBake.built_at_usec
+		if options.get("fps", false):
+			var ms := [MazeStaticBake.build_usec / 1000, MazeStaticBake.first_frame_usec / 1000]
+			print("bake %d ms, first frame %d ms" % ms)
 
 
 ## one frame; tests call it with fixed deltas

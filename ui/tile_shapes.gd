@@ -140,9 +140,9 @@ static func _motif(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, r
 	if span.x < 0.0 or span.y < 0.0:
 		return
 	var salt := MazeSkin.SALT_MOTIF_POS + pick * 3
-	var c := lo + half + Vector2(
-		MazeArt.pick(anchor.x, anchor.y, salt, int(span.x) + 1), MazeArt.pick(anchor.x, anchor.y, salt + 1, int(span.y) + 1)
-	)
+	var jx := MazeArt.pick(anchor.x, anchor.y, salt, int(span.x) + 1)
+	var jy := MazeArt.pick(anchor.x, anchor.y, salt + 1, int(span.y) + 1)
+	var c := lo + half + Vector2(jx, jy)
 	var pal: Dictionary = skin["pal"]
 	match kind:
 		"glyph":
@@ -270,14 +270,14 @@ static func _slab(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, re
 			var a: float = along0 + p + band[2]
 			var w: float = band[1]
 			var quad := PackedVector2Array()
+			var far := lit + short
+			# the band leans: its far end sits `lean` back along the long axis
+			var back := a - lean
+			var back_w := a + w - lean
 			if column:
-				quad = PackedVector2Array(
-					[Vector2(lit, a), Vector2(lit, a + w), Vector2(lit + short, a + w - lean), Vector2(lit + short, a - lean)]
-				)
+				quad.append_array([Vector2(lit, a), Vector2(lit, a + w), Vector2(far, back_w), Vector2(far, back)])
 			else:
-				quad = PackedVector2Array(
-					[Vector2(a, lit), Vector2(a + w, lit), Vector2(a + w - lean, lit + short), Vector2(a - lean, lit + short)]
-				)
+				quad.append_array([Vector2(a, lit), Vector2(a + w, lit), Vector2(back_w, far), Vector2(back, far)])
 			for pg in Geometry2D.intersect_polygons(quad, clip):
 				_add_poly(out, pg, band[0])
 		p += 38.0
@@ -384,7 +384,9 @@ static func _door(out: Array[Dictionary], pal: Dictionary, o: Vector2) -> void:
 	out.append(rect(Rect2(o, Vector2(DOOR_POST, T)), frame))
 	out.append(rect(Rect2(o + Vector2(T - DOOR_POST, 0), Vector2(DOOR_POST, T)), frame))
 	out.append(rect(Rect2(o, Vector2(T, DOOR_LINTEL)), frame))
-	var contour := PackedVector2Array([o + Vector2(5, T - 1), o + Vector2(5, 6), o + Vector2(35, 6), o + Vector2(35, T - 1)])
+	var contour := PackedVector2Array([Vector2(5, T - 1), Vector2(5, 6), Vector2(35, 6), Vector2(35, T - 1)])
+	for i in contour.size():
+		contour[i] += o
 	out.append(polyline(contour, pal["contour"], 2.0))
 
 
