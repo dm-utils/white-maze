@@ -36,6 +36,7 @@ var world := MazeWorlds.World.TEMPLE
 var draws := 0 # chunk draws so far; tests expect one per chunk
 
 var _pal: Dictionary
+var _skin: Dictionary
 var _back_items: Array[Dictionary] = [] # {"bounds": Rect2, "shapes": Array[Dictionary]}
 var _cracks := {} # Vector2i -> shapes
 
@@ -45,7 +46,8 @@ func build(lv: MazeLevel, world_id: int, layer_kind: int) -> void:
 	world = world_id
 	kind = layer_kind
 	draws = 0
-	_pal = MazeWorlds.palette(world_id)
+	_skin = MazeSkins.skin(world_id)
+	_pal = _skin["pal"]
 	_back_items.clear()
 	_cracks.clear()
 	for item in MazeDecor.plan(lv, world_id):
@@ -143,14 +145,14 @@ func _draw_back_cell(ci: Node2D, x: int, y: int) -> void:
 	var o := Vector2(x, y) * T
 	if level.solid(x, y):
 		return
-	match world:
-		MazeWorlds.World.JUNGLE:
+	match _skin["back"]:
+		"courses":
 			if MazeArt.chance(x, y, SALT_BACK_H, 70):
 				ci.draw_line(o + Vector2(0, 1), o + Vector2(T, 1), col, LINE_W)
 			if MazeArt.chance(x, y, SALT_BACK_V, 40):
 				var vx := 8.0 + MazeArt.pick(x, y, SALT_BACK_V + 100, 3) * 12.0
 				ci.draw_line(o + Vector2(vx, 1), o + Vector2(vx, T), col, LINE_W)
-		MazeWorlds.World.CAVE:
+		"strata":
 			if MazeArt.chance(x, y, SALT_STRATA, 35):
 				var len := 20.0 + MazeArt.pick(x, y, SALT_STRATA + 100, 3) * 6.0
 				var dy := 8.0 + MazeArt.pick(x, y, SALT_STRATA + 200, 4) * 8.0
