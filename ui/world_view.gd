@@ -11,10 +11,15 @@ const NO_RING_FILL := Color("#20252D")
 const HATCH := Color("#343B48")
 const HATCH_STEP := 10
 const SPIKE := WhiteTheme.BUTTON["pressed"]
-const POST_W := 8.0
-const FRAME_ALPHA := 0.25
-const PLAYER_R := 6.0
-const EYE := Vector2(14, 6)
+const DOOR_FRAME := WhiteTheme.BUTTON["pressed"]
+const DOOR_LIGHT := Color("#FFE7B0")
+const DOOR_POST := 5.0
+const DOOR_LINTEL := 6.0
+const DOOR_ALPHA_BOTTOM := 0.9
+const DOOR_ALPHA_TOP := 0.15
+const DOOR_GLOWS := [[34.0, 0.06], [22.0, 0.08]]
+const LILITH_SLOTS := 4
+const NEVER := -1000
 const RING_LEN := 38.0
 const RING_THICK := 10.0
 const RING_STROKE := 5.0
@@ -32,13 +37,12 @@ var alpha := 1.0 # render interpolation between the last two ticks
 var aim_index := -1 # >= 0 while aiming
 
 var _flash := {}
-var _respawn_tick := -1000
-var _player_box := StyleBoxFlat.new()
-
-
-func _init() -> void:
-	_player_box.set_corner_radius_all(int(PLAYER_R))
-	_player_box.anti_aliasing = true
+var _respawn_tick := NEVER
+var _land_tick := NEVER
+var _throw_tick := NEVER
+var _death_tick := NEVER
+var _throw_dir := Vector2.RIGHT # px, from the newest throw
+var _face := 1 # view-only facing: follows the aim and the throw
 
 
 ## effects that come from sim events
@@ -48,11 +52,24 @@ func notify_events(events: Array[Dictionary]) -> void:
 			_flash[[e["cell"], e["face"]]] = sim.tick
 		elif e["type"] == "respawn":
 			_respawn_tick = sim.tick
+		elif e["type"] == "land":
+			_land_tick = sim.tick
+		elif e["type"] == "death":
+			_death_tick = sim.tick
+		elif e["type"] == "throw":
+			_throw_tick = sim.tick
+			if not sim.flights.is_empty():
+				var f: Dictionary = sim.flights.back()
+				_throw_dir = Vector2(f["to"] - f["from"])
 
 
 func reset() -> void:
 	_flash.clear()
-	_respawn_tick = -1000
+	_respawn_tick = NEVER
+	_land_tick = NEVER
+	_throw_tick = NEVER
+	_death_tick = NEVER
+	_face = 1
 
 
 ## interpolated player centre in world px
@@ -145,9 +162,22 @@ func _draw_spikes(o: Vector2) -> void:
 
 func _draw_finish() -> void:
 	var o := Vector2(sim.level.finish) * TILE
-	var frame := Color(WhiteTheme.ACCENT, FRAME_ALPHA)
-	draw_rect(Rect2(o, Vector2(TILE, TILE)), frame, false, 2.0)
-	draw_rect(Rect2(o + Vector2((TILE - POST_W) / 2.0, 0), Vector2(POST_W, TILE)), WhiteTheme.ACCENT)
+	var mid := o + Vector2(TILE, TILE) / 2.0
+	for g in DOOR_GLOWS:
+		draw_circle(mid, g[0], Color(DOOR_LIGHT, g[1]))
+	var inner := Rect2(o + Vector2(DOOR_POST, DOOR_LINTEL), Vector2(TILE - 2.0 * DOOR_POST, TILE - DOOR_LINTEL))
+	var top := Color(DOOR_LIGHT, DOOR_ALPHA_TOP)
+	var bottom := Color(DOOR_LIGHT, DOOR_ALPHA_BOTTOM)
+	var corners := PackedVector2Array(
+		[
+			inner.position, Vector2(inner.end.x, inner.position.y),
+			inner.end, Vector2(inner.position.x, inner.end.y),
+		]
+	)
+	draw_polygon(corners, PackedColorArray([top, top, bottom, bottom]))
+	draw_rect(Rect2(o, Vector2(DOOR_POST, TILE)), DOOR_FRAME)
+	draw_rect(Rect2(o + Vector2(TILE - DOOR_POST, 0), Vector2(DOOR_POST, TILE)), DOOR_FRAME)
+	draw_rect(Rect2(o, Vector2(TILE, DOOR_LINTEL)), DOOR_FRAME)
 
 
 func _ring_color(r: Dictionary) -> Color:
@@ -207,11 +237,50 @@ func _draw_player() -> void:
 		fade = clampf(float(sim.tick - _respawn_tick) / FADE_IN_TICKS, 0.0, 1.0)
 	if fade <= 0.0:
 		return
-	var c := player_centre()
-	_player_box.bg_color = Color(WhiteTheme.TEXT, fade)
-	draw_style_box(_player_box, Rect2(c - Vector2(16, 16), Vector2(32, 32)))
-	var ex := c.x + (6.0 if sim.facing >= 0 else -6.0) - EYE.x / 2.0
-	draw_rect(Rect2(Vector2(ex, c.y - EYE.y / 2.0 - 4.0), EYE), Color(WhiteTheme.BG, fade))
+	var feet := player_centre() + Vector2(0.0, 16.0)
+	var aiming := aim_index >= 0
+	var since_throw := sim.tick - _throw_tick
+	var dir := Vector2.ZERO
+	if aiming:
+		dir = Vector2(MazeAim.dir(aim_index))
+	elif since_throw < MazeLilith.THROW_TICKS:
+		dir = _throw_dir
+	if dir.x != 0.0:
+		_face = 1 if dir.x > 0.0 else -1
+	elif dir == Vector2.ZERO and not aiming:
+		_face = sim.facing if sim.facing != 0 else _face
+	var body := MazeLilith.body_pose(sim.alive(), sim.grounded, sim.vx, sim.vy, sim.launched)
+	var arm := MazeLilith.arm_mode(aiming, since_throw, body)
+	var squash := 0.0
+	if sim.grounded and sim.alive():
+		squash = maxf(0.0, 1.0 - float(sim.tick - _land_tick) / MazeLilith.LAND_TICKS)
+	var vel := Vector2(sim.vx, sim.vy) * 60.0 / 1000.0
+	var p := {
+		"body": body, "arm": arm, "tick": sim.tick, "fade": fade, "squash_k": squash,
+		"phase": fposmod(feet.x / MazeLilith.STRIDE_PX, 1.0),
+		"aim_angle": atan2(dir.y, dir.x * _face),
+		"throw_k": clampf(float(since_throw) / MazeLilith.THROW_TICKS, 0.0, 1.0),
+		"dead_k": 1.0 - float(sim.dead_ticks) / MazeTuning.DEATH_TICKS if not sim.alive() else 0.0,
+		"vel": Vector2(vel.x * _face, vel.y),
+		"slots": mini(sim.level.beads, LILITH_SLOTS), "filled": mini(sim.beads_left, LILITH_SLOTS),
+	}
+	draw_set_transform(feet, 0.0, Vector2(_face, 1.0))
+	for s in MazeLilith.shapes(p):
+		_draw_shape(s)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func _draw_shape(s: Dictionary) -> void:
+	var pts: PackedVector2Array = s["pts"]
+	match s["type"]:
+		"circle":
+			draw_circle(s["c"], s["r"], s["color"])
+		"line":
+			draw_polyline(pts, s["color"], s["w"], true)
+		"loop":
+			draw_polyline(pts, s["color"], s["w"], true)
+		"poly":
+			draw_colored_polygon(pts, s["color"])
 
 
 func _draw_aim() -> void:
