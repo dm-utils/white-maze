@@ -65,25 +65,33 @@ func _pose(body: int, arm: int, extra: Dictionary) -> Dictionary:
 func _bounds() -> void:
 	for body: int in BODIES:
 		var bad := ""
-		# phase, squash, arm
+		# squash only on the ground (the view sets it only when grounded), so never in the air poses
+		var squashes := [0.0, 0.5, 1.0] if body in [B.IDLE, B.RUN] else [0.0]
+		# every pose x arm x squash x aim direction x throw progress x phase
 		for arm: int in ARMS:
-			for i in 21:
-				for sq in [0.0, 1.0]:
-					var p := _pose(body, arm, {"phase": i * 0.05, "tick": i * 6, "squash_k": sq, "aim_angle": i * 0.3})
-					bad = bad if bad != "" else _violation(p)
+			for sq: float in squashes:
+				for d in MazeAim.STEPS:
+					var v := Vector2(MazeAim.dir(d))
+					for k in [0.0, 0.5, 1.0]:
+						for ph in [0.0, 0.25, 0.5, 0.75]:
+							var p := _pose(
+								body,
+								arm,
+								{
+									"aim_angle": atan2(v.y, v.x),
+									"throw_k": k,
+									"squash_k": sq,
+									"phase": ph,
+									"tick": int(ph * 100.0) + d,
+								}
+							)
+							bad = bad if bad != "" else _violation(p)
 		# velocity and tick
 		for arm: int in ARMS:
 			for vx: float in VELS:
 				for vy: float in VELS:
 					for t in range(0, 120, 7):
 						bad = bad if bad != "" else _violation(_pose(body, arm, {"vel": Vector2(vx, vy), "tick": t}))
-		# all 144 aim directions, both arm poses that use them
-		for arm: int in [A.AIM, A.THROW]:
-			for k in [0.0, 0.5, 1.0]:
-				for d in MazeAim.STEPS:
-					var v := Vector2(MazeAim.dir(d))
-					var p := _pose(body, arm, {"aim_angle": atan2(v.y, v.x), "throw_k": k, "squash_k": float(d % 2)})
-					bad = bad if bad != "" else _violation(p)
 		_check.call(bad == "", "A2: Lilith stays inside the hitbox in pose %d %s" % [body, bad])
 	var slots_ok := true
 	for n in 5:
@@ -183,10 +191,10 @@ func _game() -> void:
 	var frames := 0
 	for inp: MazeInput in MazeRunScript.parse(script)["inputs"]:
 		_feed(g, inp)
+		await _node.get_tree().process_frame
 		frames += 1
 		if g.sim.finished():
 			break
-	await _node.get_tree().process_frame
 	var plain := MazeRunScript.run(MazeLevels.load_level("l001"), script)
 	var same := g.sim.finished() and g.sim.snapshot() == plain.snapshot()
 	_check.call(same, "A1: the game screen leaves the simulation alone")
