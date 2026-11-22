@@ -173,7 +173,7 @@ func _figure() -> void:
 func _main() -> MazeMain:
 	var m: MazeMain = load("res://ui/main.tscn").instantiate()
 	m.use_cmdline = false
-	m.args = PackedStringArray(["--profile=" + PROFILE, "--level=l001"])
+	m.args = PackedStringArray(["--profile=" + PROFILE, "--level=l001", "--speed=100"])
 	_node.add_child(m)
 	return m
 
@@ -395,7 +395,7 @@ func _worlds() -> void:
 func _game_with(extra: PackedStringArray) -> MazeMain:
 	var m: MazeMain = load("res://ui/main.tscn").instantiate()
 	m.use_cmdline = false
-	m.args = PackedStringArray(["--profile=" + PROFILE]) + extra
+	m.args = PackedStringArray(["--profile=" + PROFILE, "--speed=100"]) + extra
 	_node.add_child(m)
 	return m
 

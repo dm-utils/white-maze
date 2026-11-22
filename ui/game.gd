@@ -13,6 +13,9 @@ const MAX_STEPS := 6
 const MAX_FRAME_S := 0.1
 const SLOW_DIM := 0.85
 const HUD_BAND := 110.0
+const SPEED_MIN_PCT := 50
+const SPEED_MAX_PCT := 150
+const SPEED_PCT := [80, 82, 84, 86, 88, 90, 92, 94, 96] # per series position; later levels use the last value
 
 var level: MazeLevel
 var number := 1
@@ -30,6 +33,7 @@ var touch: MazeTouchOverlay
 var overlays: MazeOverlays
 
 var rate := 1.0
+var speed := 1.0 # level speed, ticks per real second as a fraction of 60
 var paused := false
 var frozen := false # debug: no ticks
 var last_result := {}
@@ -57,7 +61,14 @@ static func next_rate(current: float, aiming: bool, delta: float) -> float:
 	return move_toward(current, target, delta * (1.0 - AIM_TIME_SCALE) / AIM_RAMP_S)
 
 
+## level speed for a series position (design 20.6)
+static func level_speed(num: int) -> float:
+	return SPEED_PCT[clampi(num, 1, SPEED_PCT.size()) - 1] / 100.0
+
+
 func _ready() -> void:
+	var pct := int(options.get("speed", 0))
+	speed = pct / 100.0 if pct > 0 else level_speed(number)
 	world = MazeWorldView.new()
 	add_child(world)
 	camera = Camera2D.new()
@@ -320,7 +331,7 @@ func advance(delta: float) -> void:
 	else:
 		rate = 1.0
 	if active:
-		_acc += minf(delta, MAX_FRAME_S) * rate
+		_acc += minf(delta, MAX_FRAME_S) * rate * speed
 		var n := 0
 		while _acc >= TICK_S and n < MAX_STEPS:
 			_acc -= TICK_S

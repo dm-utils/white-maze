@@ -34,7 +34,7 @@ func _clean() -> void:
 func _main(extra: Array = []) -> MazeMain:
 	var m: MazeMain = load("res://ui/main.tscn").instantiate()
 	m.use_cmdline = false
-	var list := PackedStringArray(["--profile=" + PROFILE])
+	var list := PackedStringArray(["--profile=" + PROFILE, "--speed=100"])
 	list.append_array(PackedStringArray(extra))
 	m.args = list
 	_node.add_child(m)
