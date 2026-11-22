@@ -38,6 +38,9 @@ Play one level directly and print the run when you finish it:
 godot --path . -- --level=l001 --print-run
 ```
 
+In the web version the same debug arguments work as query parameters, for instance `?fps` for a frame rate label or
+`?fps&world=cave&level=l001` (keys: `fps`, `world`, `level`, `camera`, `lang`, `touch`).
+
 Debug screenshots (needs `xvfb`; scenarios in `tools/shots.txt`):
 
 ```bash
