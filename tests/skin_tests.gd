@@ -16,6 +16,7 @@ func run(check: Callable, node: Node) -> void:
 	_data()
 	_guard()
 	_palette_rules()
+	_bake_times()
 
 
 func _packs() -> Array:
@@ -128,3 +129,30 @@ func _palette_rules() -> void:
 		_has(MazeSkin.check_palette(base, MazeSkin.LIP_TINTS, MazeWorlds.HAZARD), "C15:"),
 		"S8 C15 fires on a pin outline lighter than the dark pin"
 	)
+
+
+## S13 (time part): primitive build per level and world; the budget of 21.12.3 is 150 ms, the test only fails above 1 s
+func _bake_times() -> void:
+	var slow := 0.0
+	var worst := 0
+	var empty_ok := true
+	for id in MazeLevels.ids():
+		var lv := MazeLevels.load_level(id)
+		for w in MazeWorlds.COUNT:
+			var best := 1 << 60
+			var layer := MazeStaticLayer.new()
+			for i in 3:
+				layer.build(lv, w, MazeStaticLayer.Kind.TILES)
+				best = mini(best, layer.build_usec)
+			var points := 0
+			for list: Array in layer._chunks.values():
+				for s: Dictionary in list:
+					points += (s["pts"] as PackedVector2Array).size() if s.has("pts") else 1
+				worst = maxi(worst, list.size())
+			print(
+				"bake %s %s: %.1f ms, %d primitives, %d points"
+				% [id, MazeWorlds.NAMES[w], best / 1000.0, layer.command_count, points]
+			)
+			slow = maxf(slow, best / 1000.0)
+	_check.call(slow <= 1000.0, "S13 the primitive build of every level in every world stays under 1000 ms (%.1f)" % slow)
+	_check.call(worst <= 8000, "S13 at most 8000 primitives per chunk (%d)" % worst)

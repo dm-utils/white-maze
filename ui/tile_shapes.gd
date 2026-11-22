@@ -5,7 +5,6 @@ extends RefCounted
 
 const T := 40.0
 const LIP := 5.0
-const JOINT_W := 2.0
 const EDGE_W := 2.0
 const SHEEN_W := 3.0
 const SHEEN_ALPHA := 0.5
@@ -14,10 +13,6 @@ const DOOR_POST := 5.0
 const DOOR_LINTEL := 6.0
 const DOOR_ALPHA_BOTTOM := 0.9
 const DOOR_ALPHA_TOP := 0.15
-const SALT_JOINT := 1
-const SALT_JOINT_H := 2
-const SALT_CRACK := 3
-const SALT_CRACK_PT := 4
 const SALT_SHEEN := 5
 const SALT_SHEEN_N := 6
 
@@ -27,21 +22,61 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 	var out: Array[Dictionary] = []
 	var n := MazeStaticLayer.CHUNK
 	var pal: Dictionary = skin["pal"]
+	var cells: Array[Vector2i] = []
 	for y in range(cy * n, mini((cy + 1) * n, level.height)):
 		for x in range(cx * n, mini((cx + 1) * n, level.width)):
-			var o := Vector2(x, y) * T
-			match level.cell(x, y):
-				MazeLevel.Cell.SOLID:
-					_block(out, level, skin, cracks, x, y, o)
-				MazeLevel.Cell.NO_RING:
-					_no_ring(out, pal, x, y, o)
-				MazeLevel.Cell.SPIKE:
-					_spikes(out, skin, o)
-				MazeLevel.Cell.EMPTY:
-					_tuft(out, level, skin, x, y)
-			if Vector2i(x, y) == level.finish:
-				_door(out, pal, o)
+			cells.append(Vector2i(x, y))
+	for c in cells:
+		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
+			out.append(poly(MazeSkin.outline(level, skin, c, false), pal["contour"]))
+			out.append(poly(MazeSkin.outline(level, skin, c, true), pal["mortar"]))
+	var seen := {}
+	for c in cells:
+		if level.cell(c.x, c.y) != MazeLevel.Cell.SOLID:
+			continue
+		var rect := MazeSkin.stone_of(level, skin, c)
+		if not seen.has(rect.position):
+			seen[rect.position] = true
+			_stone(out, level, skin, rect)
+	for c in cells:
+		var o := Vector2(c) * T
+		match level.cell(c.x, c.y):
+			MazeLevel.Cell.SOLID:
+				_block_detail(out, level, skin, cracks, c, o)
+			MazeLevel.Cell.NO_RING:
+				_no_ring(out, pal, c.x, c.y, o)
+			MazeLevel.Cell.SPIKE:
+				_spikes(out, skin, o)
+			MazeLevel.Cell.EMPTY:
+				_tuft(out, level, skin, c.x, c.y)
+		if c == level.finish:
+			_door(out, pal, o)
 	return out
+
+
+## stone with a bevel: dark base, light top and left, face colour inside (21.6.2)
+static func _stone(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, rect: Rect2i) -> void:
+	var pal: Dictionary = skin["pal"]
+	var o := MazeSkin.stone_outline(level, skin, rect)
+	if o.size() < 3:
+		return
+	var b: float = skin["stones"]["bevel"]
+	out.append(poly(o, pal["block_lo"]))
+	var shifted := PackedVector2Array()
+	for p in o:
+		shifted.append(p - Vector2(b, b))
+	for pg in Geometry2D.intersect_polygons(o, shifted):
+		_add_poly(out, pg, pal["block_hi"])
+	var v := MazeArt.pick(rect.position.x, rect.position.y, MazeSkin.SALT_SHADE, 5) - 2
+	var towards: Color = pal["block_hi"] if v > 0 else pal["block_lo"]
+	var face: Color = (pal["block"] as Color).lerp(towards, absf(v) * float(skin["stones"]["shade"]))
+	for pg in Geometry2D.offset_polygon(o, -b):
+		_add_poly(out, pg, face)
+
+
+static func _add_poly(out: Array[Dictionary], pts: PackedVector2Array, col: Color) -> void:
+	if pts.size() >= 3:
+		out.append(poly(pts, col))
 
 
 static func rect(r: Rect2, col: Color) -> Dictionary:
@@ -69,25 +104,24 @@ static func circle(c: Vector2, r: float, col: Color) -> Dictionary:
 	return {"t": "circle", "c": c, "r": r, "col": col}
 
 
-static func _block(
-	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cracks: Dictionary, x: int, y: int, o: Vector2
+static func _block_detail(
+	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cracks: Dictionary, cell: Vector2i, o: Vector2
 ) -> void:
 	var pal: Dictionary = skin["pal"]
-	out.append(rect(Rect2(o, Vector2(T, T)), pal["block"]))
-	_joints(out, skin, x, y, o)
-	out.append_array(MazeDecor.speck_shapes(x, y, pal))
-	if cracks.has(Vector2i(x, y)):
-		out.append_array(cracks[Vector2i(x, y)])
+	out.append_array(MazeDecor.speck_shapes(cell.x, cell.y, pal))
+	if cracks.has(cell):
+		out.append_array(cracks[cell])
+	# todo: old lip strips, replaced by trims
 	var lip: Color = pal["lip"]
-	var cell := Vector2i(x, y)
+	var c := MazeSkin.CONTOUR_W
 	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.UP):
-		out.append(rect(Rect2(o, Vector2(T, LIP)), lip))
+		out.append(rect(Rect2(o + Vector2(c, c), Vector2(T - 2 * c, LIP)), lip))
 	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.DOWN):
-		out.append(rect(Rect2(o + Vector2(0, T - LIP), Vector2(T, LIP)), lip))
+		out.append(rect(Rect2(o + Vector2(c, T - LIP - c), Vector2(T - 2 * c, LIP)), lip))
 	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.LEFT):
-		out.append(rect(Rect2(o, Vector2(LIP, T)), lip))
+		out.append(rect(Rect2(o + Vector2(c, c), Vector2(LIP, T - 2 * c)), lip))
 	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.RIGHT):
-		out.append(rect(Rect2(o + Vector2(T - LIP, 0), Vector2(LIP, T)), lip))
+		out.append(rect(Rect2(o + Vector2(T - LIP - c, c), Vector2(LIP, T - 2 * c)), lip))
 
 
 static func _tuft(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, x: int, y: int) -> void:
@@ -96,33 +130,6 @@ static func _tuft(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, x:
 		return
 	if MazeStaticLayer.lip_drawn(level, Vector2i(x, y + 1), MazeLevel.Face.UP):
 		out.append_array(MazeDecor.tuft_shapes(x, y, skin["pal"]))
-
-
-static func _joints(out: Array[Dictionary], skin: Dictionary, x: int, y: int, o: Vector2) -> void:
-	var col: Color = skin["pal"]["joint"]
-	match skin["id"]:
-		"jungle":
-			var vx := MazeArt.pick(x, y, SALT_JOINT, 3) * 8 + 8
-			var hy := 12.0 + MazeArt.pick(x, y, SALT_JOINT_H, 3) * 8.0
-			out.append(rect(Rect2(o + Vector2(0, hy), Vector2(T, JOINT_W)), col))
-			if MazeArt.pick(x, y, SALT_JOINT_H + 100, 2) == 0:
-				out.append(rect(Rect2(o + Vector2(vx, 0), Vector2(JOINT_W, hy)), col))
-			else:
-				out.append(rect(Rect2(o + Vector2(vx, hy + JOINT_W), Vector2(JOINT_W, T - hy - JOINT_W)), col))
-		"cave":
-			if MazeArt.chance(x, y, SALT_CRACK, 30):
-				var ax := 10.0 + MazeArt.pick(x, y, SALT_CRACK_PT, 8) * 2.0
-				var bx := ax + MazeArt.pick(x, y, SALT_CRACK_PT + 1, 5) * 3.0 - 6.0
-				var cx := bx + MazeArt.pick(x, y, SALT_CRACK_PT + 2, 5) * 3.0 - 6.0
-				var pts := PackedVector2Array([o + Vector2(ax, 8), o + Vector2(bx, 20), o + Vector2(cx, 32)])
-				out.append(polyline(pts, col, JOINT_W))
-		_:
-			out.append(rect(Rect2(o + Vector2(0, 19), Vector2(T, JOINT_W)), col))
-			out.append(rect(Rect2(o + Vector2(0, T - JOINT_W), Vector2(T, JOINT_W)), col))
-			var top_x := 0.0 if (x + y) % 2 == 0 else 20.0
-			var low_x := 20.0 - top_x
-			out.append(rect(Rect2(o + Vector2(top_x, 0), Vector2(JOINT_W, 19)), col))
-			out.append(rect(Rect2(o + Vector2(low_x, 21), Vector2(JOINT_W, 17)), col))
 
 
 static func _no_ring(out: Array[Dictionary], pal: Dictionary, x: int, y: int, o: Vector2) -> void:
