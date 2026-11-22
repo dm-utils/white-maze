@@ -227,6 +227,10 @@ func _hud_buttons() -> void:
 	Input.parse_input_event(space)
 	g.advance(1.0 / 60.0)
 	_check.call(g.get_viewport().gui_get_focus_owner() == null, "U4: Space never focuses or presses a button")
+	var release := space.duplicate() as InputEventKey
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
 	_close(m)
 	_clean()
 

@@ -438,3 +438,27 @@ palettes live in `MazeWorlds`, an exception to "look values at the top of the fi
 - Levels 10 and later stay in the cave until a fourth world is designed (phase 2).
 - Torches and the door glow are the only light sources, without flicker (calm rule). Flicker or parallax can be tried
   after the phone check.
+
+## 18.17 Deviations as built, step 1 (card #013)
+
+- `MazeLilith.shapes` returns the outlines first (`part` `"outline"`, polygons as `"loop"` polylines) and then the
+  fills; `bead` halos and bandolier `slot` circles get no outline. The bounds test (A2) checks the fills only, because
+  the outline is 1.5 px larger on purpose.
+- `shapes` takes one extra key `fade` (alpha factor, respawn fade-in and death fade); `dead_k` only drives the tilt.
+- Upper body offsets (idle bob, run dip) only move downwards, hair top at `y = -31.8`, so the head stays below `-32`
+  with the tilt. In `LAUNCH` only the upper body tilts around `(0, -16)`; tilting the legs would put the boots below
+  the floor line (`y > 0`).
+- The aim and throw arm is 7 px long with the bead 1.5 px beyond the hand, so the 3.5 px halo stays inside the hitbox
+  at full squash. The far arm and far leg are drawn in darker colours.
+- Tail points are clamped to the tail bounds shrunk by half the line width, so the bounds hold for the drawn width.
+- `_throw_dir` and the view-only facing (`_face`) live in `MazeWorldView`; the facing follows the aim, then the throw,
+  then `sim.facing`.
+- The door constants (`DOOR_FRAME`, `DOOR_LIGHT`, sizes) sit at the top of `ui/world_view.gd` until `MazeWorlds`
+  exists (step 2); the door glow is drawn in the dynamic layer, since there is no back layer yet. The grid lines and
+  the old block edges stay as they are in step 1.
+- `lilith-fall` uses `RJ28` and `lilith-dead` uses `R109` (death at tick 101, the shot 8 ticks later).
+- The A1 test (`tests/art_tests.gd`) awaits one frame per tick again. The earlier divergence came from `_hud_buttons`
+  in `tests/ui_tests.gd` leaving Space pressed (an extra jump in later suites); it now releases the key.
+- The A2 bounds test sweeps one product: pose x arm mode x squash x all 144 aim directions x throw progress x phase.
+  Squash only occurs on the ground (the view sets it only when `grounded`), so the sweep uses it for `IDLE` and `RUN`
+  only; `LAUNCH` is never grounded. Reachable combinations keep the halo inside the hitbox.

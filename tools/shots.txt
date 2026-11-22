@@ -9,3 +9,10 @@ result 1280x720 --level=l001 --solve
 pause 1280x720 --level=l001 --pause
 phone-wide 1600x720 --level=l002 --touch --safe=60,0,60,24
 portrait 720x1280 --level=l001
+lilith-idle 1280x720 --level=l001
+lilith-run 1280x720 --level=l001 --keys=R30
+lilith-jump 1280x720 --level=l001 --keys=RJ20
+lilith-fall 1280x720 --level=l001 --keys=RJ28
+lilith-aim 1280x720 --level=l002 --keys=-1 --aim=30
+lilith-dead 1280x720 --level=l001 --keys=R109
+door 1280x720 --level=l005

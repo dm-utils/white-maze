@@ -6,6 +6,7 @@ extends RefCounted
 const TEXT := {
 	"nl": {
 		"title": "WHITE MAZE",
+		"tagline": "Een avontuur met Lilith",
 		"levels_done": "Gehaald %d/%d",
 		"play_time": "Speeltijd %s",
 		"locked": "Op slot",
@@ -43,6 +44,7 @@ const TEXT := {
 	},
 	"en": {
 		"title": "WHITE MAZE",
+		"tagline": "An adventure with Lilith",
 		"levels_done": "Finished %d/%d",
 		"play_time": "Play time %s",
 		"locked": "Locked",
