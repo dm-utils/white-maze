@@ -404,6 +404,7 @@ func _static_layers() -> void:
 	)
 	_node.remove_child(m)
 	m.free()
+	_baked_memory()
 	var j := _game_with(PackedStringArray(["--level=l001", "--world=jungle"]))
 	_check.call(j.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 --world=jungle gives the jungle world")
 	_node.remove_child(j)
@@ -412,6 +413,29 @@ func _static_layers() -> void:
 	_check.call(u.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 an unknown --world is ignored")
 	_node.remove_child(u)
 	u.free()
+
+
+## chunk textures: one sprite per chunk, memory per level within the phone budget
+func _baked_memory() -> void:
+	var worst := 0
+	var sprites_ok := true
+	var size_ok := true
+	for id in MazeLevels.ids():
+		var lv := MazeLevels.load_level(id)
+		var bake := MazeStaticBake.new()
+		bake.build(lv, MazeWorlds.for_number(1))
+		var sprites := 0
+		for c in bake.get_children():
+			if c is Sprite2D:
+				sprites += 1
+				var vp := c.get_child(0) as SubViewport
+				size_ok = size_ok and vp.size.x <= 1280 and vp.size.y <= 1280
+		sprites_ok = sprites_ok and sprites == bake.chunk_total and bake.chunk_count() == 2 * bake.chunk_total
+		worst = maxi(worst, bake.baked_bytes)
+		bake.free()
+	_check.call(sprites_ok, "the bake makes one sprite per chunk")
+	_check.call(size_ok, "a baked chunk texture is at most 1280 x 1280")
+	_check.call(worst <= 24 * 1000 * 1000, "baked textures stay under 24 MB per level (worst %d bytes)" % worst)
 
 
 ## the readability backings and --fps

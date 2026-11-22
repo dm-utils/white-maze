@@ -1,7 +1,7 @@
 class_name MazeStaticLayer
-extends Node2D
-## One static layer of the world (back wall or tiles) in chunks of 16 x 16 cells; each chunk is drawn once and then
-## only replayed, so the camera culls whole chunks (design 18.7, 19.3 V4).
+extends RefCounted
+## One static layer of the world (back wall or tiles) in chunks of 16 x 16 cells. Makes the chunk nodes; MazeStaticBake
+## draws them once into a texture per chunk (design 18.7, 18.10, ADR 0010).
 
 enum Kind { BACK, TILES }
 
@@ -39,24 +39,25 @@ var _pal: Dictionary
 
 
 func build(lv: MazeLevel, world_id: int, layer_kind: int) -> void:
-	for c in get_children():
-		remove_child(c)
-		c.queue_free()
 	level = lv
 	world = world_id
 	kind = layer_kind
 	draws = 0
 	_pal = MazeWorlds.palette(world_id)
-	if kind == Kind.BACK:
-		var v := Node2D.new()
-		v.draw.connect(_draw_void.bind(v))
-		add_child(v)
-	var n := chunks()
-	for cy in n.y:
-		for cx in n.x:
-			var chunk := Node2D.new()
-			chunk.draw.connect(_draw_chunk.bind(chunk, cx, cy))
-			add_child(chunk)
+
+
+## node that draws chunk (cx, cy) in world coordinates; the caller parents it
+func make_chunk(cx: int, cy: int) -> Node2D:
+	var chunk := Node2D.new()
+	chunk.draw.connect(_draw_chunk.bind(chunk, cx, cy))
+	return chunk
+
+
+## screen colour far beyond the level, so the camera never shows the page behind the world
+func make_void() -> Node2D:
+	var v := Node2D.new()
+	v.draw.connect(_draw_void.bind(v))
+	return v
 
 
 ## number of chunks per axis
@@ -88,6 +89,8 @@ func _draw_chunk(ci: Node2D, cx: int, cy: int) -> void:
 				_draw_back_cell(ci, x, y)
 			else:
 				_draw_tile(ci, x, y)
+	if kind == Kind.BACK:
+		_draw_door_glow(ci, Rect2(Vector2(x0, y0) * T, Vector2(x1 - x0, y1 - y0) * T))
 
 
 func _draw_back_gradient(ci: Node2D, x0: int, y0: int, x1: int, y1: int) -> void:
@@ -124,9 +127,16 @@ func _draw_back_cell(ci: Node2D, x: int, y: int) -> void:
 			ci.draw_line(o + Vector2(0, 1), o + Vector2(T, 1), col, LINE_W)
 			if (x + y) % 2 == 0:
 				ci.draw_line(o + Vector2(1, 0), o + Vector2(1, T), col, LINE_W)
-	if Vector2i(x, y) == level.finish:
-		for g in DOOR_GLOWS:
-			ci.draw_circle(o + Vector2(T, T) / 2.0, g[0], Color(MazeWorlds.DOOR_LIGHT, g[1]))
+
+
+## the glow reaches past its cell, so every chunk it touches draws it (a baked chunk clips at its edge)
+func _draw_door_glow(ci: Node2D, rect: Rect2) -> void:
+	var c := (Vector2(level.finish) + Vector2(0.5, 0.5)) * T
+	var reach: float = DOOR_GLOWS[0][0]
+	if not rect.intersects(Rect2(c - Vector2.ONE * reach, Vector2.ONE * 2.0 * reach)):
+		return
+	for g in DOOR_GLOWS:
+		ci.draw_circle(c, g[0], Color(MazeWorlds.DOOR_LIGHT, g[1]))
 
 
 func _draw_tile(ci: Node2D, x: int, y: int) -> void:
