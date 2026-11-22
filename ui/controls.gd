@@ -8,6 +8,8 @@ const KEY_AIM_MAX := 6
 const REPEAT_FIRST_S := 0.25
 const REPEAT_NEXT_S := 0.1
 
+enum AimSource { NONE, KEYS, MOUSE, TOUCH }
+
 var _facing := 1
 var _player_pos := Vector2.ZERO
 var _can_aim := true
@@ -15,6 +17,9 @@ var _can_aim := true
 var _keys_left := {}
 var _keys_right := {}
 var _keys_jump := {}
+var _keys_overview := {}
+var _touch_map := false
+var _any_input := false
 var _touch_move := 0
 var _touch_jump_held := false
 var _jump_press := false
@@ -64,6 +69,37 @@ func aim_index() -> int:
 			_mouse_idx = i
 		return _mouse_idx if _mouse_idx >= 0 else 0
 	return MazeAim.keyboard_index(_facing, _elevation)
+
+
+## where the current aim comes from; NONE when not aiming (same priority as aim_index)
+func aim_source() -> int:
+	if not aiming():
+		return AimSource.NONE
+	if _touch_aim:
+		return AimSource.TOUCH
+	if _mouse_aim:
+		return AimSource.MOUSE
+	return AimSource.KEYS
+
+
+## an overview key or the map button is held
+func overview_held() -> bool:
+	return not _keys_overview.is_empty() or _touch_map
+
+
+func touch_map(down: bool) -> void:
+	_touch_map = down
+
+
+## latched: any key press (not echo), mouse button press or touch-down since the last call
+func take_any_input() -> bool:
+	var v := _any_input
+	_any_input = false
+	return v
+
+
+func note_touch() -> void:
+	_any_input = true
 
 
 func can_aim() -> bool:
@@ -140,8 +176,10 @@ func release_all() -> void:
 	_keys_left.clear()
 	_keys_right.clear()
 	_keys_jump.clear()
+	_keys_overview.clear()
 	_touch_move = 0
 	_touch_jump_held = false
+	_touch_map = false
 	cancel_aim()
 
 
@@ -208,6 +246,11 @@ func _key(e: InputEventKey) -> bool:
 	var code := _code(e)
 	var down := e.pressed
 	var used := false
+	if down:
+		_any_input = true
+	if e.is_action("overview"):
+		_hold(_keys_overview, code, down)
+		used = true
 	if e.is_action("move_left"):
 		_hold(_keys_left, code, down)
 		used = true
@@ -272,6 +315,8 @@ func _mouse_button(e: InputEventMouseButton) -> bool:
 	if e.device == InputEvent.DEVICE_ID_EMULATION:
 		return false
 	_mouse_pos = e.position
+	if e.pressed:
+		_any_input = true
 	if e.button_index == MOUSE_BUTTON_LEFT:
 		if e.pressed and _can_aim and not _mouse_aim:
 			_mouse_aim = true
