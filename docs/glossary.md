@@ -11,7 +11,10 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Aim index (`MazeAim`) | One of 144 throw directions, `i * 2.5` degrees counter-clockwise from pointing right (36 up, 72 left, 108 down). |
 | Aim line | The dotted line from the player to where the bead would hit, drawn while aiming; dimmed with a cross when the throw would be invalid. |
 | Apex hang | Half gravity near the top of a jump while the jump button is held (`APEX_GRAVITY`, `APEX_THRESHOLD`). |
+| Arm mode (`MazeLilith.Arm`) | What Lilith's throwing arm does: rest, aim, throw or up; chosen independently of the body pose. |
 | Attempt | One go at a level, from opening or restarting it until the finish, a restart or leaving. Not the kit's `WhiteAttempt`. |
+| Back decor | Quiet decoration on the back wall or in empty cells (pillars, reliefs, torches, arches, vines, crystals), drawn behind the level at low contrast. Never in front of or next to a ring face, never pointed. |
+| Bandolier | The strap across Lilith's chest with up to four bead slots; filled slots show the beads left. |
 | Bead | The white ball the player throws. A level has `beads` of them (a level field, usually three). It becomes a ring where it hits. Beads are the supply, not the score; the score is rings used. |
 | Bead back (`undo`) | Taking back the most recently thrown ring (or the bead still in flight) and getting the bead back into the supply. Does not lower rings used. `Z` or the HUD button. |
 | Beads left (`beads_left`) | The beads the player can still throw in the current attempt; a valid throw takes one, bead back returns one. Shown as the bead dots in the HUD. |
@@ -19,21 +22,26 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Best rings (`best_rings`) | Rings used in the fastest finish of a level; travels with `best_ticks` and `best_run`. Formerly `best_beads`. |
 | Best run (`best_run`) | The run script of the fastest finish of a level, stored in the profile. |
 | Best time (`best_ticks`) | The fastest finish of a level, in ticks. |
+| Body pose (`MazeLilith.Body`) | Lilith's whole-body animation state: idle, run, jump, launch, fall or dead, a pure function of the simulation state. |
 | Cast (`MazeSim.cast`) | The pure query that marches the throw ray through the grid and reports the target face and whether the throw is valid. |
+| Chunk | A 16 x 16 tile part of a static layer, drawn once per level. |
 | Clock | Game time of the current attempt, shown as `m:ss.cc`; starts at the first active tick. |
 | Coyote time (`COYOTE_TICKS`) | A jump still works for a few ticks after walking off a ledge. |
 | Corner correction (`CORNER_CORRECTION`) | A rising player whose head clips a ceiling corner by a few pixels is shifted sideways instead of stopped. |
 | Counters (`counts`) | Per-device statistics of a level in the profile: `starts`, `finishes`, `deaths`, `play_ticks`. |
 | Dead zone | The part of a stick around its centre where input counts as none (move stick 20 px horizontally, throw stick 26 px). |
 | Death | Touching a spike's hitbox or falling below the level. The player returns to the start after 30 ticks; nothing else is lost. |
+| Decor plan (`MazeDecor.plan`) | The deterministic list of details and back decor of a level in a world, derived from the cells and the cell hash. |
 | Device id (`device`) | 16 random hex characters created with the profile; the key of this installation's counters. |
+| Door | How the finish tile is drawn: a doorway with posts, a lintel and warm light. |
 | Face | One side of a tile: `UP` (top, floor), `DOWN` (bottom, ceiling), `LEFT`, `RIGHT` (walls), named after the direction it points to. |
 | Fewest rings (`fewest_rings`) | The finish with the fewest rings used; the faster one (`fewest_ticks`) wins a tie. Formerly `fewest_beads`. |
-| Finish (`F`) | The goal tile; touching it ends the level. |
+| Finish (`F`) | The goal tile; touching it ends the level. Drawn as the door. |
 | Flight | A thrown bead on its way; it becomes a ring at its arrival tick. |
 | Format (`format`) | Version number of the profile or of a level file; raised when a field changes meaning. |
 | Game time | Time counted in simulation ticks (60 per second of normal speed). Slow motion slows game time down. |
 | Hazard box | The player's hitbox shrunk by 4 px on every side; used against spikes. |
+| Hazard colour (`MazeWorlds.HAZARD`) | The one warm red of spikes in every world; no other world colour comes near its hue. |
 | Hint | An optional line of a level shown at the bottom of the game screen, with control names filled in for the current input mode. |
 | Index (`levels/index.json`) | The ordered list of level ids that forms the series. |
 | Input mode | Keyboard or touch, whichever was used last; decides the touch overlay's visibility and the control names in hints. |
@@ -42,9 +50,12 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Level (`MazeLevel`) | One handmade map with metadata, loaded from `levels/<id>.json`. |
 | Level check (`tools/check_levels.gd`) | Headless tool that validates all levels and replays their solutions. |
 | Level id | Stable name of a level (`l001`), the key of its statistics. |
+| Lilith (`MazeLilith`) | The player character: an original explorer with a red headband with two fluttering tails and a bandolier, drawn in code inside the 30 x 32 hitbox. |
+| Lip | The light strip on a `#` face where a ring can be placed (`MazeArt.lip_face`). No lip on `X`, on faces towards a spike or a block. |
 | Merge (`MazeProfile.merge`) | Deterministic combination of a local and a remote profile, for the online profile [later]. |
 | Move stick | The floating touch control on the left for walking; horizontal only. |
-| No-ring block (`X`) | A solid block on which beads do not stick. |
+| No-ring block (`X`) | A solid block on which beads do not stick; drawn smooth and glossy, without a lip. |
+| Palette | The colours of one world (`MazeWorlds.palette`), checked by contrast tests. |
 | Par | The fewest rings used the level designer needs for a level (0 to 20). May be larger than the level's beads, because bead back lets a bead be reused. |
 | Preset ring | A ring placed by the level file; it cannot be taken back and never counts as used. |
 | Profile (`MazeProfile`, `user://profile.json`) | The local file with the language and per-level statistics. |
@@ -59,6 +70,7 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Solution | A run script in `tests/solutions.json` that finishes a level within par (rings used <= par). |
 | Spawn (`S`) | The start tile; the player stands on the floor below it. |
 | Spike (`^`) | A hazard tile; its hitbox is the lower half of the tile, slightly narrower. |
+| Static layer (`MazeStaticLayer`) | The back wall or tile layer of the world view, split into chunks and drawn once per level. |
 | Supply | The beads left; see beads left. |
 | Throw | Releasing an aim; a valid throw spends a bead from the supply and starts a flight. A throw alone does not count towards par. |
 | Throw stick | The touch control on the right for aiming and throwing: drag to aim, release to throw, back to the centre to cancel. |
@@ -70,3 +82,4 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Used ring (`used`) | A thrown ring that has launched the player at least once; counted once in rings used. |
 | Wall lock (`WALL_LOCK_TICKS`) | After a wall launch, left/right input is ignored for 12 ticks. |
 | White Kit | The shared base of the White games, a submodule at `addons/white_kit`, pinned to `v0.3.0`. |
+| World (`MazeWorlds.World`) | The look of a group of three levels: temple (1-3), jungle ruin (4-6), cave (7-9 and later). Derived from the level's position in the series, never stored in a level file. |

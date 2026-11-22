@@ -2,7 +2,8 @@
 
 Status: phase 1 (playable prototype) is built: the headless core (card #002, par counts rings used per ADR 0009) and
 the screens, controls, profile store, screenshots and the Pages deploy (cards #004 and #006); deviations in sections 14
-and 16. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
+and 16; levels 4 to 9 in section 17. Section 18 (`docs/design-look.md`, ADR 0010) designs the look and feel of the
+adventure world and is not built yet. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
 **[later]**; they are not built in phase 1.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
@@ -1175,6 +1176,8 @@ keeps `flushed_ticks` and `flushed_deaths` per attempt. After the finish nothing
 
 ### 8.1 Look
 
+For the game world this section is replaced by section 18 (`docs/design-look.md`); HUD and menus are unchanged.
+
 - Colours from `WhiteTheme`: background `BG` `#1B1F26`; grid lines in the world `#20252D`, 1 px, every tile; solid
   blocks `BUTTON.normal` `#2A303B` with a 4 px edge in `BUTTON.pressed` `#4A5363` on every exposed face; no-ring blocks
   `#20252D` with diagonal hatching in `#343B48` every 10 px, no edge highlight; spikes as triangles in `#4A5363` (two
@@ -1692,3 +1695,8 @@ playtest or the tester can still find a cheaper route; then par drops and the ca
 - Game tests 636 checks (`MIN_CHECKS` 636); kit tests untouched; level check, web export and the `tools/shots.sh`
   scenarios (checked: `select-en` with nine cards, `l006` with `--solve`) are green.
 - The level select (3 columns) fits nine cards on 1280 x 720 without scrolling.
+
+## 18. Look and feel
+
+See `docs/design-look.md` (section 18, ADR 0010): the colourful adventure world in three worlds, Lilith, and the
+build steps for cards #013 and later.
