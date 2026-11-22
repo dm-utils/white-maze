@@ -4,7 +4,6 @@ extends RefCounted
 ## the lists. Types: poly, vpoly (vertex colours), line, polyline, circle.
 
 const T := 40.0
-const LIP := 5.0
 const EDGE_W := 2.0
 const SHEEN_W := 3.0
 const SHEEN_ALPHA := 0.5
@@ -39,10 +38,14 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 			seen[rect.position] = true
 			_stone(out, level, skin, rect)
 	for c in cells:
+		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
+			_block_detail(out, skin, cracks, c)
+	for c in cells:
+		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
+			_trims(out, level, skin, c)
+	for c in cells:
 		var o := Vector2(c) * T
 		match level.cell(c.x, c.y):
-			MazeLevel.Cell.SOLID:
-				_block_detail(out, level, skin, cracks, c, o)
 			MazeLevel.Cell.NO_RING:
 				_no_ring(out, pal, c.x, c.y, o)
 			MazeLevel.Cell.SPIKE:
@@ -104,24 +107,10 @@ static func circle(c: Vector2, r: float, col: Color) -> Dictionary:
 	return {"t": "circle", "c": c, "r": r, "col": col}
 
 
-static func _block_detail(
-	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cracks: Dictionary, cell: Vector2i, o: Vector2
-) -> void:
-	var pal: Dictionary = skin["pal"]
-	out.append_array(MazeDecor.speck_shapes(cell.x, cell.y, pal))
+static func _block_detail(out: Array[Dictionary], skin: Dictionary, cracks: Dictionary, cell: Vector2i) -> void:
+	out.append_array(MazeDecor.speck_shapes(cell.x, cell.y, skin["pal"]))
 	if cracks.has(cell):
 		out.append_array(cracks[cell])
-	# todo: old lip strips, replaced by trims
-	var lip: Color = pal["lip"]
-	var c := MazeSkin.CONTOUR_W
-	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.UP):
-		out.append(rect(Rect2(o + Vector2(c, c), Vector2(T - 2 * c, LIP)), lip))
-	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.DOWN):
-		out.append(rect(Rect2(o + Vector2(c, T - LIP - c), Vector2(T - 2 * c, LIP)), lip))
-	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.LEFT):
-		out.append(rect(Rect2(o + Vector2(c, c), Vector2(LIP, T - 2 * c)), lip))
-	if MazeStaticLayer.lip_drawn(level, cell, MazeLevel.Face.RIGHT):
-		out.append(rect(Rect2(o + Vector2(T - LIP - c, c), Vector2(LIP, T - 2 * c)), lip))
 
 
 static func _tuft(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, x: int, y: int) -> void:
@@ -187,3 +176,115 @@ static func _door(out: Array[Dictionary], pal: Dictionary, o: Vector2) -> void:
 	out.append(rect(Rect2(o, Vector2(DOOR_POST, T)), frame))
 	out.append(rect(Rect2(o + Vector2(T - DOOR_POST, 0), Vector2(DOOR_POST, T)), frame))
 	out.append(rect(Rect2(o, Vector2(T, DOOR_LINTEL)), frame))
+
+
+static func _trim_w(face: int) -> float:
+	return MazeSkin.TRIM_UP if face == MazeLevel.Face.UP else MazeSkin.TRIM_SIDE
+
+
+## the four bands of every ring face of a cell, then the inner corner joints (21.8); shadows first, then lip and
+## stripes, so two trims meeting at a corner join like a moulding
+static func _trims(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i) -> void:
+	var pal: Dictionary = skin["pal"]
+	var faces: Array[int] = []
+	for face in 4:
+		if MazeSkin.rim_face(level, cell, face):
+			faces.append(face)
+	var joints := joint_corners(level, cell)
+	if faces.is_empty() and joints.is_empty():
+		return
+	var inner := MazeSkin.outline(level, skin, cell, true)
+	var c := MazeSkin.CONTOUR_W
+	var shadow := Color(pal["contour"], MazeSkin.TRIM_SHADOW_ALPHA)
+	for ci in joints:
+		_joint(out, level, skin, cell, ci, true)
+	for f in faces:
+		var w := _trim_w(f)
+		_band(out, level, skin, cell, f, inner, c + w, c + w + MazeSkin.TRIM_SHADOW_W, shadow)
+	for ci in joints:
+		_joint(out, level, skin, cell, ci, false)
+	for f in faces:
+		_band(out, level, skin, cell, f, inner, c - 0.5, c + _trim_w(f), pal["lip"])
+	for f in faces:
+		_band(out, level, skin, cell, f, inner, c, c + MazeSkin.TRIM_HI_W, pal["lip_hi"])
+	for f in faces:
+		var w := _trim_w(f)
+		_band(out, level, skin, cell, f, inner, c + w - MazeSkin.TRIM_LO_W, c + w, pal["lip_lo"])
+
+
+## band between depths d0 and d1 along a face, following the edge offsets, cut to the cell's inner polygon
+static func _band(
+	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int,
+	inner: PackedVector2Array, d0: float, d1: float, col: Color
+) -> void:
+	var inward := Vector2(MazeSkin.INWARD[face])
+	var along := Vector2(MazeSkin.ALONG[face])
+	var near := PackedVector2Array()
+	var far := PackedVector2Array()
+	for i in 6:
+		var v := Vector2(MazeSkin.vertex(cell, face, i))
+		var d := MazeSkin.rim_d(level, skin, cell, face, i)
+		if i == 0:
+			v -= along
+		elif i == 5:
+			v += along
+		near.append(v + inward * (d + d0))
+		far.append(v + inward * (d + d1))
+	far.reverse()
+	near.append_array(far)
+	for pg in Geometry2D.intersect_polygons(near, inner):
+		_add_poly(out, pg, col)
+
+
+## corners where a floor runs into a wall: both trims continue into the cell and meet like a moulding
+static func joint_corners(level: MazeLevel, cell: Vector2i) -> Array[int]:
+	var found: Array[int] = []
+	if level.cell(cell.x, cell.y) != MazeLevel.Cell.SOLID:
+		return found
+	for ci in 4:
+		var p: int = MazeSkin.CORNER_P[ci]
+		var q: int = MazeSkin.CORNER_Q[ci]
+		if MazeSkin.side(level, cell, p) != MazeSkin.Side.SAME or MazeSkin.side(level, cell, q) != MazeSkin.Side.SAME:
+			continue
+		var diag: Vector2i = cell + MazeLevel.FACE_STEP[p] + MazeLevel.FACE_STEP[q]
+		if diag.x < 0 or diag.y < 0 or diag.x >= level.width or diag.y >= level.height:
+			continue
+		if level.cell(diag.x, diag.y) != MazeLevel.Cell.EMPTY:
+			continue
+		var np: Vector2i = cell + MazeLevel.FACE_STEP[p]
+		var nq: Vector2i = cell + MazeLevel.FACE_STEP[q]
+		if MazeSkin.rim_face(level, np, q) and MazeSkin.rim_face(level, nq, p):
+			found.append(ci)
+	return found
+
+
+static func _joint(
+	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i, ci: int, shadows: bool
+) -> void:
+	var pal: Dictionary = skin["pal"]
+	var p: int = MazeSkin.CORNER_P[ci]
+	var q: int = MazeSkin.CORNER_Q[ci]
+	var k := Vector2((cell + MazeSkin.CORNER_POS[ci]) * MazeSkin.T)
+	var ep := Vector2(MazeSkin.INWARD[p])
+	var eq := Vector2(MazeSkin.INWARD[q])
+	var c := MazeSkin.CONTOUR_W
+	var wp := c + _trim_w(p)
+	var wq := c + _trim_w(q)
+	var sh := MazeSkin.TRIM_SHADOW_W
+	var shadow := Color(pal["contour"], MazeSkin.TRIM_SHADOW_ALPHA)
+	if shadows:
+		out.append(_frame_rect(k, ep, eq, 0.0, wp, wq, wq + sh, shadow))
+		out.append(_frame_rect(k, ep, eq, wp, wp + sh, 0.0, wq + sh, shadow))
+		return
+	out.append(_frame_rect(k, ep, eq, 0.0, wp, c, wq, pal["lip"]))
+	out.append(_frame_rect(k, ep, eq, c, wp, 0.0, wq, pal["lip"]))
+
+
+## rectangle p0..p1 along ep and q0..q1 along eq from corner k
+static func _frame_rect(
+	k: Vector2, ep: Vector2, eq: Vector2, p0: float, p1: float, q0: float, q1: float, col: Color
+) -> Dictionary:
+	var pts := PackedVector2Array(
+		[k + ep * p0 + eq * q0, k + ep * p1 + eq * q0, k + ep * p1 + eq * q1, k + ep * p0 + eq * q1]
+	)
+	return poly(pts, col)

@@ -35,3 +35,8 @@ decor-temple 1280x720 --level=l004 --camera=overview --world=temple
 decor-jungle 1280x720 --level=l009 --camera=overview --world=jungle
 decor-cave 1280x720 --level=l009 --camera=overview
 decor-door 1280x720 --level=l004 --camera=door --world=jungle
+skin-temple-all 1280x720 --level=l003 --camera=overview
+skin-jungle-all 1280x720 --level=l006 --camera=overview
+skin-cave-all 1280x720 --level=l009 --camera=overview
+skin-x 1280x720 --level=l003 --world=cave
+skin-phone 960x432 --level=l006 --touch --safe=40,0,40,16
