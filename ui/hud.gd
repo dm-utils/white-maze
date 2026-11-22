@@ -11,6 +11,8 @@ const DOT_R := 12.0
 const DOT_GAP := 8.0
 const BTN_H := 52.0
 const HIGHLIGHT_TICKS := 10
+const SCRIM_ALPHA := 0.55
+const SCRIM_FADE := 24.0
 
 var sim: MazeSim
 var number := 1
@@ -67,6 +69,23 @@ func _ready() -> void:
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hint)
 	refresh_texts()
+
+
+## scrim over the band: the world scrolls under the HUD (design 19.10, 18.11)
+func _draw() -> void:
+	var vs := get_viewport_rect().size
+	var band := BAND + float(WhiteSafeArea.insets(vs, safe_override)["top"])
+	var solid := Color(WhiteTheme.BG, SCRIM_ALPHA)
+	var clear := Color(WhiteTheme.BG, 0.0)
+	draw_rect(Rect2(0.0, 0.0, vs.x, band), solid)
+	var pts := PackedVector2Array(
+		[Vector2(0, band), Vector2(vs.x, band), Vector2(vs.x, band + SCRIM_FADE), Vector2(0, band + SCRIM_FADE)]
+	)
+	draw_polygon(pts, PackedColorArray([solid, solid, clear, clear]))
+
+
+func scrim_band() -> float:
+	return BAND + float(WhiteSafeArea.insets(get_viewport_rect().size, safe_override)["top"])
 
 
 func _button(key: String, action: Callable) -> Button:
@@ -145,6 +164,7 @@ func _process(_delta: float) -> void:
 	var w := n * (DOT_R * 2.0 + DOT_GAP)
 	_dots.custom_minimum_size = Vector2(w, BTN_H)
 	_dots.queue_redraw()
+	queue_redraw()
 
 
 func _draw_dots() -> void:
