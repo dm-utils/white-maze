@@ -26,7 +26,7 @@ const FLOOR_CHIP_MAX := 3 # corners next to a floor
 const CHIP_MAX := 6
 const CONTOUR_DARKEN := 0.82 # contour = block.darkened(CONTOUR_DARKEN)
 const DOOR_FRAME_LIGHTEN := 0.15
-const SHEEN_ALPHAS := [0.18, 0.45, 0.5] # wide band, thin line, top line
+const SHEEN_ALPHAS := [0.18, 0.45, 0.4] # wide band, thin line, top line
 const MOTIF_MARGIN := 4.0
 const LIP_TINTS := {
 	"sand": ["#F3E0AE", "#F8E6B2", "#CFAE70"], # lip, lip_hi, lip_lo
@@ -172,10 +172,12 @@ static func check_palette(
 		err.append("C1: lip against block below 1.8")
 	if MazeArt.contrast(lip, pal["block_hi"]) < 1.5:
 		err.append("C2: lip against block_hi below 1.5")
-	var sheen_on: Color = (pal["noring"] as Color).lerp(pal["sheen"], SHEEN_ALPHAS[2])
+	# the top line sits on the lit edge of the slab, the thin lines on the body
+	var top_line: Color = (pal["noring_hi"] as Color).lerp(pal["sheen"], SHEEN_ALPHAS[2])
+	var thin_line: Color = (pal["noring"] as Color).lerp(pal["sheen"], SHEEN_ALPHAS[1])
 	var lighter: Array[Color] = [
-		pal["block_hi"], pal["joint"], pal["mortar"], pal["speck"], pal["motif"], pal["noring_hi"], sheen_on,
-		pal["door_frame"],
+		pal["block_hi"], pal["joint"], pal["mortar"], pal["speck"], pal["motif"], pal["noring_hi"], top_line,
+		thin_line, pal["door_frame"],
 	]
 	for c in lighter:
 		if MazeArt.luminance(lip) <= MazeArt.luminance(c) or MazeArt.contrast(lip, c) < 1.3:

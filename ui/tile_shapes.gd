@@ -4,16 +4,10 @@ extends RefCounted
 ## the lists. Types: poly, vpoly (vertex colours), line, polyline, circle.
 
 const T := 40.0
-const EDGE_W := 2.0
-const SHEEN_W := 3.0
-const SHEEN_ALPHA := 0.5
-const SHEEN_STEPS := [0, 2, 1] # distinct slots out of four
 const DOOR_POST := 5.0
 const DOOR_LINTEL := 6.0
 const DOOR_ALPHA_BOTTOM := 0.9
 const DOOR_ALPHA_TOP := 0.15
-const SALT_SHEEN := 5
-const SALT_SHEEN_N := 6
 
 
 ## primitives of chunk (cx, cy); cracks: Vector2i -> decor shapes of the crack items
@@ -26,9 +20,12 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 		for x in range(cx * n, mini((cx + 1) * n, level.width)):
 			cells.append(Vector2i(x, y))
 	for c in cells:
-		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
-			out.append(poly(MazeSkin.outline(level, skin, c, false), pal["contour"]))
-			out.append(poly(MazeSkin.outline(level, skin, c, true), pal["mortar"]))
+		match level.cell(c.x, c.y):
+			MazeLevel.Cell.SOLID:
+				out.append(poly(MazeSkin.outline(level, skin, c, false), pal["contour"]))
+				out.append(poly(MazeSkin.outline(level, skin, c, true), pal["mortar"]))
+			MazeLevel.Cell.NO_RING:
+				out.append(rect(Rect2(Vector2(c) * T, Vector2(T, T)), pal["contour"]))
 	var seen := {}
 	for c in cells:
 		if level.cell(c.x, c.y) != MazeLevel.Cell.SOLID:
@@ -37,6 +34,14 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 		if not seen.has(rect.position):
 			seen[rect.position] = true
 			_stone(out, level, skin, rect)
+	seen.clear()
+	for c in cells:
+		if level.cell(c.x, c.y) != MazeLevel.Cell.NO_RING:
+			continue
+		var slab := MazeSkin.slab_of(level, c)
+		if not seen.has(slab.position):
+			seen[slab.position] = true
+			_slab(out, level, skin, slab)
 	for c in cells:
 		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
 			_block_detail(out, skin, cracks, c)
@@ -46,8 +51,6 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 	for c in cells:
 		var o := Vector2(c) * T
 		match level.cell(c.x, c.y):
-			MazeLevel.Cell.NO_RING:
-				_no_ring(out, pal, c.x, c.y, o)
 			MazeLevel.Cell.SPIKE:
 				_spikes(out, skin, o)
 			MazeLevel.Cell.EMPTY:
@@ -121,19 +124,88 @@ static func _tuft(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, x:
 		out.append_array(MazeDecor.tuft_shapes(x, y, skin["pal"]))
 
 
-static func _no_ring(out: Array[Dictionary], pal: Dictionary, x: int, y: int, o: Vector2) -> void:
-	out.append(rect(Rect2(o, Vector2(T, T)), pal["noring"]))
-	var edge: Color = pal["noring_edge"]
-	out.append(rect(Rect2(o, Vector2(T, EDGE_W)), edge))
-	out.append(rect(Rect2(o + Vector2(0, T - EDGE_W), Vector2(T, EDGE_W)), edge))
-	out.append(rect(Rect2(o, Vector2(EDGE_W, T)), edge))
-	out.append(rect(Rect2(o + Vector2(T - EDGE_W, 0), Vector2(EDGE_W, T)), edge))
-	var sheen := Color(pal["sheen"], SHEEN_ALPHA)
-	var base := MazeArt.pick(x, y, SALT_SHEEN, 4)
-	var n := 2 + MazeArt.pick(x, y, SALT_SHEEN_N, 2)
-	for i in n:
-		var sx: float = 4.0 + 8.0 * ((base + int(SHEEN_STEPS[i])) % 4)
-		out.append(line(o + Vector2(sx, 35), o + Vector2(sx + 8, 6), sheen, SHEEN_W))
+## X slab: gradient fill with sheen bands, edge line and a lit top line (21.7)
+static func _slab(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, rect: Rect2i) -> void:
+	var pal: Dictionary = skin["pal"]
+	var o := MazeSkin.slab_outline(level, skin, rect)
+	if o.size() < 3:
+		return
+	var column := rect.size.x == 1 and rect.size.y > 1 # light runs left to right, else top to bottom
+	var box := Rect2(o[0], Vector2.ZERO)
+	for p in o:
+		box = box.expand(p)
+	var short := box.size.x if column else box.size.y
+	var lit := box.position.x if column else box.position.y
+	var length := box.size.y if column else box.size.x
+	var along0 := box.position.y if column else box.position.x
+	# fill in two strips so the vertex colours are exact on both sides of the bright edge
+	var split := 0.18
+	var cuts := [lit - 1.0, lit + split * short, lit + short + 1.0]
+	for k in 2:
+		var span: float = cuts[k + 1] - cuts[k]
+		var strip := Rect2(box.position.x - 1.0, cuts[k], box.size.x + 2.0, span)
+		if column:
+			strip = Rect2(cuts[k], box.position.y - 1.0, span, box.size.y + 2.0)
+		for pg in Geometry2D.intersect_polygons(o, _rect_pts(strip)):
+			if pg.size() < 3:
+				continue
+			var cols := PackedColorArray()
+			for p in pg:
+				var t := ((p.x if column else p.y) - lit) / short
+				cols.append(_slab_colour(pal, t, split))
+			out.append(vpoly(pg, cols))
+	var anchor := rect.position
+	var phase := MazeArt.pick(anchor.x, anchor.y, MazeSkin.SALT_SLAB, 19)
+	var lean := 0.7 * short
+	var wide := Color(pal["sheen"], MazeSkin.SHEEN_ALPHAS[0])
+	var thin := Color(pal["sheen"], MazeSkin.SHEEN_ALPHAS[1])
+	# sheen stays below the top line, so no pixel gets more sheen than the palette check allows (C3)
+	var zone := Rect2(box.position.x - 1.0, lit + 4.0, box.size.x + 2.0, short)
+	if column:
+		zone = Rect2(lit + 4.0, box.position.y - 1.0, short, box.size.y + 2.0)
+	var clip := PackedVector2Array()
+	for pg in Geometry2D.intersect_polygons(o, _rect_pts(zone)):
+		clip = pg
+	var p := 19.0 + phase
+	while p < length + 20.0 and clip.size() >= 3:
+		for band: Array in [[wide, 8.0, 0.0], [thin, 2.0, 11.0]]:
+			var a: float = along0 + p + band[2]
+			var w: float = band[1]
+			var quad := PackedVector2Array()
+			if column:
+				quad = PackedVector2Array(
+					[Vector2(lit, a), Vector2(lit, a + w), Vector2(lit + short, a + w - lean), Vector2(lit + short, a - lean)]
+				)
+			else:
+				quad = PackedVector2Array(
+					[Vector2(a, lit), Vector2(a + w, lit), Vector2(a + w - lean, lit + short), Vector2(a - lean, lit + short)]
+				)
+			for pg in Geometry2D.intersect_polygons(quad, clip):
+				_add_poly(out, pg, band[0])
+		p += 38.0
+	var edge := PackedVector2Array()
+	for pg in Geometry2D.offset_polygon(o, -1.5):
+		edge = pg
+		edge.append(pg[0])
+		out.append(polyline(edge, pal["noring_edge"], 2.0))
+	var r := MazeSkin.SLAB_RADIUS + 1.0
+	if length > 2.0 * r:
+		var top := Color(pal["sheen"], MazeSkin.SHEEN_ALPHAS[2])
+		if column:
+			out.append(line(Vector2(lit + 3.0, along0 + r), Vector2(lit + 3.0, along0 + length - r), top, 2.0))
+		else:
+			out.append(line(Vector2(along0 + r, lit + 3.0), Vector2(along0 + length - r, lit + 3.0), top, 2.0))
+
+
+static func _slab_colour(pal: Dictionary, t: float, split: float) -> Color:
+	t = clampf(t, 0.0, 1.0)
+	if t < split:
+		return (pal["noring_hi"] as Color).lerp(pal["noring"], t / split)
+	return (pal["noring"] as Color).lerp(pal["noring_lo"], (t - split) / (1.0 - split))
+
+
+static func _rect_pts(r: Rect2) -> PackedVector2Array:
+	return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
 
 
 ## same colours in every world; only the outline of a spike changes (design 18.5)
