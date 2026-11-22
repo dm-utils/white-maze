@@ -446,7 +446,8 @@ Screenshots (`tools/shots.sh`), at 100 % and on the phone sizes:
 - `door`, `overview`, `overview-phone`: door view shows the doorway; the overview shows the whole level inside the area
   below the band with the player marker; the touch controls and the map button readable over it.
 - `aim-frame`: target face and Lilith both in view; `aim-edge`: chevron at the edge in the line colour.
-- `phone-follow`, `phone-small`: on 960 x 432, Lilith about 35 px high; nothing important under the stick discs.
+- `phone-follow`, `phone-small` (l007, added in look step 2): on 960 x 432, Lilith about 35 px high; nothing important
+  under the stick discs.
 - `pause`: the controls legend with the extra overview line still fits.
 
 Play in a desktop browser (web export) and on a phone in landscape if possible:

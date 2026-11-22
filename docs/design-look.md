@@ -73,14 +73,14 @@ Per world:
 | `back_top` | `#2A2030` | `#1A2A22` | `#172234` | Back wall gradient, top of the level. |
 | `back_bottom` | `#17121C` | `#0F1A15` | `#0D1420` | Back wall gradient, bottom of the level. |
 | `back_line` | `#33283B` | `#20332A` | `#1C2A3D` | Masonry or strata lines of the back wall. |
-| `back_decor` | `#3A2D45` | `#284A2E` | `#22344A` | Large decor silhouettes (pillars, arches, vines, crystals). |
+| `back_decor` | `#3A2D45` | `#22402A` | `#22344A` | Large decor silhouettes (pillars, arches, vines, crystals). |
 | `block` | `#C29A62` | `#6E7D62` | `#5A6A82` | `#` fill (sandstone, mossy stone, blue-grey rock). |
 | `joint` | `#9A7442` | `#556349` | `#44526A` | Joints and cracks inside `#` (always darker than `block`). |
 | `speck` | `#A7804C` | `#617055` | `#4E5D74` | Small dots inside `#`. |
-| `lip` | `#F3E0AE` | `#9BD36A` | `#B9CCE0` | Lip on ring faces (light sand, moss, frost). |
+| `lip` | `#F3E0AE` | `#9BD36A` | `#A9C6E4` | Lip on ring faces (light sand, moss, frost). |
 | `noring` | `#3F4260` | `#34504C` | `#2E5B7A` | `X` fill (polished basalt, wet stone, deep ice). |
 | `noring_edge` | `#2A2C42` | `#243833` | `#1F3F56` | 2 px inner border of `X` (darker than the fill, never light). |
-| `sheen` | `#8A90B8` | `#7FB8B0` | `#CFEFFF` | Gloss streaks on `X`. |
+| `sheen` | `#8A90B8` | `#7FB8B0` | `#BFE3F7` | Gloss streaks on `X`. |
 | `detail` | `#D9B77B` | `#86C25E` | `#3A6EA5` | Sand drifts, moss tufts, faint cave glow spots. |
 | `light` | `#FFB45A` | `#FFB45A` | `#7FC8E8` | Torch flame (temple, jungle), glow crystal (cave). |
 | `door_frame` | `#D9B77B` | `#8C9A7A` | `#7D8CA4` | Door posts and lintel. |
@@ -133,8 +133,8 @@ mirrors with `draw_set_transform(pos, 0, Vector2(facing, 1))`. Sizes in px at a 
 | Head | circle centre `(1, -25.5)`, r 6 | skin `#D9A07A` |
 | Hair | short bob polygon over the back and top of the head, top at `y = -32.0`, down to the jaw (`y = -22`) | `#3A2418` |
 | Eye | circle `(4.2, -25.5)`, r 0.9 | `#1E1A18` |
-| Headband | 2 px band across the head at `y = -28.5` | `#DC3150` (crimson, hue about 349 degrees; deliberately not the hazard hue) |
-| Headband tails | two chains of 3 points from the knot at `(-5, -28.5)`, lengths 7 and 6 px, 2.2 px wide | `#DC3150` |
+| Headband | 2 px band across the head at `y = -28.5` | `#E0306E` (rose-crimson, hue about 339 degrees; deliberately not the hazard hue, 18.18) |
+| Headband tails | two chains of 3 points from the knot at `(-5, -28.5)`, lengths 7 and 6 px, 2.2 px wide | `#E0306E` |
 | Jacket (torso) | rounded rectangle `(-8, -21)` to `(8, -11.5)`, radius 3 | `#2F7F86`, shadow `#24646A` |
 | Bandolier | 2.4 px strap from `(-6, -21)` to `(6, -12.5)` | `#3A2A1E` |
 | Bead slots | up to 4 slots evenly on the strap, r 1.8 | filled `RING`, empty `#1E1612` |
@@ -431,7 +431,7 @@ palettes live in `MazeWorlds`, an exception to "look values at the top of the fi
 
 - Tagline wording (18.13), and whether the name should also appear on the icon (`icon.svg`, a Lilith head with the
   red headband).
-- Headband colour: crimson `#DC3150`, kept apart from the warm hazard red on purpose; a plain warm red would read as
+- Headband colour: rose-crimson `#E0306E` (was `#DC3150`, see 18.18), kept apart from the warm hazard red on purpose; a plain warm red would read as
   danger on the figure.
 - The three readability backings (18.11) are small additions to HUD, hint and touch controls; without them white text
   is hard to read over the light temple ceiling.
@@ -462,3 +462,36 @@ palettes live in `MazeWorlds`, an exception to "look values at the top of the fi
 - The A2 bounds test sweeps one product: pose x arm mode x squash x all 144 aim directions x throw progress x phase.
   Squash only occurs on the ground (the view sets it only when `grounded`), so the sweep uses it for `IDLE` and `RUN`
   only; `LAUNCH` is never grounded. Reachable combinations keep the halo inside the hitbox.
+
+## 18.18 Deviations as built, step 2 (card #016)
+
+- Palette values changed to keep A3 green: cave `lip` `#A9C6E4` and `sheen` `#BFE3F7` (the start values were near white
+  by the saturation rule), jungle `back_decor` `#22402A` (the start value was above 1.6 against `back_bottom`).
+- B3 (headband against the hazard red): the headband moved from `#DC3150` (17 degrees from `HAZARD`) to `#E0306E`
+  (about 27 degrees, rose-pink against the orange-red spikes); `HAZARD` is unchanged. Judged on the shots next to the
+  spike pits of l001 and l003 in all three worlds; the test now asks for 25 degrees instead of 15.
+- Layer order: `MazeWorldView.z_index` is 10, so the layers at `-2` and `-1` (relative) stay above the screen
+  background of `MazeMain` (a `ColorRect` at z 0) and below Lilith and the rings.
+- The back layer has one extra child that is not a chunk: the `void` rectangle. `chunk_count()` and `static_draws()` on
+  the world view count the chunks of both layers (A6); `build_count` counts `build()` calls.
+- Step 3 content is not drawn yet: specks, tufts, cracks in `#` cells with four solid neighbours, back decor and
+  torches. The cave crack of 18.8 (a 3-point polyline in 30 % of the blocks) is the cave's joint pattern and is part of
+  step 2, with the points kept within a few px of each other so it reads as a crack.
+- Jungle joints: two stones per tile (one horizontal joint at `hy = 12..28` and one vertical joint in the upper or
+  lower stone) instead of one full-height vertical joint, which was too busy next to the lip colour.
+- Spike outlines per world: temple the 8.1 triangle, jungle five points with a bowed side, cave six points with flat
+  tops; base, height and colours are the same.
+- `ACCENT` and `RING` are both `#FFFFFF`, so the launch flash is no longer visible as a colour change; the flash now
+  strengthens the two glow strokes (alpha 0.25 and 0.5 instead of 0.08 and 0.18).
+- `lip_face` follows 3.10 step 6 literally, so the bottom face of a block in the last row also gets a lip (the cell
+  below the grid is empty). This shows as a light strip along the bottom of the level.
+- Hint backing: the label shrinks to the text plus 12 px padding and is centred, instead of a full-width bar. Touch
+  discs: `BG` at alpha 0.35 under each control (move and throw scaled with their idle alpha).
+- `--fps`: `parse_args` key `fps`; the label sits under the HUD band at the left. `--world=<name>` with an unknown name
+  is ignored with a warning (key stays `""`).
+- Shots: `phone-small` is 960 x 432 on l007 as in 18.14 (the checklist of `design-camera.md` 19.13 named it before it
+  existed); extra scenarios `jungle-play` (l005 without the overlay), `phone-temple`, `phone-jungle` and `fps`.
+- Frame rate: not measurable here (headless X with software GL gives single-digit values that say nothing about a
+  phone). The tester measures `--fps` in the web export on l001 and l009. Risk to watch: a chunk of a busy level holds
+  about 3000 cached commands and four chunks can be in view; the `SubViewport` fallback of 18.10 is the next step if the
+  phone stays under 50 fps.
