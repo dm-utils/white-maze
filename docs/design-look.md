@@ -291,7 +291,7 @@ Constraints on every plan (tested, A5):
   export). A debug argument `--fps` shows `Engine.get_frames_per_second()` in a small `DIM` label under the HUD band
   (view only; `parse_args` key `fps`, default `false`).
 - Fallback if the phone stays below 50 fps: render each static chunk once into a `SubViewport` with
-  `render_target_update_mode = UPDATE_ONCE` and draw its texture (ADR 0010). Not built unless needed.
+  `render_target_update_mode = UPDATE_ONCE` and draw its texture (ADR 0010). Built in card #022, see 18.19.
 
 ## 18.11 Readability on a phone
 
@@ -495,3 +495,38 @@ palettes live in `MazeWorlds`, an exception to "look values at the top of the fi
   phone). The tester measures `--fps` in the web export on l001 and l009. Risk to watch: a chunk of a busy level holds
   about 3000 cached commands and four chunks can be in view; the `SubViewport` fallback of 18.10 is the next step if the
   phone stays under 50 fps.
+
+## 18.19 Deviations as built, render performance (card #022)
+
+Cause: in software GL the cached chunks (about 3000 commands each, up to four in view) cost 2.3 to 2.6 times the frame
+time of step 1 (test report look step 2, M1). The fallback of 18.10 is built.
+
+- Baking: `MazeStaticBake` (`ui/static_bake.gd`) renders every chunk once into a `SubViewport`
+  (`UPDATE_ONCE`, opaque) and shows it as one `Sprite2D` per chunk, linear filtering. `MazeStaticLayer` is now a
+  `RefCounted` that only makes the chunk nodes; the nodes stay inside the viewport and are never redrawn, so `draws`
+  still counts one draw per chunk per layer (A6 unchanged). The `void` rectangle is a plain node outside the bake.
+- One texture per chunk instead of one per layer: back wall and tiles are drawn into the same viewport (back first),
+  so a chunk is opaque, one quad, and the memory is half. Nothing sits between the two layers, so the order is kept.
+- Resolution: 2 texels per world px (`MazeStaticBake.SCALE`), camera zoom is 1.8 to 2.0, so the texture is sampled at
+  about 0.9 to 1.0 texel per screen px. A chunk is at most 1280 x 1280 (6.5 MB, RGBA8, no mipmaps).
+- Texture memory per level (all chunks, partial edge chunks are smaller): l001 17.2 MB, l002 14.3, l003 17.2,
+  l004 17.2, l005 14.7, l006 19.7, l007 16.6, l008 16.4, l009 16.4. A test keeps every level under 24 MB.
+- Timing: all chunks are baked in the first frame of the level (the `UPDATE_ONCE` viewports render before the main
+  viewport), so it falls inside level start. Measured in headless Chrome after the first frame: no frame longer than
+  150 ms on l006 and l009. Chunks are not staggered; revisit if a much larger level is added.
+- Door glow: it reaches 14 px past its cell, and a chunk texture clips at the chunk edge. The back layer therefore draws
+  the glow in every chunk its circle touches, after the cells of that chunk (it used to be drawn with its own cell, so
+  back lines of later cells ran over the glow; the glow alpha is 0.06 to 0.08, the difference is not visible).
+- Look: the shots of the 34 scenarios differ from before in filtering only (edges of lines and the lip are a little
+  softer); no colour, shape or position changed. Judged on temple, jungle, cave, door, overview and phone shots.
+- Web arguments: `MazeMain.query_args` turns `?fps&world=cave&level=l001` into debug arguments in the web build
+  (`JavaScriptBridge`, `window.location.search`). Keys: `fps`, `world`, `level`, `camera`, `lang`, `touch`; no
+  `profile`, `shot` or `solve`; values only `a-z 0-9 _ -`. `fps=0` and `touch=0` switch a flag off.
+- `--fps` label: `FONT_INFO`, `TEXT` colour, `BG` backing at alpha 0.85, placed below the scrim fade
+  (`BAND + SCRIM_FADE + 6`).
+- L2 (test report): `MazeStaticLayer.lip_drawn` is `lip_face` without the bottom face of the last row; the lip rule
+  itself (3.10, A4) is unchanged, only the drawing leaves the bottom edge of the level plain.
+- L3: the hint is hidden while the overview is blending in or active (`rig.overview_k() > 0`).
+- Frame rates, headless Chrome, software GL, 960 x 432, 8 s, rAF counter (box load varied between the two series):
+  l001 step 1 43.7 / 35 (twice), step 2 14.6 / 13, now 55.4 / 43; l006 44.2 / 35, 17.5 / 15, 60.1 / 50;
+  l009 36.1 / 30, 25.3 / 20.5, 47.2 / 46.7. Now above step 1 on every level.
