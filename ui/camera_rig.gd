@@ -231,6 +231,10 @@ func skip_intro() -> void:
 	_skip_t = 0.0
 
 
+func look_dir() -> int:
+	return _look_dir
+
+
 func intro_active() -> bool:
 	return _intro == Intro.ACTIVE
 
