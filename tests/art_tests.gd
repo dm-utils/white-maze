@@ -364,6 +364,17 @@ func _worlds() -> void:
 	var o := MazeMain.parse_args(PackedStringArray(["--world=cave", "--fps"]))
 	var bad := MazeMain.parse_args(PackedStringArray(["--world=moon"]))
 	_check.call(o["world"] == "cave" and o["fps"] and bad["world"] == "" and not bad["fps"], "A8 --world and --fps")
+	var q := MazeMain.query_args("?fps&world=cave&level=l001&profile=/etc/x&shot=a.png&lang=n%6C")
+	_check.call(
+		q == PackedStringArray(["--fps", "--world=cave", "--level=l001", "--lang=nl"]),
+		"web query: known keys become arguments, profile and shot are dropped (%s)" % [q]
+	)
+	var qo := MazeMain.parse_args(MazeMain.query_args("fps=0&world=../x&camera=overview&touch=1"))
+	_check.call(
+		not qo["fps"] and qo["world"] == "" and qo["camera"] == "overview" and qo["touch"],
+		"web query: flag off with =0, odd values dropped"
+	)
+	_check.call(MazeMain.query_args("").is_empty() and MazeMain.query_args("?").is_empty(), "web query: empty is empty")
 	var h := [MazeArt.hash3(0, 0, 0), MazeArt.hash3(1, 2, 3), MazeArt.hash3(39, 17, 5), MazeArt.hash3(-4, 9, 1)]
 	_check.call(h == HASH_PINS, "hash3 gives the pinned values: %s" % [h])
 	var counts := [0, 0, 0, 0]
