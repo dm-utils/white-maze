@@ -484,8 +484,17 @@ func _backings() -> void:
 	_check.call(box != null and absf(box.bg_color.a - 0.7) < 0.001, "the hint has a backing of alpha 0.7")
 	_check.call(hint.size.x < g.hud.size.x, "the hint backing wraps the text, not the screen")
 	_check.call(g.hud._fps.visible and g.hud._fps.text.ends_with("fps"), "--fps shows a frame rate label")
+	_check.call(hint.visible, "L3 the hint shows in the follow view")
 	_node.remove_child(m)
 	m.free()
+	var ov := _game_with(PackedStringArray(["--level=l006", "--camera=overview"]))
+	ov.game.set_process(false)
+	for i in 3:
+		ov.game.advance(1.0 / 60.0)
+		await _node.get_tree().process_frame
+	_check.call(not ov.game.hud._hint.visible, "L3 the hint is hidden in the overview")
+	_node.remove_child(ov)
+	ov.free()
 	var q := _game_with(PackedStringArray(["--level=l001"]))
 	q.game.set_process(false)
 	q.game.advance(1.0 / 60.0)
