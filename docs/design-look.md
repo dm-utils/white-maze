@@ -457,5 +457,8 @@ palettes live in `MazeWorlds`, an exception to "look values at the top of the fi
   exists (step 2); the door glow is drawn in the dynamic layer, since there is no back layer yet. The grid lines and
   the old block edges stay as they are in step 1.
 - `lilith-fall` uses `RJ28` and `lilith-dead` uses `R109` (death at tick 101, the shot 8 ticks later).
-- The A1 test (`tests/art_tests.gd`) awaits no frame during the run: frames awaited mid-run made the game screen
-  diverge from the plain run in the headless runner; the frame is awaited once after the run.
+- The A1 test (`tests/art_tests.gd`) awaits one frame per tick again. The earlier divergence came from `_hud_buttons`
+  in `tests/ui_tests.gd` leaving Space pressed (an extra jump in later suites); it now releases the key.
+- The A2 bounds test sweeps one product: pose x arm mode x squash x all 144 aim directions x throw progress x phase.
+  Squash only occurs on the ground (the view sets it only when `grounded`), so the sweep uses it for `IDLE` and `RUN`
+  only; `LAUNCH` is never grounded. Reachable combinations keep the halo inside the hitbox.
