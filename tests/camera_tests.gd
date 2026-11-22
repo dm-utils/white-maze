@@ -1,8 +1,10 @@
 extends RefCounted
-## CAM1-CAM11: the camera rig on its own, driven by MazeSim with explicit time steps (design 19.12).
+## CAM1-CAM14: the camera rig on its own (driven by MazeSim with explicit time steps) and in the game screen.
 
 const H := preload("res://tests/helpers.gd")
 const SOLUTIONS := "res://tests/solutions.json"
+const C := preload("res://tests/controls_tests.gd")
+const PROFILE := "user://white_maze_test_camera.json"
 const DT := 1.0 / 60.0
 const BAND := 110.0
 const DESKTOP := Vector2(1280, 720)
@@ -10,10 +12,12 @@ const PHONE := Vector2(1600, 720)
 const TABLET := Vector2(1280, 960)
 
 var _check: Callable
+var _node: Node
 
 
-func run(check: Callable, _node: Node) -> void:
+func run(check: Callable, node: Node) -> void:
 	_check = check
+	_node = node
 	_zoom()
 	_level_clamp_and_player_in_view()
 	_calm_jumps()
@@ -24,6 +28,13 @@ func run(check: Callable, _node: Node) -> void:
 	_snap()
 	_intro()
 	_overview()
+	_game_snap()
+	_game_intro()
+	_game_overview()
+	_game_same_frame()
+	_game_mouse()
+	_game_fixed_layers()
+	_clean()
 
 
 ## floor from row floor_y down, spawn on it at (2, floor_y - 1); edits {Vector2i: char}
@@ -446,3 +457,200 @@ func _overview() -> void:
 				absf(r.view_zoom() - MazeCameraRig.target_zoom(canvas)) < 0.0001 and r.overview_k() == 0.0,
 				"CAM11 %s at %s: the zoom is back after release" % [id, str(canvas)]
 			)
+
+
+func _clean() -> void:
+	for p in [PROFILE, PROFILE + ".tmp"]:
+		DirAccess.remove_absolute(p)
+
+
+func _main(extra: Array = []) -> MazeMain:
+	var m: MazeMain = load("res://ui/main.tscn").instantiate()
+	m.use_cmdline = false
+	m.args = PackedStringArray(["--profile=" + PROFILE]) + PackedStringArray(extra)
+	_node.add_child(m)
+	return m
+
+
+func _close(m: MazeMain) -> void:
+	_node.remove_child(m)
+	m.free()
+
+
+## a game on l001 driven by advance() only
+func _game(extra: Array = []) -> MazeMain:
+	WhiteText.lang = "nl"
+	var m := _main(["--level=l001"] + extra)
+	m.game.set_process(false)
+	return m
+
+
+## the snapped view a fresh rig gives for the current state of the game
+func _snapped_view(g: MazeGame) -> Vector2:
+	var vs := g.get_viewport().get_visible_rect().size
+	var r := MazeCameraRig.new()
+	r.setup(Vector2(g.level.width, g.level.height) * 40.0, vs, MazeGame.HUD_BAND, g._door_centre())
+	r.snap(_frame(g.sim))
+	return r.view_centre()
+
+
+func _game_snap() -> void:
+	var m := _game()
+	var g := m.game
+	g.controls.handle_event(C.key(KEY_D))
+	for i in 200:
+		g.advance(DT)
+	var walked := g.rig.view_centre()
+	g.restart()
+	_check.call(g.rig.view_centre().distance_to(_snapped_view(g)) < 0.01, "CAM9 a restart snaps to the spawn framing")
+	_check.call(g.rig.view_centre().distance_to(walked) > 100.0, "CAM9 the restart moved the view")
+	# walk into the first pit: the camera holds while dead, then cuts at the respawn
+	var held_ok := true
+	var dead_view := Vector2.ZERO
+	var cut := false
+	for i in 600:
+		var before := g.rig.view_centre()
+		g.advance(DT)
+		if not g.sim.alive():
+			held_ok = held_ok and (dead_view == Vector2.ZERO or g.rig.view_centre().distance_to(dead_view) < 0.01)
+			if dead_view == Vector2.ZERO:
+				dead_view = g.rig.view_centre()
+		if H.has_event(g.sim, "respawn"):
+			var now := g.rig.view_centre()
+			cut = now.distance_to(_snapped_view(g)) < 0.01 and before.distance_to(now) > 50.0
+			break
+	_check.call(dead_view != Vector2.ZERO and held_ok, "CAM9 the view holds still while the player is dead")
+	_check.call(cut, "CAM9 the first frame after the respawn shows the spawn framing")
+	_close(m)
+
+
+func _game_intro() -> void:
+	var a := _game()
+	var b := _game()
+	_check.call(a.game.rig.intro_active() and b.game.rig.intro_active(), "CAM10 a level opens with the intro")
+	var door_in_view := a.game.world.view_rect.has_point(a.game._door_centre())
+	_check.call(door_in_view, "CAM10 the intro starts on the door")
+	b.game.rig.skip_intro()
+	a.game.controls.handle_event(C.key(KEY_D))
+	b.game.controls.handle_event(C.key(KEY_D))
+	for i in 60:
+		a.game.advance(DT)
+		b.game.advance(DT)
+	_check.call(not a.game.rig.intro_active(), "CAM10 a key press skips the intro")
+	_check.call(
+		a.game.sim.snapshot() == b.game.sim.snapshot() and a.game.sim.tick > 0,
+		"CAM10 the intro does not delay the input"
+	)
+	_close(a)
+	_close(b)
+	var shot := _main(["--level=l001", "--shot=/tmp/none.png"])
+	_check.call(not shot.game.rig.intro_active(), "CAM10 a screenshot run has no intro")
+	_close(shot)
+	var cam := _main(["--level=l001", "--camera=door"])
+	_check.call(not cam.game.rig.intro_active() and cam.game.rig.debug_view == "door", "CAM10 --camera has no intro")
+	_close(cam)
+
+
+func _game_overview() -> void:
+	var m := _game()
+	var g := m.game
+	g.rig.skip_intro()
+	g.controls.handle_event(C.key(KEY_D))
+	for i in 40:
+		g.advance(DT)
+	g.controls.handle_event(C.key(KEY_D, false))
+	g.controls.handle_event(C.key(KEY_J))
+	g.advance(DT)
+	_check.call(g.controls.aiming(), "CAM11 the aim is on before the overview")
+	var tick := g.sim.tick
+	var time := g.sim.time_ticks()
+	_check.call(time > 0, "CAM11 the clock runs before the overview")
+	g.controls.handle_event(C.key(KEY_TAB))
+	for i in 30:
+		g.advance(DT)
+	_check.call(g.sim.tick == tick and g.sim.time_ticks() == time, "CAM11 the game is held during the overview")
+	_check.call(not g.controls.aiming(), "CAM11 the overview cancels an aim in progress")
+	_check.call(g.rig.overview_k() > 0.99 and g.world.overview_k > 0.99, "CAM11 the overview view is shown")
+	g.controls.handle_event(C.key(KEY_TAB, false))
+	for i in 20:
+		g.advance(DT)
+	_check.call(g.sim.tick > tick and g.rig.overview_k() == 0.0, "CAM11 after the release the game continues")
+	# D held through the overview walks on at once
+	g.controls.handle_event(C.key(KEY_D))
+	g.advance(DT)
+	g.controls.handle_event(C.key(KEY_M))
+	for i in 10:
+		g.advance(DT)
+	var x := g.sim.px
+	g.controls.handle_event(C.key(KEY_M, false))
+	for i in 20:
+		g.advance(DT)
+	_check.call(g.sim.px > x, "CAM11 a held walk key walks on after the overview")
+	# no overview while paused
+	g.pause()
+	g.controls.handle_event(C.key(KEY_TAB))
+	g.advance(DT)
+	_check.call(g.rig.overview_k() == 0.0, "CAM11 no overview while paused")
+	_close(m)
+
+
+func _band(g: MazeGame) -> float:
+	var vs := g.get_viewport().get_visible_rect().size
+	return MazeGame.HUD_BAND + float(WhiteSafeArea.insets(vs, g.options.get("safe", ""))["top"])
+
+
+func _game_same_frame() -> void:
+	var m := _game()
+	var g := m.game
+	g.controls.handle_event(C.key(KEY_D))
+	var deltas := [1.0 / 60.0, 1.0 / 144.0, 1.0 / 30.0]
+	var worst := 0.0
+	for i in 120:
+		g.advance(deltas[i % 3])
+		var p := g.world.get_canvas_transform() * g.rig.play_rect().position
+		worst = maxf(worst, p.distance_to(Vector2(0.0, _band(g))))
+	_check.call(worst < 0.01, "CAM12 the camera is applied in the frame it was computed for (%.4f)" % worst)
+	var z := MazeCameraRig.target_zoom(g.get_viewport().get_visible_rect().size)
+	_check.call(
+		g.world.get_canvas_transform().get_scale().is_equal_approx(Vector2(z, z)),
+		"CAM12 the world is drawn at the target zoom"
+	)
+	_close(m)
+
+
+func _game_mouse() -> void:
+	var m := _game()
+	var g := m.game
+	g.controls.handle_event(C.key(KEY_D))
+	for i in 90:
+		g.advance(DT)
+	g.controls.handle_event(C.key(KEY_D, false))
+	g.advance(DT)
+	var p := g.world.get_canvas_transform() * g.world.player_centre()
+	_check.call(g.controls._player_pos.is_equal_approx(p), "CAM13 the mouse aim uses the player position of this frame")
+	g.controls.handle_event(C.mouse(MOUSE_BUTTON_LEFT, p + Vector2(100, 0), true))
+	g.controls.handle_event(C.mouse(MOUSE_BUTTON_LEFT, p + Vector2(100, 0), false))
+	_check.call(
+		g.controls.take_throw() == 0,
+		"CAM13 a mouse throw 100 units to the right is index 0 at the target zoom"
+	)
+	_close(m)
+
+
+func _game_fixed_layers() -> void:
+	var m := _game(["--safe=0,20,0,0"])
+	var g := m.game
+	g.controls.handle_event(C.key(KEY_D))
+	var fixed := true
+	var moved := false
+	for i in 90:
+		g.advance(DT)
+		for n: CanvasItem in [g.hud, g.touch, g.overlays]:
+			fixed = fixed and n.get_canvas_transform() == Transform2D.IDENTITY
+		moved = moved or g.world.get_canvas_transform().origin != Vector2.ZERO
+	_check.call(fixed and moved, "CAM14 HUD, touch controls and overlays stay screen-fixed while the camera moves")
+	_check.call(
+		is_equal_approx(g.hud.scrim_band(), MazeGame.HUD_BAND + 20.0),
+		"CAM14 the HUD scrim covers the band plus the safe area top"
+	)
+	_close(m)

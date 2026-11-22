@@ -94,6 +94,9 @@ func _args() -> void:
 		"debug arguments: print-run, keys, solve, aim, pause"
 	)
 	_check.call(o["shot"] == "/x.png" and o["profile"] == "/p.json", "debug arguments: shot, profile")
+	var cam := MazeMain.parse_args(PackedStringArray(["--camera=overview"]))
+	var bad := MazeMain.parse_args(PackedStringArray(["--camera=nope"]))
+	_check.call(cam["camera"] == "overview" and bad["camera"] == "", "debug argument --camera takes door or overview")
 	var d := MazeMain.parse_args(PackedStringArray())
 	_check.call(d["level"] == "" and not d["all_levels"] and d["aim"] == -1, "no arguments give the defaults")
 

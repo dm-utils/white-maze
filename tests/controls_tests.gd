@@ -1,5 +1,5 @@
 extends RefCounted
-## C1-C6: keyboard, mouse and touch intents, latching, slow motion.
+## C1-C6: keyboard, mouse and touch intents, latching, slow motion; CAM15: overview, aim source, any input.
 
 var _check: Callable
 
@@ -12,6 +12,7 @@ func run(check: Callable, _node: Node) -> void:
 	_mouse()
 	_touch()
 	_slow_motion()
+	_overview_and_sources()
 
 
 static func key(code: Key, pressed := true) -> InputEventKey:
@@ -328,3 +329,59 @@ func _slow_motion() -> void:
 			acc -= 1.0 / 60.0
 			ticks += 1
 	_check.call(absi(ticks - 15) <= 1, "about 15 ticks per real second while aiming (%d)" % ticks)
+
+
+func _overview_and_sources() -> void:
+	var c := MazeControls.new()
+	_check.call(not c.overview_held(), "CAM15 no overview held at first")
+	c.handle_event(key(KEY_TAB))
+	_check.call(c.overview_held(), "CAM15 Tab holds the overview")
+	c.handle_event(key(KEY_TAB, false))
+	_check.call(not c.overview_held(), "CAM15 releasing Tab ends the overview")
+	c.handle_event(key(KEY_M))
+	_check.call(c.overview_held(), "CAM15 M holds the overview")
+	c.release_all()
+	_check.call(not c.overview_held(), "CAM15 release_all drops the overview keys")
+	# map button
+	var s := _overlay()
+	var oc: MazeControls = s[0]
+	var o: MazeTouchOverlay = s[1]
+	o.handle_event(touch(0, o.map_center(), true))
+	_check.call(oc.overview_held(), "CAM15 a touch on the map button holds the overview")
+	_check.call(
+		oc.move() == 0 and not oc.jump_held() and oc.take_throw() == -1,
+		"CAM15 the map button does not move, jump or throw"
+	)
+	o.handle_event(touch(0, o.map_center(), false))
+	_check.call(not oc.overview_held(), "CAM15 lifting the finger ends the overview")
+	o.handle_event(touch(1, o.map_center(), true))
+	o.reset()
+	_check.call(not oc.overview_held(), "CAM15 a reset drops the map button")
+	o.free()
+	# aim sources
+	var a := MazeControls.new()
+	_check.call(a.aim_source() == MazeControls.AimSource.NONE, "CAM15 no aim source when not aiming")
+	a.handle_event(key(KEY_J))
+	_check.call(a.aim_source() == MazeControls.AimSource.KEYS, "CAM15 the aim key reports KEYS")
+	a.cancel_aim()
+	a.set_player_screen_pos(Vector2(400, 300))
+	a.handle_event(mouse(MOUSE_BUTTON_LEFT, Vector2(500, 300), true))
+	_check.call(a.aim_source() == MazeControls.AimSource.MOUSE, "CAM15 a mouse aim reports MOUSE")
+	a.cancel_aim()
+	a.touch_aim(true, 10)
+	_check.call(a.aim_source() == MazeControls.AimSource.TOUCH, "CAM15 the throw stick reports TOUCH")
+	# any input latches once per press
+	var n := MazeControls.new()
+	_check.call(not n.take_any_input(), "CAM15 no input at first")
+	n.handle_event(key(KEY_X))
+	_check.call(n.take_any_input() and not n.take_any_input(), "CAM15 a key press latches once")
+	n.handle_event(key(KEY_X, false))
+	_check.call(not n.take_any_input(), "CAM15 a key release is no input")
+	var echo := key(KEY_X)
+	echo.echo = true
+	n.handle_event(echo)
+	_check.call(not n.take_any_input(), "CAM15 a key echo is no input")
+	n.handle_event(mouse(MOUSE_BUTTON_LEFT, Vector2(5, 5), true))
+	_check.call(n.take_any_input(), "CAM15 a mouse press is input")
+	n.note_touch()
+	_check.call(n.take_any_input(), "CAM15 a touch-down is input")

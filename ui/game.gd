@@ -101,6 +101,7 @@ func _ready() -> void:
 	_update_camera(0.0, true)
 	if _intro_wanted():
 		rig.start_intro()
+		_update_camera(0.0, false)
 
 
 ## the intro shows the door when a level opens; never in debug shots, never when the door is in view anyway
