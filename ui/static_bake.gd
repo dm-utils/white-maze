@@ -6,6 +6,11 @@ extends Node2D
 const SCALE := 2.0 # texels per world px; camera zoom is 2.0
 const BYTES_PER_PX := 4
 
+static var build_usec := 0 # time of the tiles primitives of the last build (design 21.12.4)
+static var command_count := 0 # primitives of all tiles chunks of the last build
+static var first_frame_usec := -1 # build() returned until the first frame is drawn (MazeGame); -1 before
+static var built_at_usec := 0
+
 var baked_bytes := 0 # texture memory of the current level
 var chunk_total := 0
 
@@ -19,6 +24,9 @@ func build(lv: MazeLevel, world_id: int) -> void:
 		c.queue_free()
 	_back.build(lv, world_id, MazeStaticLayer.Kind.BACK)
 	_tiles.build(lv, world_id, MazeStaticLayer.Kind.TILES)
+	build_usec = _tiles.build_usec
+	command_count = _tiles.command_count
+	first_frame_usec = -1
 	baked_bytes = 0
 	var void_node := _back.make_void()
 	void_node.z_index = -3
@@ -33,6 +41,7 @@ func build(lv: MazeLevel, world_id: int) -> void:
 				mini(cell, lv.width - cx * cell), mini(cell, lv.height - cy * cell)
 			) * MazeStaticLayer.T
 			add_child(_bake_chunk(cx, cy, origin, extent))
+	built_at_usec = Time.get_ticks_usec()
 
 
 ## chunks of both layers, as the layers count them

@@ -4,7 +4,8 @@ Status: phase 1 (playable prototype) is built: the headless core (card #002, par
 the screens, controls, profile store, screenshots and the Pages deploy (cards #004 and #006); deviations in sections 14
 and 16; levels 4 to 9 in section 17. Section 18 (`docs/design-look.md`, ADR 0010) designs the look and feel of the
 adventure world; section 20 (`docs/design-feel.md`, ADR 0012) is the feel pass: 9 tiles of camera height, game speed
-per level and a smoother Lilith with orange hair. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
+per level and a smoother Lilith with orange hair; section 21 (`docs/design-skins.md`, ADR 0013) gives the tiles carved
+stone skins as data packs per world, with a crumbly outer edge and outlines on pins and rings. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
 **[later]**; they are not built in phase 1.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
@@ -1718,3 +1719,9 @@ bullet of 8.3 and the camera deviation of 16.1.
 See `docs/design-feel.md` (section 20, ADR 0012): camera of 9 tiles of height, game speed per level (time scale, the
 simulation is untouched), smoother Lilith (render time, pose blending) with orange hair; changes the constants of 19.5
 and the figure of 18.6.
+
+## 21. Skins
+
+See `docs/design-skins.md` (section 21, ADR 0013): carved stone tiles with a crumbly outer edge, `X` slabs, trims on ring
+faces, outlined pins, rings and beads; skins are data packs per world with the reading rules owned by the engine.
+Replaces the tiles layer of 18.8, the palettes of 18.4 and the outline of 18.9.

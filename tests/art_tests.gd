@@ -399,7 +399,7 @@ func _worlds() -> void:
 		and MazeWorlds.from_name("temple") == 0 and MazeWorlds.from_name("moon") == -1,
 		"A8 world names"
 	)
-	_check.call(MazeWorlds.palette(99) == MazeWorlds.TEMPLE, "A8 an unknown world gives the temple palette")
+	_check.call(MazeWorlds.palette(99) == MazeWorlds.palette(MazeWorlds.World.TEMPLE), "A8 an unknown world gives the temple palette")
 	var o := MazeMain.parse_args(PackedStringArray(["--world=cave", "--fps"]))
 	var bad := MazeMain.parse_args(PackedStringArray(["--world=moon"]))
 	_check.call(o["world"] == "cave" and o["fps"] and bad["world"] == "" and not bad["fps"], "A8 --world and --fps")

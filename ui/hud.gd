@@ -181,7 +181,10 @@ func _process(_delta: float) -> void:
 	_hint.position = Vector2((vs.x - _hint.size.x) / 2.0, hint_y)
 	_fps.visible = show_fps
 	if show_fps:
-		_fps.text = "%d fps" % Engine.get_frames_per_second()
+		_fps.text = "bake %d ms  first %d ms  %d fps" % [
+			MazeStaticBake.build_usec / 1000, maxi(MazeStaticBake.first_frame_usec, 0) / 1000,
+			Engine.get_frames_per_second(),
+		]
 		_fps.position = Vector2(WhiteTheme.MARGIN + ins["left"], BAND + ins["top"] + SCRIM_FADE + FPS_PAD)
 	_name.text = level_text()
 	_score.text = score_text()

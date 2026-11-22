@@ -13,6 +13,9 @@ const RING_LIFT := 5.0 # ring centre sits this far in front of its face
 const RING_POINTS := 28
 const RING_GLOW := [[17.0, 0.08], [11.0, 0.18]] # width, alpha of the two halo strokes
 const RING_GLOW_FLASH := [[17.0, 0.25], [11.0, 0.5]]
+const RING_OUTLINE := Color("#120E10", 0.6)
+const RING_OUTLINE_W := 8.0 # RING_STROKE + 3
+const BEAD_OUTLINE_R := 8.5 # BEAD_R + 1.5
 const BEAD_HALO_R := 11.0
 const BEAD_HALO_ALPHA := 0.2
 const FLASH_TICKS := 10
@@ -169,14 +172,23 @@ static func ring_points(centre: Vector2, face: int) -> PackedVector2Array:
 	return pts
 
 
+## strokes of a ring in draw order: two glows, the dark outline, the white (or flash) stroke; [width, Color]
+static func ring_strokes(flash: bool) -> Array:
+	var color := WhiteTheme.ACCENT if flash else MazeWorlds.RING
+	var out := []
+	for g: Array in (RING_GLOW_FLASH if flash else RING_GLOW):
+		out.append([g[0], Color(color, g[1])])
+	out.append([RING_OUTLINE_W, RING_OUTLINE])
+	out.append([RING_STROKE, color])
+	return out
+
+
 func _draw_ring(cell: Vector2i, face: int, flash: bool) -> void:
 	var centre := face_point(cell, face, RING_LIFT)
 	var pts := ring_points(centre, face)
-	var color := WhiteTheme.ACCENT if flash else MazeWorlds.RING
-	for g: Array in (RING_GLOW_FLASH if flash else RING_GLOW):
-		draw_polyline(pts, Color(color, g[1]), g[0], true)
-	draw_polyline(pts, color, RING_STROKE, true)
-	_draw_arrow(centre, face, Color(color, ARROW_ALPHA))
+	for st: Array in ring_strokes(flash):
+		draw_polyline(pts, st[1], st[0], true)
+	_draw_arrow(centre, face, Color(WhiteTheme.ACCENT if flash else MazeWorlds.RING, ARROW_ALPHA))
 
 
 func _draw_arrow(centre: Vector2, face: int, color: Color) -> void:
@@ -195,6 +207,7 @@ func _draw_beads() -> void:
 		var k := clampf((sim.tick - int(f["throw_tick"]) + alpha) / span, 0.0, 1.0)
 		var p := Vector2(f["from"]).lerp(Vector2(f["to"]), k) / 1000.0
 		draw_circle(p, BEAD_HALO_R, Color(MazeWorlds.RING, BEAD_HALO_ALPHA))
+		draw_circle(p, BEAD_OUTLINE_R, RING_OUTLINE)
 		draw_circle(p, BEAD_R, MazeWorlds.RING)
 
 

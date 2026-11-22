@@ -35,3 +35,11 @@ decor-temple 1280x720 --level=l004 --camera=overview --world=temple
 decor-jungle 1280x720 --level=l009 --camera=overview --world=jungle
 decor-cave 1280x720 --level=l009 --camera=overview
 decor-door 1280x720 --level=l004 --camera=door --world=jungle
+skin-temple-all 1280x720 --level=l003 --camera=overview
+skin-jungle-all 1280x720 --level=l006 --camera=overview
+skin-cave-all 1280x720 --level=l009 --camera=overview
+skin-pillar 1280x720 --level=l003 --keys=L3,T41,L1,T85,L20,R119,RJ3,R9,RJ3,L3,RJ3,J6,RJ3
+skin-towers 1280x720 --level=l006 --keys=R10,T139,R51
+skin-x 1280x720 --level=l003 --world=cave
+skin-phone 960x432 --level=l006 --touch --safe=40,0,40,16
+skin-rings 1280x720 --level=l002 --keys=T43,-9,L8

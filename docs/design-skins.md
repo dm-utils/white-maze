@@ -778,4 +778,78 @@ something before you see it? Note bake ms, first frame ms and fps on l003, l006,
 
 ## 21.19 Deviations as built
 
-(Filled in by the developer in step 9.)
+Built on branch `feature/skins` in nine steps (card #034). `sim/`, `levels/` and `tests/solutions.json` are unchanged
+(`git diff a0c5724 -- sim levels tests/solutions.json` is empty). Game tests 1193 checks (`MIN_CHECKS` 1193, was 1099).
+
+### Measurements
+
+Primitive build (`build_usec`, best of three, native desktop, headless). Baseline is step 2 (today's look as primitives,
+same machine): 4.9 to 9.7 ms per level and world, l006 temple 9.7, l001 temple 6.8, l009 temple 6.2. The finished look:
+
+| Level | Temple | Jungle | Cave | Primitives (temple) |
+|---|---|---|---|---|
+| l001 | 58.1 | 60.2 | 58.6 | 2139 |
+| l002 | 46.4 | 48.5 | 47.1 | 1822 |
+| l003 | 51.1 | 53.8 | 51.7 | 2138 |
+| l004 | 63.7 | 65.7 | 67.4 | 2372 |
+| l005 | 56.5 | 62.2 | 56.8 | 2353 |
+| l006 | 68.2 | 71.7 | 69.6 | 2538 |
+| l007 | 57.7 | 62.2 | 58.4 | 2429 |
+| l008 | 51.7 | 55.0 | 53.0 | 2047 |
+| l009 | 46.5 | 49.3 | 48.0 | 1819 |
+
+Worst case 71.7 ms (l006 jungle), budget 150 ms: met, the fallback of 21.12.3 is not built. At most 2726 primitives per
+level, far below 8000 per chunk. Texture memory is unchanged (test S13 pins the 18.19 numbers).
+
+Headless Chrome, software GL, `taskset -c 0-3`, 960 x 432, web export release, `?level=<id>` (+ `&fps` for the bake
+line), develop (a0c5724) against the branch:
+
+- `bake` (primitive build in the browser) 132 to 202 ms; first frame (build returned until the second frame starts, so
+  baking included) 205 to 282 ms on l003 (248, 251), l006 (244 to 282) and l009 (205, 209). Budget 400 ms: met. The first
+  long frame of the page (engine start plus bake) is 2.15 to 2.28 s on develop and 2.43 to 2.58 s on the branch.
+- Frame rate (rAF counter, 5 s warm, 8 s measured) is bimodal on this machine: about 22 fps or about 32 fps per run,
+  for develop and branch alike. l006, alternating runs: develop 22.0 to 22.8 (low) and 31.4 to 33.0 (high), branch 20.5 to
+  21.4 (low) and 31.4 to 32.3 (high); step 2 of this card (same textures as develop) 21.8 to 22.5 and 31.1. In the high
+  mode there is no difference; in the low mode the branch is about 5 % lower (21 against 22 fps). Not investigated
+  further: the baked textures have the same size and count, and per frame only Lilith, rings and the HUD are drawn.
+  l003 and l009 (two runs each) show the same two modes. A phone has not been measured here.
+
+### Deviations from the design
+
+- `MazeTileShapes.chunk(level, skin, cracks, cx, cy)` takes the crack decor items as a fifth argument (the layer builds
+  them from `MazeDecor.plan`); tests pass `{}`.
+- The build runs inside `MazeSkin.begin(level, skin)` / `end()`, a memo of `side`, `rim_amp` and `rim_d` per level; the
+  functions give the same results with or without it. `MazeStaticLayer.build` opens the scope for all chunks.
+- Fast paths for speed, same geometry: a cell or stone without a face towards air is built as a rectangle; a cell with
+  four `SAME` sides draws only its mortar rectangle (no contour silhouette under it); trims of straight faces in a
+  rectangular cell are cut by rectangle intersection instead of Clipper. The trim bands share one face line.
+- Outline vertices that lie inside a chip, chamfer or arc are dropped. With a chamfer of 6 and an inset of 3 the chamfer
+  ends past the first edge vertex (8 px) and made the polygon fold over itself; the cell, stone and slab outlines now
+  skip those vertices (test: every drawn polygon triangulates).
+- Trim order inside a cell: all shadows, then all lip bands, then all light stripes, then all dark stripes, so two trims
+  that meet at a convex corner join like a moulding instead of one shadow cutting the other trim.
+- `X` slabs: the fill is two `vpoly` strips (before and after the bright edge at 0.18) so the vertex colours are exact;
+  the sheen bands start 4 px below the lit edge so they never cross the top line. The top line alpha is 0.4 (design
+  0.5, `SHEEN_ALPHAS[2]`): at 0.5 the top line over `noring_hi` on the cave slab was lighter than the cave lip (contrast
+  1.28, sampled by S7). C3 now checks the top line over `noring_hi` and the thin line over `noring`.
+- Crystal motif: a regular hexagon of circumradius 4 (6.9 wide, 8 high); "no corner sharper than 120 degrees" only holds
+  for a regular hexagon. Motif positions come from `SALT_MOTIF_POS + 3 * index` (+1, +2), inside the area shrunk by the
+  half size of the motif; no motif when the area is smaller than 12 x 12 or smaller than the motif.
+- Spikes: the fill polygon is a mitre inset of 1.5 px of the outline (same vertex count) instead of
+  `offset_polygon`, so the highlight can follow the same vertices as before. `MazeTileShapes.spike_points` is public.
+- The door contour ends 1 px above the bottom of the cell (a line of width 2 would otherwise leave the cell).
+- Test S4 checks spikes and door against their cell, not against today's spike polygon plus base (S11 compares the
+  outline polygon with today's). S5 compares the stone primitives of the chunk lists as runs. S13 prints the number of
+  points per level instead of bytes.
+- S7 sampling: samples at 25 % and 75 % of a face are skipped when they lie inside the trim of a perpendicular ring face
+  or a corner joint (a convex corner: the other trim covers 11 px); the "nothing lip-like" samples run along the 50 %
+  line, 16 px deep; steps are 0.5 px; tufts are switched off in the sampled primitives (moss blades are lip coloured and
+  may touch the contour by 1 px by design).
+- `MazeStaticBake.first_frame_usec` is set at the start of the second `_process` after `build()` (the first frame has
+  drawn by then, baking included); with `--fps` the game also prints `bake N ms, first frame N ms` to the console.
+  The `--fps` label reads `bake %d ms  first %d ms  %d fps`.
+- `--keys` accepts commas for spaces (`--keys=R10,T139,R51`), so a script fits one argument of a scenario line.
+- Scripts of the new shots: `skin-pillar` (`L3 T41 L1 T85 L20 R119 RJ3 R9 RJ3 L3 RJ3 J6 RJ3`, Lilith lands on the pillar),
+  `skin-towers` (`R10 T139 R51`, first tower of l006), `skin-rings` (l002 `T43 -9 L8`, a wall ring and the floor ring
+  in view). `tools/shot_variants.gd` is written as in 21.15; `skin-x` shows the cave on l003.
+- Two runs of all shots are identical except `fps` (the label shows live times).

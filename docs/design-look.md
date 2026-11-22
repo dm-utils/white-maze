@@ -51,6 +51,8 @@ static func palette(world: int) -> Dictionary  # 18.4; an unknown world gives th
 
 ## 18.4 Palettes
 
+Changed by section 21 (`docs/design-skins.md`).
+
 All colours are constants in `MazeWorlds` (shared constants plus one Dictionary per world with the keys below).
 Lilith's colours are in `MazeLilith` and the same in every world. Values are start values; changing them is allowed
 when the palette tests (18.12, A3) stay green.
@@ -86,6 +88,8 @@ Per world:
 | `door_frame` | `#D9B77B` | `#8C9A7A` | `#7D8CA4` | Door posts and lintel. |
 
 ## 18.5 Reading rules as code
+
+Changed by section 21 (`docs/design-skins.md`).
 
 `MazeArt` (`ui/art.gd`, pure static functions, no nodes):
 
@@ -226,6 +230,8 @@ World (Node2D, MazeWorldView)        dynamic layer: own _draw, every frame (queu
 
 ## 18.8 Tiles, door and details
 
+Changed by section 21 (`docs/design-skins.md`).
+
 Tiles layer per cell (`T = 40`):
 
 - `#`: fill `block`; joints per world, always `joint` 2 px lines that stay out of the outer 5 px band where a lip can
@@ -279,6 +285,8 @@ Constraints on every plan (tested, A5):
   nothing may look like a spike or a ledge).
 
 ## 18.9 Rings and beads
+
+Changed by section 21 (`docs/design-skins.md`).
 
 - Ring: the ellipse of 8.1, drawn three times on the same points: width 17 at alpha 0.08, width 11 at alpha 0.18, then
   width 5 opaque in `RING` (or `WhiteTheme.ACCENT` during the launch flash). Arrow unchanged.
