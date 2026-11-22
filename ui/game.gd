@@ -11,9 +11,6 @@ const AIM_TIME_SCALE := 0.25
 const AIM_RAMP_S := 0.08
 const MAX_STEPS := 6
 const MAX_FRAME_S := 0.1
-const LOOK_AHEAD := 60.0
-const LOOK_RATE := 6.0
-const CAMERA_SPEED := 8.0
 const SLOW_DIM := 0.85
 const HUD_BAND := 110.0
 
@@ -27,6 +24,7 @@ var sim: MazeSim
 var controls := MazeControls.new()
 var world: MazeWorldView
 var camera: Camera2D
+var rig := MazeCameraRig.new()
 var hud: MazeHud
 var touch: MazeTouchOverlay
 var overlays: MazeOverlays
@@ -41,7 +39,8 @@ var _inputs: Array[MazeInput] = []
 var _flushed_ticks := 0
 var _flushed_deaths := 0
 var _done := false # finished: nothing more to flush
-var _look := 0.0
+var _snap_next := false # respawn: the camera cuts to the spawn
+var _overview := false
 
 
 func setup(lv: MazeLevel, num: int, count: int, profile: MazeProfileStore, opts: Dictionary = {}) -> void:
@@ -62,8 +61,7 @@ func _ready() -> void:
 	world = MazeWorldView.new()
 	add_child(world)
 	camera = Camera2D.new()
-	camera.position_smoothing_speed = CAMERA_SPEED
-	camera.position_smoothing_enabled = not options.get("shot", false)
+	camera.position_smoothing_enabled = false
 	world.add_child(camera)
 	camera.make_current()
 
@@ -97,9 +95,25 @@ func _ready() -> void:
 	overlays.levels_pressed.connect(leave)
 	overlays.next_pressed.connect(_next)
 
+	rig.debug_view = str(options.get("camera", ""))
 	_start_attempt(false)
 	_debug_setup()
 	_update_camera(0.0, true)
+	if _intro_wanted():
+		rig.start_intro()
+
+
+## the intro shows the door when a level opens; never in debug shots, never when the door is in view anyway
+func _intro_wanted() -> bool:
+	if options.get("shot", false) or options.get("solve", false) or options.get("pause", false):
+		return false
+	if str(options.get("keys", "")) != "" or int(options.get("aim", -1)) >= 0 or str(options.get("camera", "")) != "":
+		return false
+	return not rig.play_rect().has_point(_door_centre())
+
+
+func _door_centre() -> Vector2:
+	return (Vector2(level.finish) + Vector2(0.5, 0.5)) * MazeCameraRig.TILE
 
 
 func _debug_setup() -> void:
@@ -128,6 +142,8 @@ func _debug_setup() -> void:
 	var aim := int(options.get("aim", -1))
 	if aim >= 0:
 		world.aim_index = aim
+		frozen = true
+	if str(options.get("camera", "")) != "":
 		frozen = true
 	if options.get("pause", false):
 		pause()
@@ -264,6 +280,8 @@ func _process(delta: float) -> void:
 func advance(delta: float) -> void:
 	_check_rotate()
 	controls.update(delta)
+	if controls.take_any_input() and rig.intro_active():
+		rig.skip_intro()
 	if overlays.rotate_visible() and not overlays.result_visible():
 		# rotate hint keeps the game paused; drop pause/restart keys until landscape
 		controls.take_pause()
@@ -278,13 +296,17 @@ func advance(delta: float) -> void:
 			pause()
 	if controls.take_restart():
 		restart()
-	var active := not paused and not frozen and not sim.finished()
+	var held := controls.overview_held() and not paused and not frozen and not sim.finished()
+	held = held and not overlays.any_open()
+	if held and not _overview:
+		controls.cancel_aim()
+	_overview = held
+	var active := not paused and not frozen and not sim.finished() and not _overview
 	controls.set_facing(sim.facing)
-	controls.set_player_screen_pos(world.get_canvas_transform() * world.player_centre())
 	controls.set_can_aim(active and sim.alive() and sim.beads_left > 0)
 	if not active:
 		controls.clear_latches()
-	if paused:
+	if paused or _overview:
 		rate = 0.0
 	elif active:
 		rate = next_rate(rate, controls.aiming(), delta)
@@ -300,14 +322,16 @@ func advance(delta: float) -> void:
 			if sim.finished():
 				break
 		_acc = minf(_acc, TICK_S * 0.999)
-	if options.get("aim", -1) < 0:
-		world.aim_index = controls.aim_index() if controls.aiming() else -1
 	world.alpha = clampf(_acc / TICK_S, 0.0, 1.0) if active else 1.0
 	world.modulate = Color(SLOW_DIM, SLOW_DIM, SLOW_DIM) if (active and rate < 1.0) else Color.WHITE
+	rig.set_overview(_overview)
+	_update_camera(delta, false)
+	controls.set_player_screen_pos(world.get_canvas_transform() * world.player_centre())
+	if options.get("aim", -1) < 0:
+		world.aim_index = controls.aim_index() if controls.aiming() else -1
 	hud.set_hint(MazeStrings.hint(level, touch.touch_mode))
 	hud.hide_hint(overlays.any_open())
 	hud.hint_at_top = touch.touch_mode
-	_update_camera(delta, false)
 	world.queue_redraw()
 
 
@@ -326,6 +350,8 @@ func _tick() -> void:
 		match e["type"]:
 			"death":
 				controls.cancel_aim()
+			"respawn":
+				_snap_next = true
 			"finish":
 				_on_finish()
 
@@ -368,29 +394,39 @@ func _check_rotate() -> void:
 func _update_camera(delta: float, snap: bool) -> void:
 	var vs := get_viewport().get_visible_rect().size
 	var ins := WhiteSafeArea.insets(vs, options.get("safe", ""))
-	var lw := level.width * 40.0
-	var lh := level.height * 40.0
 	var band: float = HUD_BAND + ins["top"]
-	var left := 0.0
-	var right := lw
-	if lw <= vs.x:
-		left = -(vs.x - lw) / 2.0
-		right = left + vs.x
-	var top := 0.0
-	var bottom := lh
-	if lh <= vs.y - band:
-		top = -(band + (vs.y - band - lh) / 2.0)
-		bottom = top + vs.y
-	elif lh <= vs.y:
-		top = -(vs.y - lh) / 2.0
-		bottom = top + vs.y
-	camera.limit_left = floori(left)
-	camera.limit_right = ceili(right)
-	camera.limit_top = floori(top)
-	camera.limit_bottom = ceili(bottom)
-	var f := float(sim.facing)
-	_look = f * LOOK_AHEAD if snap else lerpf(_look, f * LOOK_AHEAD, 1.0 - exp(-delta * LOOK_RATE))
-	camera.position = world.player_centre() + Vector2(_look, 0.0)
-	if snap or options.get("shot", false):
-		camera.reset_smoothing()
-		camera.force_update_scroll()
+	rig.setup(Vector2(level.width, level.height) * MazeCameraRig.TILE, vs, band, _door_centre())
+	var aim := _aim_for_camera()
+	var f := {
+		"player": world.player_centre(),
+		"vel": Vector2(sim.vx, sim.vy) * 60.0 / 1000.0,
+		"grounded": sim.grounded, "alive": sim.alive(), "facing": sim.facing,
+		"aim_frame": aim >= 0, "aim_hit": Vector2.ZERO, "flights": not sim.flights.is_empty(),
+	}
+	if aim >= 0:
+		f["aim_hit"] = Vector2(sim.cast(aim)["hit"]) / 1000.0
+	if snap or _snap_next:
+		_snap_next = false
+		rig.snap(f)
+	else:
+		rig.update(0.0 if paused else delta, f)
+	var z := rig.view_zoom()
+	camera.zoom = Vector2(z, z)
+	camera.position = rig.view_centre()
+	camera.force_update_scroll()
+	world.view_rect = rig.play_rect()
+	world.view_zoom = z
+	world.overview_k = rig.overview_k()
+
+
+## aim index to frame, or -1: keyboard and stick aims and --aim; a mouse aim never moves the camera
+func _aim_for_camera() -> int:
+	var dbg := int(options.get("aim", -1))
+	if dbg >= 0:
+		return dbg
+	if not controls.aiming():
+		return -1
+	var src := controls.aim_source()
+	if src == MazeControls.AimSource.KEYS or src == MazeControls.AimSource.TOUCH:
+		return controls.aim_index()
+	return -1

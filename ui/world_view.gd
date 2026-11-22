@@ -35,6 +35,9 @@ const ARROW_ALPHA := 0.35
 var sim: MazeSim
 var alpha := 1.0 # render interpolation between the last two ticks
 var aim_index := -1 # >= 0 while aiming
+var view_rect := Rect2() # world px visible below the HUD band (camera)
+var view_zoom := 1.0
+var overview_k := 0.0 # 0..1, weight of the overview view
 
 var _flash := {}
 var _respawn_tick := NEVER
