@@ -22,7 +22,7 @@ addons/white_kit/tools/shots.sh before-after . tools/shots.txt v<old> v<new>
 | Folder | Content |
 |---|---|
 | `sim/` | Simulation, tuning, aim table, levels, run scripts, profile logic, time format. No scenes, nodes, input, rendering, time source, randomness or `user://`. |
-| `ui/` | Main scene, level select, game screen, world view, HUD, controls, touch overlay, overlays, profile file store, texts. Depends on `sim/` and the kit, never the other way round. |
+| `ui/` | Main scene, level select, game screen, camera rig, world view, HUD, controls, touch overlay, overlays, profile file store, texts. Depends on `sim/` and the kit, never the other way round. |
 | `levels/` | `index.json` and one `<id>.json` per level. |
 | `tools/` | Headless scripts (`check_levels.gd`, `search_par.gd` with its calibration `check_search_par.sh`) and the screenshot scenario file `shots.txt`. |
 | `tests/` | Headless test runner (extends `WhiteTestRunner`), suites, `solutions.json`. |
@@ -39,7 +39,7 @@ There is no `LICENSE` file: all rights reserved.
 - Internal members and functions start with `_`.
 - Global classes have the prefix `Maze` (`MazeSim`, `MazeLevel`, `MazeLevels`, `MazeTuning`, `MazeAim`, `MazeInput`,
   `MazeRunScript`, `MazeProfile`, `MazeFormat`, `MazeMain`, `MazeLevelSelect`, `MazeGame`, `MazeWorldView`, `MazeHud`,
-  `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`). Kit classes have the prefix
+  `MazeCameraRig`, `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`). Kit classes have the prefix
   `White`; do not declare `White*` names here. Test scripts declare no `class_name`.
 - Documentation comments use `##`; ordinary comments `#`. Comments and identifiers in English.
 - Player-facing texts live in `ui/strings.gd` (`MazeStrings.TEXT`, Dutch and English), registered through the kit;

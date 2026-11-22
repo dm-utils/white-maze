@@ -165,11 +165,9 @@ func _level_clamp_and_player_in_view() -> void:
 					)
 					view_ok = view_ok and Rect2(lo, hi - lo).grow(0.01).has_point(p)
 				frames += 1
-			if canvas == DESKTOP or canvas == TABLET:
-				_check.call(
-					clamp_ok,
-					"CAM2 %s at %s: the play rect stays inside the level (%d frames)" % [id, str(canvas), frames]
-				)
+			_check.call(
+				clamp_ok, "CAM2 %s at %s: the play rect stays inside the level (%d frames)" % [id, str(canvas), frames]
+			)
 			_check.call(view_ok, "CAM3 %s at %s: the player stays inside the play rect" % [id, str(canvas)])
 
 

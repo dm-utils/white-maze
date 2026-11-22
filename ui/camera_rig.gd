@@ -243,11 +243,6 @@ func set_overview(on: bool) -> void:
 	_overview = on
 
 
-## view of the door at the target zoom, clamped to the level
-func door_view() -> Vector2:
-	return _clamp_view(_door)
-
-
 func _intro_centre() -> Vector2:
 	if _intro_t < INTRO_HOLD_S:
 		return _door_view
