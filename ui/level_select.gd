@@ -76,7 +76,7 @@ func build() -> void:
 			done += 1
 	var ms := MazeProfile.total_play_ticks(store.data) * 1000 / 60
 	subtitle = WhiteUi.label(
-		"%s  ·  %s" % [MazeStrings.s("levels_done") % [done, levels.size()],
+		"%s  ·  %s  ·  %s" % [MazeStrings.s("tagline"), MazeStrings.s("levels_done") % [done, levels.size()],
 		MazeStrings.s("play_time") % WhiteFormat.clock(ms)],
 		WhiteTheme.FONT_SUBTITLE, WhiteTheme.DIM
 	)

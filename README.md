@@ -1,6 +1,6 @@
 # White Maze
 
-A calm 2D platformer in the White series. Walk and jump from start to finish through a fixed series of levels. Throw
+A calm 2D platformer in the White series, an adventure with Lilith, an explorer with a red headband. Walk and jump from start to finish through a fixed series of levels. Throw
 a white bead in a straight line: where it hits a surface it becomes a bounce ring that launches you away from it, up
 from a floor, sideways from a wall, down from a ceiling. Three beads per level, a par for the fewest rings you bounce
 off, and a clock that only measures, never hurries. Keyboard first, touch in landscape.
