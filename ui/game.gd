@@ -37,6 +37,7 @@ var speed := 1.0 # level speed, ticks per real second as a fraction of 60
 var paused := false
 var frozen := false # debug: no ticks
 var last_result := {}
+var _frames_seen := 0
 
 var _acc := 0.0
 var _inputs: Array[MazeInput] = []
@@ -293,7 +294,17 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	_note_first_frame()
 	advance(delta)
+
+
+## the second frame starts after the first one drew, baking included
+func _note_first_frame() -> void:
+	if MazeStaticBake.first_frame_usec >= 0:
+		return
+	_frames_seen += 1
+	if _frames_seen >= 2:
+		MazeStaticBake.first_frame_usec = Time.get_ticks_usec() - MazeStaticBake.built_at_usec
 
 
 ## one frame; tests call it with fixed deltas
