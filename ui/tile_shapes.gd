@@ -306,32 +306,70 @@ static func _rect_pts(r: Rect2) -> PackedVector2Array:
 	return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
 
 
-## same colours in every world; only the outline of a spike changes (design 18.5)
+## spike outline points of a shape (design 18.5), base left to base right
+static func spike_points(shape: String, x: float, o_y: float) -> PackedVector2Array:
+	var b := o_y + T
+	match shape:
+		"thorn":
+			return PackedVector2Array(
+				[
+					Vector2(x + 1, b), Vector2(x + 6, o_y + 30), Vector2(x + 11, o_y + 20), Vector2(x + 14, o_y + 30),
+					Vector2(x + 19, b),
+				]
+			)
+		"crystal":
+			return PackedVector2Array(
+				[
+					Vector2(x + 1, b), Vector2(x + 4, o_y + 27), Vector2(x + 8, o_y + 20), Vector2(x + 12, o_y + 20),
+					Vector2(x + 16, o_y + 27), Vector2(x + 19, b),
+				]
+			)
+	return PackedVector2Array([Vector2(x + 1, b), Vector2(x + T / 4.0, o_y + T / 2.0), Vector2(x + 19, b)])
+
+
+## two pins per cell: dark outline, red fill, shaded right half, light left edge, dark base; colours are shared by all
+## worlds, only the outline shape comes from the pack
 static func _spikes(out: Array[Dictionary], skin: Dictionary, o: Vector2) -> void:
 	for i in 2:
 		var x := o.x + i * T / 2.0
 		var b := o.y + T
-		var pts := PackedVector2Array()
-		match skin["spikes"]:
-			"thorn":
-				pts = PackedVector2Array(
-					[
-						Vector2(x + 1, b), Vector2(x + 6, o.y + 30), Vector2(x + 11, o.y + 20),
-						Vector2(x + 14, o.y + 30), Vector2(x + 19, b),
-					]
-				)
-			"crystal":
-				pts = PackedVector2Array(
-					[
-						Vector2(x + 1, b), Vector2(x + 4, o.y + 27), Vector2(x + 8, o.y + 20),
-						Vector2(x + 12, o.y + 20), Vector2(x + 16, o.y + 27), Vector2(x + 19, b),
-					]
-				)
-			_:
-				pts = PackedVector2Array([Vector2(x + 1, b), Vector2(x + T / 4.0, o.y + T / 2.0), Vector2(x + 19, b)])
-		out.append(poly(pts, MazeWorlds.HAZARD))
-		out.append(polyline(pts.slice(0, pts.size() / 2 + 1), MazeWorlds.HAZARD_HI, 2.0))
+		var pts := spike_points(skin["spikes"], x, o.y)
+		out.append(poly(pts, MazeWorlds.HAZARD_LINE))
+		var fill := _inset(pts, 1.5)
+		out.append(poly(fill, MazeWorlds.HAZARD))
+		var apex := pts[0]
+		for p in pts:
+			apex = p if p.y < apex.y else apex
+		var tops := PackedFloat32Array()
+		for p in pts:
+			if is_equal_approx(p.y, apex.y):
+				tops.append(p.x)
+		var mid_x := (tops[0] + tops[-1]) / 2.0
+		var half := Rect2(Vector2(mid_x, o.y), Vector2(x + 20.0 - mid_x, T))
+		for pg in Geometry2D.intersect_polygons(fill, _rect_pts(half)):
+			_add_poly(out, pg, Color(MazeWorlds.HAZARD_DARK, 0.45))
+		out.append(polyline(fill.slice(0, fill.size() / 2 + 1), MazeWorlds.HAZARD_HI, 2.0))
 		out.append(rect(Rect2(Vector2(x + 1, b - 3), Vector2(18, 3)), MazeWorlds.HAZARD_DARK))
+
+
+## closed polygon moved inwards by d at every corner (mitre), same vertex count
+static func _inset(pts: PackedVector2Array, d: float) -> PackedVector2Array:
+	var n := pts.size()
+	var area := 0.0
+	for i in n:
+		area += pts[i].cross(pts[(i + 1) % n])
+	var sign := 1.0 if area > 0.0 else -1.0 # screen coordinates: area > 0 runs clockwise on screen
+	var out := PackedVector2Array()
+	for i in n:
+		var a := pts[(i + n - 1) % n]
+		var v := pts[i]
+		var c := pts[(i + 1) % n]
+		var d1 := (v - a).normalized()
+		var d2 := (c - v).normalized()
+		var n1 := Vector2(-d1.y, d1.x) * sign
+		var n2 := Vector2(-d2.y, d2.x) * sign
+		out.append(v + (n1 + n2) / (1.0 + n1.dot(n2)) * d)
+	return out
 
 
 static func _door(out: Array[Dictionary], pal: Dictionary, o: Vector2) -> void:

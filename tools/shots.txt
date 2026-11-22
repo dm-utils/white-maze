@@ -42,3 +42,4 @@ skin-pillar 1280x720 --level=l003 --keys=L3,T41,L1,T85,L20,R119,RJ3,R9,RJ3,L3,RJ
 skin-towers 1280x720 --level=l006 --keys=R10,T139,R51
 skin-x 1280x720 --level=l003 --world=cave
 skin-phone 960x432 --level=l006 --touch --safe=40,0,40,16
+skin-rings 1280x720 --level=l002 --keys=T43,-9,L8

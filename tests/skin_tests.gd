@@ -24,6 +24,7 @@ func run(check: Callable, node: Node) -> void:
 	_precision()
 	_groups()
 	_keys_argument()
+	_spikes_rings()
 	_lip_at_a_glance()
 	_bake_times()
 
@@ -434,6 +435,12 @@ func _never_larger() -> void:
 		MazeTileShapes._door(parts, skin["pal"], door.position)
 		if not _inside_rect(parts, door):
 			bad.append("door %s %s" % [job[0], job[1]])
+	for shape in MazeSkin.SPIKE_SHAPES:
+		var skin: Dictionary = MazeSkins.skin(MazeSkin.SPIKE_SHAPES.find(shape)).duplicate()
+		var parts: Array[Dictionary] = []
+		MazeTileShapes._spikes(parts, skin, Vector2.ZERO)
+		if not _inside_rect(parts, Rect2(0, 0, 40, 40)):
+			bad.append("spike %s" % shape)
 	_check.call(bad.is_empty(), "S4 nothing is drawn outside its cell, stone or slab (%s)" % [bad.slice(0, 4)])
 
 
@@ -694,3 +701,39 @@ func _polygons_valid() -> void:
 						if Geometry2D.triangulate_polygon(s["pts"]).is_empty():
 							bad.append("%s %s chunk %d,%d" % [job[0], job[1], cx, cy])
 	_check.call(count > 1000 and bad.is_empty(), "S4 every polygon triangulates (%d, bad %s)" % [count, bad.slice(0, 3)])
+
+
+## S11, S12, S9
+func _spikes_rings() -> void:
+	var hz: Array[Color] = [MazeWorlds.HAZARD, MazeWorlds.HAZARD_HI, MazeWorlds.HAZARD_DARK, MazeWorlds.HAZARD_LINE]
+	var today := {
+		"spear": PackedVector2Array([Vector2(1, 40), Vector2(10, 20), Vector2(19, 40)]),
+		"thorn": PackedVector2Array([Vector2(1, 40), Vector2(6, 30), Vector2(11, 20), Vector2(14, 30), Vector2(19, 40)]),
+		"crystal": PackedVector2Array(
+			[Vector2(1, 40), Vector2(4, 27), Vector2(8, 20), Vector2(12, 20), Vector2(16, 27), Vector2(19, 40)]
+		),
+	}
+	for w in MazeWorlds.COUNT:
+		var skin := MazeSkins.skin(w)
+		var parts: Array[Dictionary] = []
+		MazeTileShapes._spikes(parts, skin, Vector2.ZERO)
+		var colours := true
+		for s: Dictionary in parts:
+			var c: Color = s["col"]
+			colours = colours and hz.has(Color(c, 1.0))
+		var outline_ok: bool = parts[0]["pts"] == today[skin["spikes"]]
+		_check.call(colours and parts.size() > 8 and outline_ok, "S11 %s pins: shared colours, today's outline" % MazeWorlds.NAMES[w])
+	for flash in [false, true]:
+		var st := MazeWorldView.ring_strokes(flash)
+		var white: Color = WhiteTheme.ACCENT if flash else MazeWorlds.RING
+		_check.call(
+			st.size() == 4 and st[2] == [MazeWorldView.RING_OUTLINE_W, MazeWorldView.RING_OUTLINE]
+			and st[3] == [MazeWorldView.RING_STROKE, white] and st[0][0] > st[1][0] and st[1][0] > st[2][0],
+			"S12 ring strokes (flash %s): glows, outline, white last" % flash
+		)
+	_check.call(
+		MazeSkin.CONTOUR_W >= 2.0 * (MazeLilith.OUTLINE_LINE / 2.0) and MazeLilith.OUTLINE_LINE == 3.0
+		and MazeLilith.OUTLINE_CIRCLE == 1.5 and MazeLilith.OUTLINE == Color("#120E10", 0.85)
+		and MazeWorldView.RING_OUTLINE_W > MazeWorldView.RING_STROKE,
+		"S9 the block contour is at least twice Lilith's outline per side, her outline is unchanged"
+	)
