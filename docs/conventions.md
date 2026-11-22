@@ -24,7 +24,7 @@ addons/white_kit/tools/shots.sh before-after . tools/shots.txt v<old> v<new>
 | `sim/` | Simulation, tuning, aim table, levels, run scripts, profile logic, time format. No scenes, nodes, input, rendering, time source, randomness or `user://`. |
 | `ui/` | Main scene, level select, game screen, camera rig, world view, HUD, controls, touch overlay, overlays, profile file store, texts. Depends on `sim/` and the kit, never the other way round. |
 | `levels/` | `index.json` and one `<id>.json` per level. |
-| `tools/` | Headless scripts (`check_levels.gd`, `search_par.gd` with its calibration `check_search_par.sh`) and the screenshot scenario file `shots.txt`. |
+| `tools/` | Headless scripts (`check_levels.gd`, `search_par.gd` with its calibration `check_search_par.sh`), the screenshot scenario file `shots.txt` and `shot_variants.gd` (grey and half size copies of screenshots). |
 | `tests/` | Headless test runner (extends `WhiteTestRunner`), suites, `solutions.json`. |
 | `addons/white_kit/` | White Kit (submodule). |
 | `build/` | Local output (exports, screenshots). Ignored by git. |
@@ -40,14 +40,16 @@ There is no `LICENSE` file: all rights reserved.
 - Global classes have the prefix `Maze` (`MazeSim`, `MazeLevel`, `MazeLevels`, `MazeTuning`, `MazeAim`, `MazeInput`,
   `MazeRunScript`, `MazeProfile`, `MazeFormat`, `MazeMain`, `MazeLevelSelect`, `MazeGame`, `MazeWorldView`, `MazeHud`,
   `MazeCameraRig`, `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`, `MazeLilith`,
-  `MazePoseBlend`, `MazeArt`, `MazeWorlds`, `MazeDecor`, `MazeStaticLayer`, `MazeStaticBake`). Kit classes have the
-  prefix `White`; do not declare `White*` names here. Test scripts declare no `class_name`.
+  `MazePoseBlend`, `MazeArt`, `MazeWorlds`, `MazeDecor`, `MazeStaticLayer`, `MazeStaticBake`, `MazeSkin`,
+  `MazeSkins`, `MazeTileShapes`). Kit classes have the prefix `White`; do not declare `White*` names here. Test scripts
+  declare no `class_name`.
 - Documentation comments use `##`; ordinary comments `#`. Comments and identifiers in English.
 - Player-facing texts live in `ui/strings.gd` (`MazeStrings.TEXT`, Dutch and English), registered through the kit;
   level names and hints live in the level files, also in both languages.
 - Look values (colours, sizes, timings of effects) are constants at the top of the file that draws them; colours come
   from `WhiteTheme` where the theme has them. Exception: the palettes of the three worlds live together in
-  `MazeWorlds`, not in the files that draw with them.
+  `MazeSkins` (skin packs as data, validated by `MazeSkin`), not in the files that draw with them; the shared colours
+  (hazard, ring, door light) stay in `MazeWorlds`.
 - The look is derived, not stored: `MazeDecor` and the static layers use only `MazeArt.hash3` of the cell and a salt
   constant per rule, never a random generator, so a level looks the same on every run and machine. A new rule gets a
   new salt.
