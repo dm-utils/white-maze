@@ -364,6 +364,17 @@ func _worlds() -> void:
 	var o := MazeMain.parse_args(PackedStringArray(["--world=cave", "--fps"]))
 	var bad := MazeMain.parse_args(PackedStringArray(["--world=moon"]))
 	_check.call(o["world"] == "cave" and o["fps"] and bad["world"] == "" and not bad["fps"], "A8 --world and --fps")
+	var q := MazeMain.query_args("?fps&world=cave&level=l001&profile=/etc/x&shot=a.png&lang=n%6C")
+	_check.call(
+		q == PackedStringArray(["--fps", "--world=cave", "--level=l001", "--lang=nl"]),
+		"web query: known keys become arguments, profile and shot are dropped (%s)" % [q]
+	)
+	var qo := MazeMain.parse_args(MazeMain.query_args("fps=0&world=../x&camera=overview&touch=1"))
+	_check.call(
+		not qo["fps"] and qo["world"] == "" and qo["camera"] == "overview" and qo["touch"],
+		"web query: flag off with =0, odd values dropped"
+	)
+	_check.call(MazeMain.query_args("").is_empty() and MazeMain.query_args("?").is_empty(), "web query: empty is empty")
 	var h := [MazeArt.hash3(0, 0, 0), MazeArt.hash3(1, 2, 3), MazeArt.hash3(39, 17, 5), MazeArt.hash3(-4, 9, 1)]
 	_check.call(h == HASH_PINS, "hash3 gives the pinned values: %s" % [h])
 	var counts := [0, 0, 0, 0]
@@ -404,6 +415,8 @@ func _static_layers() -> void:
 	)
 	_node.remove_child(m)
 	m.free()
+	_baked_memory()
+	_bottom_lip()
 	var j := _game_with(PackedStringArray(["--level=l001", "--world=jungle"]))
 	_check.call(j.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 --world=jungle gives the jungle world")
 	_node.remove_child(j)
@@ -412,6 +425,51 @@ func _static_layers() -> void:
 	_check.call(u.game.world.world_id == MazeWorlds.World.JUNGLE, "A8 an unknown --world is ignored")
 	_node.remove_child(u)
 	u.free()
+
+
+## no lip along the bottom edge of the level, lips elsewhere unchanged
+func _bottom_lip() -> void:
+	var gone := true
+	var same := true
+	var bottom_had_lip := false
+	for id in MazeLevels.ids():
+		var lv := MazeLevels.load_level(id)
+		for y in lv.height:
+			for x in lv.width:
+				for f in 4:
+					var cell := Vector2i(x, y)
+					var last_row_down: bool = f == MazeLevel.Face.DOWN and y == lv.height - 1
+					if last_row_down:
+						bottom_had_lip = bottom_had_lip or MazeArt.lip_face(lv, cell, f)
+						gone = gone and not MazeStaticLayer.lip_drawn(lv, cell, f)
+					else:
+						same = same and MazeStaticLayer.lip_drawn(lv, cell, f) == MazeArt.lip_face(lv, cell, f)
+	_check.call(bottom_had_lip, "L2 precondition: lip_face still gives the last row a bottom lip (sim rule 3.10)")
+	_check.call(gone, "L2 no lip drawn on the bottom of the last row in any level")
+	_check.call(same, "L2 every other lip face is drawn as lip_face says")
+
+
+## chunk textures: one sprite per chunk, memory per level within the phone budget
+func _baked_memory() -> void:
+	var worst := 0
+	var sprites_ok := true
+	var size_ok := true
+	for id in MazeLevels.ids():
+		var lv := MazeLevels.load_level(id)
+		var bake := MazeStaticBake.new()
+		bake.build(lv, MazeWorlds.for_number(1))
+		var sprites := 0
+		for c in bake.get_children():
+			if c is Sprite2D:
+				sprites += 1
+				var vp := c.get_child(0) as SubViewport
+				size_ok = size_ok and vp.size.x <= 1280 and vp.size.y <= 1280
+		sprites_ok = sprites_ok and sprites == bake.chunk_total and bake.chunk_count() == 2 * bake.chunk_total
+		worst = maxi(worst, bake.baked_bytes)
+		bake.free()
+	_check.call(sprites_ok, "the bake makes one sprite per chunk")
+	_check.call(size_ok, "a baked chunk texture is at most 1280 x 1280")
+	_check.call(worst <= 24 * 1000 * 1000, "baked textures stay under 24 MB per level (worst %d bytes)" % worst)
 
 
 ## the readability backings and --fps
@@ -426,8 +484,17 @@ func _backings() -> void:
 	_check.call(box != null and absf(box.bg_color.a - 0.7) < 0.001, "the hint has a backing of alpha 0.7")
 	_check.call(hint.size.x < g.hud.size.x, "the hint backing wraps the text, not the screen")
 	_check.call(g.hud._fps.visible and g.hud._fps.text.ends_with("fps"), "--fps shows a frame rate label")
+	_check.call(hint.visible, "L3 the hint shows in the follow view")
 	_node.remove_child(m)
 	m.free()
+	var ov := _game_with(PackedStringArray(["--level=l006", "--camera=overview"]))
+	ov.game.set_process(false)
+	for i in 3:
+		ov.game.advance(1.0 / 60.0)
+		await _node.get_tree().process_frame
+	_check.call(not ov.game.hud._hint.visible, "L3 the hint is hidden in the overview")
+	_node.remove_child(ov)
+	ov.free()
 	var q := _game_with(PackedStringArray(["--level=l001"]))
 	q.game.set_process(false)
 	q.game.advance(1.0 / 60.0)

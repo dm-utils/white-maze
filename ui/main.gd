@@ -3,9 +3,12 @@ extends Control
 ## Root scene: parses the debug arguments, opens the profile and switches between level select and game.
 ## Debug (after --): --level=<id> --all-levels --lang=nl|en --touch --safe=l,t,r,b --profile=<path> --print-run
 ## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
+## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
 const SHOT_WAIT_S := 0.5
+const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch"] # no profile path, shot or solve from a URL
+const QUERY_FLAGS := ["fps", "touch"]
 
 var args := PackedStringArray()
 var use_cmdline := true # tests set this false and fill args
@@ -17,6 +20,26 @@ var levels: Array[MazeLevel] = []
 var select: MazeLevelSelect
 var game: MazeGame
 var current_index := -1
+
+
+## URL query string (with or without the leading ?) to debug arguments; unknown keys and odd values are dropped
+static func query_args(query: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	for part in query.trim_prefix("?").split("&", false):
+		var key := part.get_slice("=", 0)
+		if key not in QUERY_KEYS:
+			continue
+		var value := part.get_slice("=", 1).uri_decode() if part.contains("=") else ""
+		if key in QUERY_FLAGS:
+			if value not in ["0", "false"]:
+				out.append("--" + key)
+			continue
+		var ok := not value.is_empty()
+		for ch in value:
+			ok = ok and (ch in "abcdefghijklmnopqrstuvwxyz0123456789_-")
+		if ok:
+			out.append("--%s=%s" % [key, value])
+	return out
 
 
 ## debug arguments to a Dictionary
@@ -76,6 +99,8 @@ func _ready() -> void:
 	add_child(bg)
 	if use_cmdline:
 		args = OS.get_cmdline_user_args()
+		if OS.has_feature("web"):
+			args.append_array(query_args(str(JavaScriptBridge.eval("window.location.search", true))))
 	opts = parse_args(args)
 	opts["shot_mode"] = opts["shot"] != ""
 	MazeStrings.register()

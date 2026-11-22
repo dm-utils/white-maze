@@ -38,8 +38,7 @@ var overview_k := 0.0 # 0..1, weight of the overview view
 var world_id := MazeWorlds.World.TEMPLE
 var build_count := 0 # tests: static layers are built once per level
 
-var _back: MazeStaticLayer
-var _tiles: MazeStaticLayer
+var _bake: MazeStaticBake
 
 var _flash := {}
 var _respawn_tick := NEVER
@@ -51,7 +50,7 @@ var _face := 1 # view-only facing: follows the aim and the throw
 
 
 func _init() -> void:
-	z_index = BASE_Z # layers sit at -2 and -1 relative to this, above the screen background
+	z_index = BASE_Z # baked chunks sit at -2 relative to this, above the screen background
 
 
 ## effects that come from sim events
@@ -89,27 +88,27 @@ func player_centre() -> Vector2:
 	return Vector2(x, y - 16.0)
 
 
-## (re)creates the static layers for the current level and world; call once per level, not per attempt
+## (re)creates the baked static world for the current level and world; call once per level, not per attempt
 func build() -> void:
-	if _back == null:
-		_back = MazeStaticLayer.new()
-		_back.z_index = -2
-		add_child(_back)
-		_tiles = MazeStaticLayer.new()
-		_tiles.z_index = -1
-		add_child(_tiles)
-	_back.build(sim.level, world_id, MazeStaticLayer.Kind.BACK)
-	_tiles.build(sim.level, world_id, MazeStaticLayer.Kind.TILES)
+	if _bake == null:
+		_bake = MazeStaticBake.new()
+		add_child(_bake)
+	_bake.build(sim.level, world_id)
 	build_count += 1
 
 
-## chunk draws of both static layers so far
+## canvas draws of the static layers so far
 func static_draws() -> int:
-	return 0 if _back == null else _back.draws + _tiles.draws
+	return 0 if _bake == null else _bake.draws()
 
 
 func chunk_count() -> int:
-	return 0 if _back == null else _back.chunk_count() + _tiles.chunk_count()
+	return 0 if _bake == null else _bake.chunk_count()
+
+
+## texture memory of the baked chunks in bytes
+func baked_bytes() -> int:
+	return 0 if _bake == null else _bake.baked_bytes
 
 
 func _draw() -> void:

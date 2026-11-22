@@ -17,7 +17,8 @@ const HINT_BACK_ALPHA := 0.7
 const HINT_RADIUS := 8
 const HINT_PAD_X := 12.0
 const HINT_PAD_Y := 4.0
-const FPS_PAD := 4.0
+const FPS_PAD := 6.0
+const FPS_BACK_ALPHA := 0.85
 
 var sim: MazeSim
 var number := 1
@@ -83,8 +84,11 @@ func _ready() -> void:
 	back.content_margin_bottom = HINT_PAD_Y
 	_hint.add_theme_stylebox_override("normal", back)
 	add_child(_hint)
-	_fps = WhiteUi.label("", WhiteTheme.FONT_MESSAGE, WhiteTheme.DIM)
+	_fps = WhiteUi.label("", WhiteTheme.FONT_INFO, WhiteTheme.TEXT)
 	_fps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var fps_back := back.duplicate() as StyleBoxFlat
+	fps_back.bg_color = Color(WhiteTheme.BG, FPS_BACK_ALPHA)
+	_fps.add_theme_stylebox_override("normal", fps_back)
 	_fps.visible = false
 	add_child(_fps)
 	refresh_texts()
@@ -178,7 +182,7 @@ func _process(_delta: float) -> void:
 	_fps.visible = show_fps
 	if show_fps:
 		_fps.text = "%d fps" % Engine.get_frames_per_second()
-		_fps.position = Vector2(WhiteTheme.MARGIN + ins["left"], BAND + ins["top"] + FPS_PAD)
+		_fps.position = Vector2(WhiteTheme.MARGIN + ins["left"], BAND + ins["top"] + SCRIM_FADE + FPS_PAD)
 	_name.text = level_text()
 	_score.text = score_text()
 	var hot := sim.tick - _counted_tick < HIGHLIGHT_TICKS

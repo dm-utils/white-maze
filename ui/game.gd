@@ -337,7 +337,7 @@ func advance(delta: float) -> void:
 	if options.get("aim", -1) < 0:
 		world.aim_index = controls.aim_index() if controls.aiming() else -1
 	hud.set_hint(MazeStrings.hint(level, touch.touch_mode))
-	hud.hide_hint(overlays.any_open())
+	hud.hide_hint(overlays.any_open() or rig.overview_k() > 0.0) # overview: the hint would cover the bottom row
 	hud.hint_at_top = touch.touch_mode
 	world.queue_redraw()
 
