@@ -30,6 +30,7 @@ const RELIEF_GAP := 12
 const ARCH_GAP := 12
 const TORCH_GAP := 6
 const GLOW_GAP := 4
+const SPAWN_CLEAR := 2 # cells around the start kept plain, Lilith reads first
 const DOOR_CLEAR := 5 # cells between a light source and the door
 const SPACED := {"relief": RELIEF_GAP, "arch": ARCH_GAP, "torch": TORCH_GAP, "glow": GLOW_GAP}
 const GLOW_ALPHAS := [[60.0, 0.05], [40.0, 0.06], [24.0, 0.08]]
@@ -365,12 +366,13 @@ static func _cracks(level: MazeLevel, world: int, items: Array[Dictionary]) -> v
 				)
 
 
-## empty, not the start, not the door or its eight neighbours, not directly above a spike (D1, D2)
+## empty, not within two cells of the start, not the door or its eight neighbours, not directly above a spike (D1, D2)
 static func _free(level: MazeLevel, x: int, y: int) -> bool:
 	if x < 0 or x >= level.width or y < 0 or y >= level.height:
 		return false
-	var c := Vector2i(x, y)
-	if level.cell(x, y) != MazeLevel.Cell.EMPTY or c == level.spawn:
+	if level.cell(x, y) != MazeLevel.Cell.EMPTY:
+		return false
+	if maxi(absi(x - level.spawn.x), absi(y - level.spawn.y)) <= SPAWN_CLEAR:
 		return false
 	if absi(x - level.finish.x) <= 1 and absi(y - level.finish.y) <= 1:
 		return false

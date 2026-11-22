@@ -13,7 +13,7 @@ const HITBOX := Rect2(-15.0, -32.0, 30.0, 32.0)
 const H := preload("res://tests/helpers.gd")
 const HASH_PINS := [0, 2476996174, 1019855091, 3867735071]
 const DECOR_PINS := {
-	0: "crack:26 pillar:7 relief:3 sand:6 torch:2", 1: "arch:3 crack:11 torch:1 vine:9", 2: "glow:5 spot:9"
+	0: "crack:26 pillar:6 relief:4 sand:6 torch:2", 1: "arch:3 crack:11 torch:1 vine:9", 2: "glow:4 spot:9"
 }
 
 var _check: Callable
@@ -483,7 +483,8 @@ func _decor_violations(lv: MazeLevel, world: int, items: Array[Dictionary]) -> A
 				if not inside or lv.cell(x, y) != MazeLevel.Cell.EMPTY:
 					bad.append("D1")
 					continue
-				if Vector2i(x, y) == lv.spawn or (absi(x - lv.finish.x) <= 1 and absi(y - lv.finish.y) <= 1):
+				var near_start := maxi(absi(x - lv.spawn.x), absi(y - lv.spawn.y)) <= MazeDecor.SPAWN_CLEAR
+				if near_start or (absi(x - lv.finish.x) <= 1 and absi(y - lv.finish.y) <= 1):
 					bad.append("D1")
 				if lv.cell(x, y + 1) == MazeLevel.Cell.SPIKE:
 					bad.append("D2")
