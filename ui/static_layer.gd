@@ -48,11 +48,13 @@ func build(lv: MazeLevel, world_id: int, layer_kind: int) -> void:
 	var t0 := Time.get_ticks_usec()
 	if kind == Kind.TILES:
 		var n := chunks()
+		MazeSkin.begin(lv, _skin)
 		for cy in n.y:
 			for cx in n.x:
 				var list := MazeTileShapes.chunk(lv, _skin, _cracks, cx, cy)
 				command_count += list.size()
 				_chunks[Vector2i(cx, cy)] = list
+		MazeSkin.end()
 	build_usec = Time.get_ticks_usec() - t0
 
 

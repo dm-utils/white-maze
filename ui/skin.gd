@@ -58,7 +58,12 @@ const SALT_MOTIF_POS := 70 # .. 75
 const SALT_SLAB := 76
 const ARC_STEPS := 4 # points per quarter circle: 5
 
-static var rim_on := false # todo: remove; edge offsets and chips are switched on in step 6
+# memo of one level and skin between begin() and end(); filled by the geometry functions, never needed for results
+static var _memo_level: MazeLevel = null
+static var _memo_skin := {}
+static var _memo_side := PackedByteArray() # side kind per cell and face, 255 where not solid
+static var _memo_amp := {}
+static var _memo_d := {}
 
 # indexed by MazeLevel.Face (UP, DOWN, LEFT, RIGHT); screen coordinates, outline runs clockwise
 const START: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 1), Vector2i(0, 1), Vector2i(1, 0)]
@@ -347,8 +352,50 @@ static func _validate_motifs(motifs: Variant, err: PackedStringArray) -> void:
 			err.append("motifs[%d].chance: whole number 0 to 50" % i)
 
 
+## speeds up the geometry functions of one level and skin until end(); results never change
+static func begin(level: MazeLevel, skin: Dictionary) -> void:
+	if level == _memo_level and is_same(skin, _memo_skin):
+		return
+	_memo_level = level
+	_memo_skin = skin
+	_memo_amp.clear()
+	_memo_d.clear()
+	_memo_side.resize(level.width * level.height * 4)
+	_memo_side.fill(255)
+	for y in level.height:
+		for x in level.width:
+			var kind := level.cell(x, y)
+			if kind == MazeLevel.Cell.SOLID or kind == MazeLevel.Cell.NO_RING:
+				for f in 4:
+					_memo_side[(y * level.width + x) * 4 + f] = _side(level, Vector2i(x, y), f)
+
+
+static func in_scope(level: MazeLevel, skin: Dictionary) -> bool:
+	return level == _memo_level and is_same(skin, _memo_skin)
+
+
+static func end() -> void:
+	_memo_level = null
+	_memo_skin = {}
+	_memo_side.clear()
+	_memo_amp.clear()
+	_memo_d.clear()
+
+
+static func _key(cell: Vector2i, face: int) -> int:
+	return (cell.y * 8192 + cell.x) * 4 + face
+
+
 ## what lies in front of a face of a # or X cell
 static func side(level: MazeLevel, cell: Vector2i, face: int) -> int:
+	if level == _memo_level and cell.x >= 0 and cell.y >= 0 and cell.x < level.width and cell.y < level.height:
+		var v := _memo_side[(cell.y * level.width + cell.x) * 4 + face]
+		if v != 255:
+			return v
+	return _side(level, cell, face)
+
+
+static func _side(level: MazeLevel, cell: Vector2i, face: int) -> int:
 	var n: Vector2i = cell + MazeLevel.FACE_STEP[face]
 	if n.x < 0 or n.y < 0 or n.x >= level.width or n.y >= level.height:
 		return Side.EDGE
@@ -367,7 +414,16 @@ static func rim_face(level: MazeLevel, cell: Vector2i, face: int) -> bool:
 
 ## largest inward offset of a side in px; floors are straight
 static func rim_amp(level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int) -> int:
-	if not rim_on or face == MazeLevel.Face.UP or not rim_face(level, cell, face):
+	if level != _memo_level or not is_same(skin, _memo_skin):
+		return _rim_amp(level, skin, cell, face)
+	var key := _key(cell, face)
+	if not _memo_amp.has(key):
+		_memo_amp[key] = _rim_amp(level, skin, cell, face)
+	return _memo_amp[key]
+
+
+static func _rim_amp(level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int) -> int:
+	if face == MazeLevel.Face.UP or not rim_face(level, cell, face):
 		return 0
 	var a: int = skin["rim"]["ceiling"] if face == MazeLevel.Face.DOWN else skin["rim"]["wall"]
 	if side(level, cell, OPPOSITE[face]) == Side.AIR:
@@ -385,6 +441,15 @@ static func rim_d(level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int,
 	var amp := rim_amp(level, skin, cell, face)
 	if amp == 0:
 		return 0
+	if level != _memo_level or not is_same(skin, _memo_skin):
+		return _rim_d(level, skin, cell, face, i, amp)
+	var key := _key(cell, face) * 8 + i
+	if not _memo_d.has(key):
+		_memo_d[key] = _rim_d(level, skin, cell, face, i, amp)
+	return _memo_d[key]
+
+
+static func _rim_d(level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int, i: int, amp: int) -> int:
 	var v := vertex(cell, face, i)
 	var h := MazeArt.pick(v.x, v.y, SALT_RIM + face, RIM_MAX + 1)
 	if i >= 1 and i <= 4:
@@ -399,10 +464,12 @@ static func rim_d(level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int,
 static func chip(level: MazeLevel, skin: Dictionary, cell: Vector2i, corner: int) -> int:
 	var p: int = CORNER_P[corner]
 	var q: int = CORNER_Q[corner]
-	if not rim_on or side(level, cell, p) != Side.AIR or side(level, cell, q) != Side.AIR:
+	if side(level, cell, p) != Side.AIR or side(level, cell, q) != Side.AIR or not rim_face(level, cell, p):
 		return 0
-	if not rim_face(level, cell, p):
-		return 0
+	return _chip_size(skin, cell, corner, p, q)
+
+
+static func _chip_size(skin: Dictionary, cell: Vector2i, corner: int, p: int, q: int) -> int:
 	var k := (cell + CORNER_POS[corner]) * T
 	var cap := FLOOR_CHIP_MAX if p == MazeLevel.Face.UP or q == MazeLevel.Face.UP else CHIP_MAX
 	return maxi(0, mini(skin["rim"]["chip"], cap) - MazeArt.pick(k.x, k.y, SALT_CHIP, 2))
@@ -427,24 +494,7 @@ static func inset(skin: Dictionary, kind: int, mode: int) -> float:
 
 ## closed polygon of a # or X cell: silhouette (inner = false) or inside the contour, seams and mortar (inner = true)
 static func outline(level: MazeLevel, skin: Dictionary, cell: Vector2i, inner: bool) -> PackedVector2Array:
-	var mode := Mode.INNER if inner else Mode.OUTER
-	var pts := PackedVector2Array()
-	for ci in 4:
-		var base := corner_base(level, skin, cell, ci, mode)
-		var k := chip(level, skin, cell, ci)
-		if k > 0:
-			var p: int = CORNER_P[ci]
-			var q: int = CORNER_Q[ci]
-			pts.append(base + Vector2(INWARD[q] * k))
-			pts.append(base + Vector2(INWARD[p] * k))
-		else:
-			pts.append(base)
-		var f: int = CORNER_Q[ci]
-		if rim_amp(level, skin, cell, f) > 0:
-			var ins := inset(skin, side(level, cell, f), mode)
-			for i in range(1, 5):
-				pts.append(Vector2(vertex(cell, f, i)) + Vector2(INWARD[f]) * (rim_d(level, skin, cell, f, i) + ins))
-	return pts
+	return _rect_outline(level, skin, Rect2i(cell, Vector2i.ONE), Mode.INNER if inner else Mode.OUTER)
 
 
 ## corner point before any chip, with edge offsets and insets of its two sides
@@ -548,72 +598,149 @@ static func _side_cells(rect: Rect2i, face: int) -> Array[Vector2i]:
 	return out
 
 
+## perimeter of a rect of cells clockwise: corner points per mode (chip, chamfer, arc), side vertices in between
+## unless they fall inside a corner treatment
 static func _rect_outline(level: MazeLevel, skin: Dictionary, rect: Rect2i, mode: int) -> PackedVector2Array:
-	var pts := PackedVector2Array()
+	if rect.size == Vector2i.ONE and (mode == Mode.OUTER or mode == Mode.INNER):
+		var plain := _plain_outline(level, skin, rect.position, mode)
+		if not plain.is_empty():
+			return plain
+	elif mode == Mode.STONE:
+		var plain := _plain_stone(level, skin, rect)
+		if not plain.is_empty():
+			return plain
+	var corners: Array[PackedVector2Array] = []
+	var sides: Array[Array] = []
 	for ci in 4:
 		var f: int = CORNER_Q[ci]
 		var cells := _side_cells(rect, f)
-		_corner_points(level, skin, cells[0], ci, mode, pts)
+		sides.append(cells)
+		corners.append(_corner_points(level, skin, cells[0], ci, mode))
+	var pts := PackedVector2Array()
+	for ci in 4:
+		var f: int = CORNER_Q[ci]
+		var cells: Array = sides[ci]
+		pts.append_array(corners[ci])
+		var after: PackedVector2Array = corners[(ci + 1) % 4]
+		var lo := Vector2(corners[ci][-1]).dot(Vector2(ALONG[f])) + 0.01
+		var hi := after[0].dot(Vector2(ALONG[f])) - 0.01
+		var inward := Vector2(INWARD[f])
 		for j in cells.size():
-			var c := cells[j]
+			var c: Vector2i = cells[j]
 			var ins := inset(skin, side(level, c, f), mode)
-			var inward := Vector2(INWARD[f])
-			if j > 0:
-				pts.append(Vector2(vertex(c, f, 0)) + inward * (rim_d(level, skin, c, f, 0) + ins))
-			if rim_amp(level, skin, c, f) > 0:
-				for i in range(1, 5):
-					pts.append(Vector2(vertex(c, f, i)) + inward * (rim_d(level, skin, c, f, i) + ins))
-			if j < cells.size() - 1:
-				pts.append(Vector2(vertex(c, f, 5)) + inward * (rim_d(level, skin, c, f, 5) + ins))
+			var first := 0 if j > 0 else 1
+			var last := 5 if j < cells.size() - 1 else 4
+			var amp := rim_amp(level, skin, c, f)
+			for i in range(first, last + 1):
+				if amp == 0 and i != 0 and i != 5:
+					continue
+				var v := Vector2(vertex(c, f, i)) + inward * (rim_d(level, skin, c, f, i) + ins)
+				var a := v.dot(Vector2(ALONG[f]))
+				if a > lo and a < hi:
+					pts.append(v)
 	return clean(pts)
 
 
-## corner of a stone or slab: chamfer (stone) or arc (slab), flat at the level edge
+## cell without a face towards air: no edge offsets and no chips, so a rectangle; empty otherwise
+static func _plain_outline(level: MazeLevel, skin: Dictionary, cell: Vector2i, mode: int) -> PackedVector2Array:
+	var ins: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	for f in 4:
+		var kind := side(level, cell, f)
+		if kind == Side.AIR:
+			return PackedVector2Array()
+		ins[f] = inset(skin, kind, mode)
+	var o := Vector2(cell * T)
+	var x0 := o.x + ins[MazeLevel.Face.LEFT]
+	var x1 := o.x + T - ins[MazeLevel.Face.RIGHT]
+	var y0 := o.y + ins[MazeLevel.Face.UP]
+	var y1 := o.y + T - ins[MazeLevel.Face.DOWN]
+	return PackedVector2Array([Vector2(x0, y0), Vector2(x1, y0), Vector2(x1, y1), Vector2(x0, y1)])
+
+
+## stone without a face towards air and one kind of neighbour per side: a rectangle with chamfered corners
+static func _plain_stone(level: MazeLevel, skin: Dictionary, rect: Rect2i) -> PackedVector2Array:
+	var ins: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	for f in 4:
+		var cells := _side_cells(rect, f)
+		var kind := side(level, cells[0], f)
+		for c in cells:
+			if side(level, c, f) != kind or kind == Side.AIR:
+				return PackedVector2Array()
+		ins[f] = inset(skin, kind, Mode.STONE)
+	var o := Vector2(rect.position * T)
+	var x0 := o.x + ins[MazeLevel.Face.LEFT]
+	var x1 := o.x + rect.size.x * T - ins[MazeLevel.Face.RIGHT]
+	var y0 := o.y + ins[MazeLevel.Face.UP]
+	var y1 := o.y + rect.size.y * T - ins[MazeLevel.Face.DOWN]
+	var c := float(skin["stones"]["chamfer"])
+	return PackedVector2Array(
+		[
+			Vector2(x0 + c, y0), Vector2(x1 - c, y0), Vector2(x1, y0 + c), Vector2(x1, y1 - c),
+			Vector2(x1 - c, y1), Vector2(x0 + c, y1), Vector2(x0, y1 - c), Vector2(x0, y0 + c),
+		]
+	)
+
+
+## corner of a rect by mode: chip (cells), chamfer (stone) or arc (slab, flat at the level edge)
 static func _corner_points(
-	level: MazeLevel, skin: Dictionary, cell: Vector2i, ci: int, mode: int, pts: PackedVector2Array
-) -> void:
+	level: MazeLevel, skin: Dictionary, cell: Vector2i, ci: int, mode: int
+) -> PackedVector2Array:
 	var p: int = CORNER_P[ci]
 	var q: int = CORNER_Q[ci]
-	var base := corner_base(level, skin, cell, ci, mode)
-	if mode == Mode.STONE:
-		var k := chip(level, skin, cell, ci)
+	var sp := side(level, cell, p)
+	var sq := side(level, cell, q)
+	var ip := inset(skin, sp, mode)
+	var iq := inset(skin, sq, mode)
+	var k := 0
+	var dp := 0
+	var dq := 0
+	if sp == Side.AIR and sq == Side.AIR and level.cell(cell.x, cell.y) == MazeLevel.Cell.SOLID:
+		k = _chip_size(skin, cell, ci, p, q) # offsets are 0 at a chipped corner
+	else:
+		dp = rim_d(level, skin, cell, p, 5)
+		dq = rim_d(level, skin, cell, q, 0)
+	var base := Vector2((cell + CORNER_POS[ci]) * T) + Vector2(INWARD[p]) * (dp + ip) + Vector2(INWARD[q]) * (dq + iq)
+	var pts := PackedVector2Array()
+	if mode == Mode.OUTER or mode == Mode.INNER:
+		if k > 0:
+			pts.append(base + Vector2(INWARD[q]) * k)
+			pts.append(base + Vector2(INWARD[p]) * k)
+		else:
+			pts.append(base)
+	elif mode == Mode.STONE:
 		var c := float(skin["stones"]["chamfer"])
 		if k > 0:
 			c = maxf(c, k + 1.0)
 		pts.append(base - Vector2(ALONG[p]) * c)
 		pts.append(base + Vector2(ALONG[q]) * c)
-		return
-	if side(level, cell, p) == Side.EDGE or side(level, cell, q) == Side.EDGE:
+	elif sp == Side.EDGE or sq == Side.EDGE:
 		pts.append(base)
-		return
-	var centre := base + (Vector2(INWARD[p]) + Vector2(INWARD[q])) * SLAB_RADIUS
-	var u := base - Vector2(ALONG[p]) * SLAB_RADIUS - centre
-	var w := base + Vector2(ALONG[q]) * SLAB_RADIUS - centre
-	for i in ARC_STEPS + 1:
-		var a := PI / 2.0 * i / ARC_STEPS
-		pts.append(centre + u * cos(a) + w * sin(a))
+	else:
+		var centre := base + (Vector2(INWARD[p]) + Vector2(INWARD[q])) * SLAB_RADIUS
+		var u := base - Vector2(ALONG[p]) * SLAB_RADIUS - centre
+		var w := base + Vector2(ALONG[q]) * SLAB_RADIUS - centre
+		for i in ARC_STEPS + 1:
+			var a := PI / 2.0 * i / ARC_STEPS
+			pts.append(centre + u * cos(a) + w * sin(a))
+	return pts
 
 
 ## drops repeated and collinear points of a closed polygon
 static func clean(pts: PackedVector2Array) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	for p in pts:
-		if out.is_empty() or out[-1].distance_to(p) > 0.001:
+		if out.is_empty() or out[-1].distance_squared_to(p) > 0.000001:
 			out.append(p)
-	while out.size() > 1 and out[-1].distance_to(out[0]) <= 0.001:
+	while out.size() > 1 and out[-1].distance_squared_to(out[0]) <= 0.000001:
 		out.remove_at(out.size() - 1)
-	var changed := true
-	while changed and out.size() > 3:
-		changed = false
-		var keep := PackedVector2Array()
-		var n := out.size()
-		for i in n:
-			var a := out[(i + n - 1) % n]
-			var b := out[i]
-			var c := out[(i + 1) % n]
-			if absf((b - a).cross(c - b)) > 0.0001:
-				keep.append(b)
-			else:
-				changed = true
-		out = keep
-	return out
+	if out.size() < 4:
+		return out
+	var keep := PackedVector2Array()
+	var n := out.size()
+	for i in n:
+		var a: Vector2 = keep[-1] if not keep.is_empty() else out[n - 1]
+		var b := out[i]
+		var c := out[(i + 1) % n]
+		if absf((b - a).cross(c - b)) > 0.0001:
+			keep.append(b)
+	return keep

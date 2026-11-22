@@ -12,6 +12,16 @@ const DOOR_ALPHA_TOP := 0.15
 
 ## primitives of chunk (cx, cy); cracks: Vector2i -> decor shapes of the crack items
 static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: int, cy: int) -> Array[Dictionary]:
+	var scoped := MazeSkin.in_scope(level, skin)
+	if not scoped:
+		MazeSkin.begin(level, skin)
+	var out := _chunk(level, skin, cracks, cx, cy)
+	if not scoped:
+		MazeSkin.end()
+	return out
+
+
+static func _chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: int, cy: int) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var n := MazeStaticLayer.CHUNK
 	var pal: Dictionary = skin["pal"]
@@ -19,11 +29,16 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 	for y in range(cy * n, mini((cy + 1) * n, level.height)):
 		for x in range(cx * n, mini((cx + 1) * n, level.width)):
 			cells.append(Vector2i(x, y))
+	var inners := {}
 	for c in cells:
 		match level.cell(c.x, c.y):
 			MazeLevel.Cell.SOLID:
-				out.append(poly(MazeSkin.outline(level, skin, c, false), pal["contour"]))
-				out.append(poly(MazeSkin.outline(level, skin, c, true), pal["mortar"]))
+				var inner := MazeSkin.outline(level, skin, c, true)
+				inners[c] = inner
+				# silhouette and inner polygon are one rectangle when nothing shows the contour
+				if not _same_all(level, c):
+					out.append(poly(MazeSkin.outline(level, skin, c, false), pal["contour"]))
+				out.append(poly(inner, pal["mortar"]))
 			MazeLevel.Cell.NO_RING:
 				out.append(rect(Rect2(Vector2(c) * T, Vector2(T, T)), pal["contour"]))
 	var seen := {}
@@ -47,7 +62,7 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 			_block_detail(out, skin, cracks, c)
 	for c in cells:
 		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
-			_trims(out, level, skin, c)
+			_trims(out, level, skin, c, inners[c])
 	for c in cells:
 		var o := Vector2(c) * T
 		match level.cell(c.x, c.y):
@@ -58,6 +73,13 @@ static func chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: in
 		if c == level.finish:
 			_door(out, pal, o)
 	return out
+
+
+static func _same_all(level: MazeLevel, cell: Vector2i) -> bool:
+	for f in 4:
+		if MazeSkin.side(level, cell, f) != MazeSkin.Side.SAME:
+			return false
+	return true
 
 
 ## stone with a bevel: dark base, light top and left, face colour inside (21.6.2)
@@ -256,7 +278,9 @@ static func _trim_w(face: int) -> float:
 
 ## the four bands of every ring face of a cell, then the inner corner joints (21.8); shadows first, then lip and
 ## stripes, so two trims meeting at a corner join like a moulding
-static func _trims(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i) -> void:
+static func _trims(
+	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i, inner := PackedVector2Array()
+) -> void:
 	var pal: Dictionary = skin["pal"]
 	var faces: Array[int] = []
 	for face in 4:
@@ -265,47 +289,77 @@ static func _trims(out: Array[Dictionary], level: MazeLevel, skin: Dictionary, c
 	var joints := joint_corners(level, cell)
 	if faces.is_empty() and joints.is_empty():
 		return
-	var inner := MazeSkin.outline(level, skin, cell, true)
+	if inner.is_empty():
+		inner = MazeSkin.outline(level, skin, cell, true)
+	var lines := {}
+	for f in faces:
+		lines[f] = _face_line(level, skin, cell, f)
 	var c := MazeSkin.CONTOUR_W
 	var shadow := Color(pal["contour"], MazeSkin.TRIM_SHADOW_ALPHA)
 	for ci in joints:
-		_joint(out, level, skin, cell, ci, true)
+		_joint(out, cell, skin, ci, true)
 	for f in faces:
 		var w := _trim_w(f)
-		_band(out, level, skin, cell, f, inner, c + w, c + w + MazeSkin.TRIM_SHADOW_W, shadow)
+		_band(out, lines[f], f, inner, c + w, c + w + MazeSkin.TRIM_SHADOW_W, shadow)
 	for ci in joints:
-		_joint(out, level, skin, cell, ci, false)
+		_joint(out, cell, skin, ci, false)
 	for f in faces:
-		_band(out, level, skin, cell, f, inner, c - 0.5, c + _trim_w(f), pal["lip"])
+		_band(out, lines[f], f, inner, c - 0.5, c + _trim_w(f), pal["lip"])
 	for f in faces:
-		_band(out, level, skin, cell, f, inner, c, c + MazeSkin.TRIM_HI_W, pal["lip_hi"])
+		_band(out, lines[f], f, inner, c, c + MazeSkin.TRIM_HI_W, pal["lip_hi"])
 	for f in faces:
 		var w := _trim_w(f)
-		_band(out, level, skin, cell, f, inner, c + w - MazeSkin.TRIM_LO_W, c + w, pal["lip_lo"])
+		_band(out, lines[f], f, inner, c + w - MazeSkin.TRIM_LO_W, c + w, pal["lip_lo"])
 
 
-## band between depths d0 and d1 along a face, following the edge offsets, cut to the cell's inner polygon
-static func _band(
-	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int,
-	inner: PackedVector2Array, d0: float, d1: float, col: Color
-) -> void:
+## the six edge vertices of a face with their offsets, ends extended by 1 px
+static func _face_line(level: MazeLevel, skin: Dictionary, cell: Vector2i, face: int) -> PackedVector2Array:
 	var inward := Vector2(MazeSkin.INWARD[face])
 	var along := Vector2(MazeSkin.ALONG[face])
-	var near := PackedVector2Array()
-	var far := PackedVector2Array()
+	var line := PackedVector2Array()
 	for i in 6:
-		var v := Vector2(MazeSkin.vertex(cell, face, i))
-		var d := MazeSkin.rim_d(level, skin, cell, face, i)
+		var v := Vector2(MazeSkin.vertex(cell, face, i)) + inward * MazeSkin.rim_d(level, skin, cell, face, i)
 		if i == 0:
 			v -= along
 		elif i == 5:
 			v += along
-		near.append(v + inward * (d + d0))
-		far.append(v + inward * (d + d1))
+		line.append(v)
+	return line
+
+
+## band between depths d0 and d1 along a face line, cut to the cell's inner polygon
+static func _band(
+	out: Array[Dictionary], line: PackedVector2Array, face: int, inner: PackedVector2Array, d0: float, d1: float,
+	col: Color
+) -> void:
+	var inward := Vector2(MazeSkin.INWARD[face])
+	var near := PackedVector2Array()
+	var far := PackedVector2Array()
+	for v in line:
+		near.append(v + inward * d0)
+		far.append(v + inward * d1)
 	far.reverse()
 	near.append_array(far)
+	if inner.size() == 4 and _straight(line, face):
+		# straight face in a rectangular cell: the cut is a rectangle intersection
+		var box := Rect2(near[0], Vector2.ZERO)
+		for p in near:
+			box = box.expand(p)
+		var cut := box.intersection(Rect2(inner[0], inner[2] - inner[0]))
+		if cut.has_area():
+			out.append(poly(_rect_pts(cut), col))
+		return
 	for pg in Geometry2D.intersect_polygons(near, inner):
 		_add_poly(out, pg, col)
+
+
+## all vertices on one line (the two extended ends are on it too)
+static func _straight(line: PackedVector2Array, face: int) -> bool:
+	var axis := 1 if face == MazeLevel.Face.UP or face == MazeLevel.Face.DOWN else 0
+	for v in line:
+		if not is_equal_approx(v[axis], line[0][axis]):
+			return false
+	return true
 
 
 ## corners where a floor runs into a wall: both trims continue into the cell and meet like a moulding
@@ -330,9 +384,7 @@ static func joint_corners(level: MazeLevel, cell: Vector2i) -> Array[int]:
 	return found
 
 
-static func _joint(
-	out: Array[Dictionary], level: MazeLevel, skin: Dictionary, cell: Vector2i, ci: int, shadows: bool
-) -> void:
+static func _joint(out: Array[Dictionary], cell: Vector2i, skin: Dictionary, ci: int, shadows: bool) -> void:
 	var pal: Dictionary = skin["pal"]
 	var p: int = MazeSkin.CORNER_P[ci]
 	var q: int = MazeSkin.CORNER_Q[ci]

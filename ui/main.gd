@@ -67,7 +67,7 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 		elif a == "--print-run":
 			o["print_run"] = true
 		elif a.begins_with("--keys="):
-			o["keys"] = a.substr(7)
+			o["keys"] = a.substr(7).replace(",", " ") # commas let a script with spaces fit one scenario argument
 		elif a == "--solve":
 			o["solve"] = true
 		elif a.begins_with("--aim=") and a.get_slice("=", 1).is_valid_int():
