@@ -29,15 +29,16 @@ const TEXT := {
 		"ctl_move": "lopen",
 		"ctl_throw": "werpen",
 		"ctl_jump": "springen",
+		"ctl_map": "kaart",
 		"keys": {"move": "A/D", "jump": "Spatie", "throw": "J vasthouden en loslaten", "undo": "Z"},
 		"touch": {"move": "je linkerduim", "jump": "de springknop", "throw": "de werpstick", "undo": "Kraal terug"},
 		"help_keys":
 			"A/D of pijltjes: lopen\nSpatie of W: springen (vasthouden = hoger)\nJ vasthouden: " +
-			"richten, W/S draaien, loslaten: werpen, K: annuleren\nZ: kraal terug  ·  R: opnieuw  · " +
-			"Esc: pauze",
+			"richten, W/S draaien, loslaten: werpen, K: annuleren\nTab of M vasthouden: overzicht\n" +
+			"Z: kraal terug  ·  R: opnieuw  ·  Esc: pauze",
 		"help_touch":
 			"Linkerduim: lopen\nSpringknop: springen (vasthouden = hoger)\nWerpstick: slepen = " +
-			"richten, loslaten = werpen, terug naar het midden = annuleren",
+			"richten, loslaten = werpen, terug naar het midden = annuleren\nKaartknop vasthouden: overzicht",
 		"help_par":
 			"Par telt de ringen waar je vanaf bent gestuiterd. Kraal terug geeft je de kraal terug, " +
 			"maar een gebruikte ring blijft meetellen.",
@@ -67,15 +68,16 @@ const TEXT := {
 		"ctl_move": "move",
 		"ctl_throw": "throw",
 		"ctl_jump": "jump",
+		"ctl_map": "map",
 		"keys": {"move": "A/D", "jump": "Space", "throw": "hold and release J", "undo": "Z"},
 		"touch":
 		{"move": "your left thumb", "jump": "the jump button", "throw": "the throw stick", "undo": "Bead back"},
 		"help_keys":
 			"A/D or arrows: walk\nSpace or W: jump (hold = higher)\nHold J: aim, W/S turn, release: " +
-			"throw, K: cancel\nZ: bead back  ·  R: restart  ·  Esc: pause",
+			"throw, K: cancel\nHold Tab or M: overview\nZ: bead back  ·  R: restart  ·  Esc: pause",
 		"help_touch":
 			"Left thumb: walk\nJump button: jump (hold = higher)\nThrow stick: drag = aim, release " +
-			"= throw, back to the centre = cancel",
+			"= throw, back to the centre = cancel\nHold the map button: overview",
 		"help_par": "Par counts the rings you bounced off. Bead back returns the bead, but a used ring still counts.",
 	},
 }

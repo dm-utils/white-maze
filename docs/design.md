@@ -504,6 +504,7 @@ Input actions (defined in `project.godot`):
 | `undo` | `Z`, `Backspace` | Bead back. |
 | `restart` | `R` | Restart the level. |
 | `pause` | `Esc`, `P` | Pause / resume (`Esc` cancels an aim first). |
+| `overview` | `Tab`, `M` | Hold: overview of the whole level, the game is held (section 19.8). |
 
 Keyboard aim: the elevation starts at +3 (45 degrees up) for each attempt and keeps its last value within the attempt;
 the direction is `MazeAim.keyboard_index(facing, elevation)` with the player's current facing, so walking the other way
@@ -1401,6 +1402,7 @@ One preset `Web`, copied from White Sum's: `export_filter="all_resources"`, `inc
 | `--solve` | With `--level`: like `--keys` with the level's script from `tests/solutions.json` (ignored when the file is missing); a finish shows the result overlay. |
 | `--aim=<index>` | With `--level`: show the aim preview for this index (frozen). |
 | `--pause` | With `--level`: open the pause overlay. |
+| `--camera=door\|overview` | With `--level`: frozen door view or full overview (section 19.11). |
 | `--shot=<png>` | Screenshot mode: no profile read or write, simulation frozen after `--keys`/`--solve`, no camera smoothing; wait 0.5 s and one drawn frame, save the viewport to the PNG, quit. |
 
 ### 10.5 Screenshot scenarios (`tools/shots.txt`)
@@ -1417,6 +1419,9 @@ pause 1280x720 --level=l001 --pause
 phone-wide 1600x720 --level=l002 --touch --safe=60,0,60,24
 portrait 720x1280 --level=l001
 ```
+
+The camera scenarios (`door`, `overview`, `overview-phone`, `aim-frame`, `aim-edge`, `phone-follow`) are listed in
+section 19.11 and in `tools/shots.txt`.
 
 ### 10.6 CI (`.github/workflows/ci.yml`, ADR 0008)
 

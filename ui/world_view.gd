@@ -31,10 +31,20 @@ const BEAD_R := 7.0
 const DOT_R := 1.5
 const DOT_STEP := 14.0
 const ARROW_ALPHA := 0.35
+const EDGE_INSET := 24.0 # edge marker sits this far inside the play rect
+const CHEVRON_LEN := 10.0
+const CHEVRON_OPEN := 7.0
+const CHEVRON_W := 3.0
+const MARKER_R := 22.0 # player marker in the overview, canvas units
+const MARKER_W := 2.0
+const MARKER_ALPHA := 0.6
 
 var sim: MazeSim
 var alpha := 1.0 # render interpolation between the last two ticks
 var aim_index := -1 # >= 0 while aiming
+var view_rect := Rect2() # world px visible below the HUD band (camera)
+var view_zoom := 1.0
+var overview_k := 0.0 # 0..1, weight of the overview view
 
 var _flash := {}
 var _respawn_tick := NEVER
@@ -100,6 +110,7 @@ func _draw() -> void:
 		_draw_ring(r["cell"], r["face"], _ring_color(r))
 	_draw_beads()
 	_draw_player()
+	_draw_player_marker()
 	if aim_index >= 0:
 		_draw_aim()
 
@@ -270,6 +281,39 @@ func _draw_player() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+func _draw_player_marker() -> void:
+	if overview_k <= 0.0 or not sim.alive():
+		return
+	var col := Color(WhiteTheme.TEXT, MARKER_ALPHA * overview_k)
+	draw_arc(player_centre(), MARKER_R / view_zoom, 0.0, TAU, 32, col, MARKER_W / view_zoom, true)
+
+
+## where the segment a to b leaves the rect (a inside), or b when it does not
+static func exit_point(a: Vector2, b: Vector2, rect: Rect2) -> Vector2:
+	var d := b - a
+	var t := 1.0
+	for axis in 2:
+		if d[axis] > 0.0:
+			t = minf(t, (rect.end[axis] - a[axis]) / d[axis])
+		elif d[axis] < 0.0:
+			t = minf(t, (rect.position[axis] - a[axis]) / d[axis])
+	return a + d * maxf(t, 0.0)
+
+
+func _draw_edge_marker(from: Vector2, to: Vector2, col: Color) -> void:
+	if view_rect.size == Vector2.ZERO or view_rect.has_point(to):
+		return
+	var inner := view_rect.grow(-EDGE_INSET)
+	if not inner.has_point(from):
+		return
+	var p := exit_point(from, to, inner)
+	var dir := (to - from).normalized()
+	var side := Vector2(-dir.y, dir.x)
+	var back := p - dir * CHEVRON_LEN
+	draw_line(p, back + side * CHEVRON_OPEN, col, CHEVRON_W, true)
+	draw_line(p, back - side * CHEVRON_OPEN, col, CHEVRON_W, true)
+
+
 func _draw_shape(s: Dictionary) -> void:
 	var pts: PackedVector2Array = s["pts"]
 	match s["type"]:
@@ -296,6 +340,7 @@ func _draw_aim() -> void:
 		while d < len:
 			draw_circle(from + dir * d, DOT_R, col)
 			d += DOT_STEP
+		_draw_edge_marker(from, to, col)
 	if ok:
 		var centre := face_point(cast["cell"], cast["face"], RING_LIFT)
 		var pts := ring_points(centre, cast["face"])

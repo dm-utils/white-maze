@@ -11,6 +11,9 @@ const THROW_OFFSET := Vector2(340, 120)
 const THROW_R := 72.0
 const THROW_HIT := 95.0
 const THROW_DEAD := 26.0
+const MAP_R := 34.0
+const MAP_HIT := 48.0
+const MAP_INSET := 80.0
 const MOVE_ZONE := 0.45
 const MOVE_R := 96.0
 const MOVE_KNOB_MAX := 70.0
@@ -22,7 +25,7 @@ const FAINT := Color(1, 1, 1, 0.16)
 const FAINT_LINE := Color(1, 1, 1, 0.35)
 const FONT := 20
 
-enum Role { JUMP, THROW, MOVE }
+enum Role { JUMP, THROW, MAP, MOVE }
 
 var controls: MazeControls
 var touch_mode := false # visible and active
@@ -69,6 +72,10 @@ func throw_center() -> Vector2:
 	return Vector2(_size.x - THROW_OFFSET.x - _ins["right"], _size.y - THROW_OFFSET.y - _ins["bottom"])
 
 
+func map_center() -> Vector2:
+	return Vector2(_size.x - MAP_INSET - _ins["right"], TOP_BAND + _ins["top"] + 80.0)
+
+
 func move_home() -> Vector2:
 	return Vector2(MOVE_HOME.x + _ins["left"], _size.y - MOVE_HOME.y - _ins["bottom"])
 
@@ -83,6 +90,7 @@ func reset() -> void:
 	if controls != null:
 		controls.touch_move(0)
 		controls.touch_jump(false)
+		controls.touch_map(false)
 		controls.touch_aim(false, -1)
 
 
@@ -109,6 +117,8 @@ func handle_event(event: InputEvent) -> bool:
 	if not enabled or controls == null:
 		return false
 	if event is InputEventScreenTouch:
+		if event.pressed:
+			controls.note_touch()
 		return _touch(event.index, event.position, event.pressed)
 	return _drag(event.index, event.position)
 
@@ -124,6 +134,9 @@ func _touch(idx: int, pos: Vector2, down: bool) -> bool:
 			controls.touch_jump(true)
 		elif pos.distance_to(throw_center()) <= THROW_HIT:
 			role = Role.THROW
+		elif pos.distance_to(map_center()) <= MAP_HIT:
+			role = Role.MAP
+			controls.touch_map(true)
 		elif pos.x < MOVE_ZONE * _size.x:
 			role = Role.MOVE
 		if role < 0:
@@ -143,6 +156,8 @@ func _touch(idx: int, pos: Vector2, down: bool) -> bool:
 				controls.touch_throw(MazeAim.index_from_vector(v))
 			else:
 				controls.touch_aim(false, -1)
+		Role.MAP:
+			controls.touch_map(false)
 		Role.MOVE:
 			controls.touch_move(0)
 	_fingers.erase(idx)
@@ -217,6 +232,12 @@ func _draw() -> void:
 	draw_circle(jc, JUMP_R, Color(1, 1, 1, 0.28 if down else 0.16))
 	draw_arc(jc, JUMP_R, 0, TAU, 48, FAINT_LINE, 2.0)
 	_label(font, WhiteText.t("ctl_jump"), jc + Vector2(0, JUMP_R + 26), 1.0)
+	# map button (overview, held)
+	var mc := map_center()
+	var mdown := _finger_of(Role.MAP) != null
+	draw_circle(mc, MAP_R, Color(1, 1, 1, 0.28 if mdown else 0.16))
+	draw_arc(mc, MAP_R, 0, TAU, 48, FAINT_LINE, 2.0)
+	_label(font, WhiteText.t("ctl_map"), mc + Vector2(0, MAP_R + 22), 1.0)
 
 
 func _label(font: Font, text: String, pos: Vector2, alpha: float) -> void:

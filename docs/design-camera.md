@@ -487,4 +487,35 @@ step 2 review is then repeated briefly on the camera shots.
 
 ## 19.15 Deviations as built
 
-(Filled in by the developer.)
+Built as designed except for the points below. None touches `sim/`, `levels/` or `tests/solutions.json`.
+
+- **`aim-frame` shot.** `--level=l001 --keys=R40 --aim=0` instead of l002 at the spawn. At the l002 spawn the player is
+  100 px from the left level edge, the level clamp (19.6 step 9) wins over the player guard, and no index exists whose
+  hit is outside the follow view but inside the framed view. On l001 after 40 ticks of running the throw to the right
+  hits the step at column 20 (800 px): outside the follow view, inside the framed one. Framing only reaches hits within
+  about 530 px of the player horizontally (295 hit margin + 235 player guard).
+- **Aim grace.** `AIM_GRACE_S = 0.15` (real time): when the aim ends, the offset is kept for at least this long before
+  it is released without a flight. A throw reaches the sim up to a few frames after the key release (slow motion: one
+  tick per 4 frames), so without it the view started to return one frame before `flights` became true. A cancelled
+  aim therefore returns after 0.15 s instead of at once (CAM8 only requires that it returns).
+- **`look_dir()`** is a public getter of the rig, used by CAM6.
+- **CAM6 reversal** is tested with a synthetic velocity (-300 px/s) so the 0.15 s and 0.25 s marks do not depend on the
+  deceleration of the player; the tap and the 3 s walk to the left use the simulation.
+- **CAM7** uses a 12-tile drop, not 6: with a 6-tile ledge the landing comes 0.37 s after the start of the fall, before
+  the 0.25 s window after `FALL_MIN` opens (0.15 s + 0.25 s), so the check would be empty. The window has 5 or more frames.
+- **CAM2/CAM3** run for every canvas (1280 x 720, 1600 x 720, 1280 x 960); CAM2 is not limited to two of them.
+- **Test viewport.** The headless test runner has a viewport of 1280 x 1280, so game tests compute the expected zoom with
+  `MazeCameraRig.target_zoom(visible rect)` instead of assuming 1.8 (CAM12).
+- **Intro start.** `MazeGame._ready` calls `_update_camera(0.0, false)` after `rig.start_intro()` so the first drawn
+  frame already shows the door.
+- **HUD scrim** is drawn by `MazeHud._draw` itself (before its children) instead of a separate first child; `MazeHud`
+  has a getter `scrim_band()` for CAM14.
+- **Player marker** is only drawn while the player is alive; the edge marker is skipped when the player is not inside
+  the play rect shrunk by 24 px (no exit point), and when no camera has set `view_rect`.
+- **Dead camera.** While the player is dead the follow state is frozen including the level clamp, so a window resize in
+  those 0.5 s is applied at the respawn snap.
+- **Left-edge spawns and touch.** Every level spawns near the left edge, so Lilith stands under the move stick disc at the
+  start on a phone (`phone-follow`, `phone-wide`). The level clamp and guards keep the camera inside the level, so the
+  camera cannot shift her; this is a layout point for the touch controls (look step 2 or the tester), not a camera one.
+- **Test counts.** `MIN_CHECKS` is 950 (was 777): the new suite `tests/camera_tests.gd`, the CAM15 checks in
+  `controls_tests.gd` and one `--camera` check in `ui_tests.gd`. No existing test was changed.
