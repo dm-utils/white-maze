@@ -39,13 +39,18 @@ There is no `LICENSE` file: all rights reserved.
 - Internal members and functions start with `_`.
 - Global classes have the prefix `Maze` (`MazeSim`, `MazeLevel`, `MazeLevels`, `MazeTuning`, `MazeAim`, `MazeInput`,
   `MazeRunScript`, `MazeProfile`, `MazeFormat`, `MazeMain`, `MazeLevelSelect`, `MazeGame`, `MazeWorldView`, `MazeHud`,
-  `MazeCameraRig`, `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`). Kit classes have the prefix
+  `MazeCameraRig`, `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`, `MazeLilith`,
+  `MazeArt`, `MazeWorlds`, `MazeDecor`, `MazeStaticLayer`, `MazeStaticBake`). Kit classes have the prefix
   `White`; do not declare `White*` names here. Test scripts declare no `class_name`.
 - Documentation comments use `##`; ordinary comments `#`. Comments and identifiers in English.
 - Player-facing texts live in `ui/strings.gd` (`MazeStrings.TEXT`, Dutch and English), registered through the kit;
   level names and hints live in the level files, also in both languages.
 - Look values (colours, sizes, timings of effects) are constants at the top of the file that draws them; colours come
-  from `WhiteTheme` where the theme has them.
+  from `WhiteTheme` where the theme has them. Exception: the palettes of the three worlds live together in
+  `MazeWorlds`, not in the files that draw with them.
+- The look is derived, not stored: `MazeDecor` and the static layers use only `MazeArt.hash3` of the cell and a salt
+  constant per rule, never a random generator, so a level looks the same on every run and machine. A new rule gets a
+  new salt.
 - No credentials, keys or personal data in the repository.
 
 ## Simulation rules
