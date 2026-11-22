@@ -1700,3 +1700,8 @@ playtest or the tester can still find a cheaper route; then par drops and the ca
 
 See `docs/design-look.md` (section 18, ADR 0010): the colourful adventure world in three worlds, Lilith, and the
 build steps for cards #013 and later.
+
+## 19. Camera
+
+See `docs/design-camera.md` (section 19, ADR 0011): zoomed follow camera, overview, intro pan; replaces the camera
+bullet of 8.3 and the camera deviation of 16.1.

@@ -24,7 +24,7 @@ This file is section 18 of `docs/design.md`; it is kept as a separate file becau
 | # | Assumption | Consequence if wrong |
 |---|---|---|
 | L1 | All art is drawn in code with `CanvasItem` draw calls (polygons, lines, circles, per-vertex colours). No image, font or shader assets are added (ADR 0010). | A later asset pipeline is an addition; nothing here depends on its absence. |
-| L2 | The world is drawn at 1 world px = 1 viewport unit (viewport 1280 x 720, stretch `canvas_items`, design 10.2). On a phone in landscape Lilith is 20 to 40 screen px high. | Sizes in 18.6 and 18.8 are tuned for this; a camera zoom would need a review. |
+| L2 | The world is drawn at 1 world px = 1 viewport unit (viewport 1280 x 720, stretch `canvas_items`, design 10.2). On a phone in landscape Lilith is 20 to 40 screen px high. | Sizes in 18.6 and 18.8 are tuned for this; a camera zoom would need a review. Superseded by section 19 (`docs/design-camera.md`): the world is drawn at the target zoom (1.8 to 2.0); sizes stay in world px. |
 | L3 | GL Compatibility (WebGL 2 on the web) draws a few thousand cached canvas commands per frame at 60 fps on a mid-range phone. | Fallback in 18.10 (bake static chunks with a one-shot `SubViewport`). |
 | L4 | The game screen knows the level's position in the series (`MazeGame.number`, 1-based, from `levels/index.json`). | World selection (18.3) needs another source. |
 | L5 | Animations may read the simulation's tick, state and events, but never feed anything back (events stay one-way, design 3.9). | None. |
