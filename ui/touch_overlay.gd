@@ -22,6 +22,7 @@ const MOVE_FOLLOW := 110.0
 const MOVE_HOME := Vector2(200, 170)
 const KNOB_R := 36.0
 const FAINT := Color(1, 1, 1, 0.16)
+const DISC_ALPHA := 0.35 # BG disc under every control, so it shows over light blocks
 const FAINT_LINE := Color(1, 1, 1, 0.35)
 const FONT := 20
 
@@ -211,6 +212,7 @@ func _draw() -> void:
 		mbase = mf["base"]
 		mknob = mbase + (mf["pos"] - mbase).limit_length(MOVE_KNOB_MAX)
 		malpha = 1.0
+	draw_circle(mbase, MOVE_R, Color(WhiteTheme.BG, DISC_ALPHA * malpha))
 	draw_circle(mbase, MOVE_R, Color(FAINT, FAINT.a * malpha))
 	draw_arc(mbase, MOVE_R, 0, TAU, 48, Color(FAINT_LINE, FAINT_LINE.a * malpha), 2.0)
 	draw_circle(mknob, KNOB_R, Color(1, 1, 1, 0.4 * malpha))
@@ -222,6 +224,7 @@ func _draw() -> void:
 	var tknob := tc
 	if tf != null:
 		tknob = tc + (tf["pos"] - tc).limit_length(THROW_R)
+	draw_circle(tc, THROW_R, Color(WhiteTheme.BG, DISC_ALPHA * talpha))
 	draw_circle(tc, THROW_R, Color(FAINT, FAINT.a * talpha))
 	draw_arc(tc, THROW_R, 0, TAU, 48, Color(FAINT_LINE, FAINT_LINE.a * talpha), 2.0)
 	draw_circle(tknob, KNOB_R, Color(1, 1, 1, 0.4 * talpha))
@@ -229,12 +232,14 @@ func _draw() -> void:
 	# jump button
 	var jc := jump_center()
 	var down := _finger_of(Role.JUMP) != null
+	draw_circle(jc, JUMP_R, Color(WhiteTheme.BG, DISC_ALPHA))
 	draw_circle(jc, JUMP_R, Color(1, 1, 1, 0.28 if down else 0.16))
 	draw_arc(jc, JUMP_R, 0, TAU, 48, FAINT_LINE, 2.0)
 	_label(font, WhiteText.t("ctl_jump"), jc + Vector2(0, JUMP_R + 26), 1.0)
 	# map button (overview, held)
 	var mc := map_center()
 	var mdown := _finger_of(Role.MAP) != null
+	draw_circle(mc, MAP_R, Color(WhiteTheme.BG, DISC_ALPHA))
 	draw_circle(mc, MAP_R, Color(1, 1, 1, 0.28 if mdown else 0.16))
 	draw_arc(mc, MAP_R, 0, TAU, 48, FAINT_LINE, 2.0)
 	_label(font, WhiteText.t("ctl_map"), mc + Vector2(0, MAP_R + 22), 1.0)

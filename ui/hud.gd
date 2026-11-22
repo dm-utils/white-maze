@@ -13,11 +13,17 @@ const BTN_H := 52.0
 const HIGHLIGHT_TICKS := 10
 const SCRIM_ALPHA := 0.55
 const SCRIM_FADE := 24.0
+const HINT_BACK_ALPHA := 0.7
+const HINT_RADIUS := 8
+const HINT_PAD_X := 12.0
+const HINT_PAD_Y := 4.0
+const FPS_PAD := 4.0
 
 var sim: MazeSim
 var number := 1
 var safe_override := ""
 var hint_at_top := false # touch mode: the bottom corners belong to the controls
+var show_fps := false # debug --fps
 
 var _name: Label
 var _score: Label
@@ -27,6 +33,7 @@ var _undo: Button
 var _restart: Button
 var _pause: Button
 var _hint: Label
+var _fps: Label
 var _left: VBoxContainer
 var _right: HBoxContainer
 var _counted_tick := -1000
@@ -67,7 +74,19 @@ func _ready() -> void:
 	_hint = WhiteUi.label("", WhiteTheme.FONT_MESSAGE, WhiteTheme.DIM)
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var back := StyleBoxFlat.new()
+	back.bg_color = Color(WhiteTheme.BG, HINT_BACK_ALPHA)
+	back.set_corner_radius_all(HINT_RADIUS)
+	back.content_margin_left = HINT_PAD_X
+	back.content_margin_right = HINT_PAD_X
+	back.content_margin_top = HINT_PAD_Y
+	back.content_margin_bottom = HINT_PAD_Y
+	_hint.add_theme_stylebox_override("normal", back)
 	add_child(_hint)
+	_fps = WhiteUi.label("", WhiteTheme.FONT_MESSAGE, WhiteTheme.DIM)
+	_fps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fps.visible = false
+	add_child(_fps)
 	refresh_texts()
 
 
@@ -153,8 +172,13 @@ func _process(_delta: float) -> void:
 	var right_w := _right.get_combined_minimum_size().x
 	_right.size = Vector2(right_w, BTN_H)
 	_right.position = Vector2(vs.x - WhiteTheme.MARGIN - ins["right"] - right_w, ins["top"] + 12)
-	_hint.position = Vector2(0, BAND + ins["top"] + 6) if hint_at_top else Vector2(0, vs.y - 56 - ins["bottom"])
-	_hint.size = Vector2(vs.x, 30)
+	_hint.size = Vector2(0, 30) # shrinks to the text plus padding
+	var hint_y: float = BAND + ins["top"] + 6 if hint_at_top else vs.y - 56 - ins["bottom"]
+	_hint.position = Vector2((vs.x - _hint.size.x) / 2.0, hint_y)
+	_fps.visible = show_fps
+	if show_fps:
+		_fps.text = "%d fps" % Engine.get_frames_per_second()
+		_fps.position = Vector2(WhiteTheme.MARGIN + ins["left"], BAND + ins["top"] + FPS_PAD)
 	_name.text = level_text()
 	_score.text = score_text()
 	var hot := sim.tick - _counted_tick < HIGHLIGHT_TICKS
