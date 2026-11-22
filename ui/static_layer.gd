@@ -36,6 +36,8 @@ var world := MazeWorlds.World.TEMPLE
 var draws := 0 # chunk draws so far; tests expect one per chunk
 
 var _pal: Dictionary
+var _back_items: Array[Dictionary] = [] # {"bounds": Rect2, "shapes": Array[Dictionary]}
+var _cracks := {} # Vector2i -> shapes
 
 
 func build(lv: MazeLevel, world_id: int, layer_kind: int) -> void:
@@ -44,6 +46,14 @@ func build(lv: MazeLevel, world_id: int, layer_kind: int) -> void:
 	kind = layer_kind
 	draws = 0
 	_pal = MazeWorlds.palette(world_id)
+	_back_items.clear()
+	_cracks.clear()
+	for item in MazeDecor.plan(lv, world_id):
+		var list := MazeDecor.shapes(item, _pal)
+		if item["layer"] == "back" and kind == Kind.BACK:
+			_back_items.append({"bounds": MazeDecor.bounds(list), "shapes": list})
+		elif item["layer"] == "tiles" and kind == Kind.TILES:
+			_cracks[item["cell"]] = list
 
 
 ## node that draws chunk (cx, cy) in world coordinates; the caller parents it
@@ -90,7 +100,29 @@ func _draw_chunk(ci: Node2D, cx: int, cy: int) -> void:
 			else:
 				_draw_tile(ci, x, y)
 	if kind == Kind.BACK:
-		_draw_door_glow(ci, Rect2(Vector2(x0, y0) * T, Vector2(x1 - x0, y1 - y0) * T))
+		var rect := Rect2(Vector2(x0, y0) * T, Vector2(x1 - x0, y1 - y0) * T)
+		_draw_back_items(ci, rect)
+		_draw_door_glow(ci, rect)
+
+
+## items that reach into the chunk; light glows cross chunk edges, so each chunk draws what touches it
+func _draw_back_items(ci: Node2D, rect: Rect2) -> void:
+	for it in _back_items:
+		if rect.intersects(it["bounds"]):
+			_draw_shapes(ci, it["shapes"])
+
+
+func _draw_shapes(ci: Node2D, list: Array[Dictionary]) -> void:
+	for s in list:
+		match s["t"]:
+			"poly":
+				ci.draw_colored_polygon(s["pts"], s["col"])
+			"line":
+				ci.draw_line(s["pts"][0], s["pts"][1], s["col"], s["w"])
+			"polyline":
+				ci.draw_polyline(s["pts"], s["col"], s["w"])
+			"circle":
+				ci.draw_circle(s["c"], s["r"], s["col"])
 
 
 func _draw_back_gradient(ci: Node2D, x0: int, y0: int, x1: int, y1: int) -> void:
@@ -148,6 +180,8 @@ func _draw_tile(ci: Node2D, x: int, y: int) -> void:
 			_draw_no_ring(ci, x, y, o)
 		MazeLevel.Cell.SPIKE:
 			_draw_spikes(ci, o)
+		MazeLevel.Cell.EMPTY:
+			_draw_tuft(ci, x, y)
 	if Vector2i(x, y) == level.finish:
 		_draw_door(ci, o)
 
@@ -155,6 +189,9 @@ func _draw_tile(ci: Node2D, x: int, y: int) -> void:
 func _draw_block(ci: Node2D, x: int, y: int, o: Vector2) -> void:
 	ci.draw_rect(Rect2(o, Vector2(T, T)), _pal["block"])
 	_draw_joints(ci, x, y, o)
+	_draw_shapes(ci, MazeDecor.speck_shapes(x, y, _pal))
+	if _cracks.has(Vector2i(x, y)):
+		_draw_shapes(ci, _cracks[Vector2i(x, y)])
 	var lip: Color = _pal["lip"]
 	var cell := Vector2i(x, y)
 	if lip_drawn(level, cell, MazeLevel.Face.UP):
@@ -165,6 +202,15 @@ func _draw_block(ci: Node2D, x: int, y: int, o: Vector2) -> void:
 		ci.draw_rect(Rect2(o, Vector2(LIP, T)), lip)
 	if lip_drawn(level, cell, MazeLevel.Face.RIGHT):
 		ci.draw_rect(Rect2(o + Vector2(T - LIP, 0), Vector2(LIP, T)), lip)
+
+
+## jungle moss on the lip of the block below, drawn in the cell above so a chunk edge never cuts it
+func _draw_tuft(ci: Node2D, x: int, y: int) -> void:
+	var here := Vector2i(x, y)
+	if world != MazeWorlds.World.JUNGLE or here == level.spawn or here == level.finish:
+		return
+	if lip_drawn(level, Vector2i(x, y + 1), MazeLevel.Face.UP):
+		_draw_shapes(ci, MazeDecor.tuft_shapes(x, y, _pal))
 
 
 ## lip_face, but no lip on the bottom of the last row: the other level edges have none either

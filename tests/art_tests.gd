@@ -1,6 +1,6 @@
 extends RefCounted
 ## Look and feel (design 18.12): Lilith's bounds (A2), pose table (A7), simulation untouched (A1), name; palettes (A3),
-## lip faces (A4), static layers (A6), worlds (A8), readability backings.
+## lip faces (A4), decor (A5), static layers (A6), worlds (A8), readability backings.
 
 const PROFILE := "user://white_maze_test_art.json"
 const SOLUTIONS := "res://tests/solutions.json"
@@ -12,6 +12,9 @@ const VELS := [0.0, 300.0, -300.0, 1080.0, -1080.0]
 const HITBOX := Rect2(-15.0, -32.0, 30.0, 32.0)
 const H := preload("res://tests/helpers.gd")
 const HASH_PINS := [0, 2476996174, 1019855091, 3867735071]
+const DECOR_PINS := {
+	0: "crack:26 pillar:6 relief:4 sand:6 torch:2", 1: "arch:3 crack:11 torch:1 vine:9", 2: "glow:4 spot:9"
+}
 
 var _check: Callable
 var _node: Node
@@ -28,6 +31,7 @@ func run(check: Callable, node: Node) -> void:
 	_palettes()
 	_lips()
 	_worlds()
+	_decor()
 	await _static_layers()
 	await _backings()
 	DirAccess.remove_absolute(PROFILE)
@@ -394,6 +398,192 @@ func _game_with(extra: PackedStringArray) -> MazeMain:
 	m.args = PackedStringArray(["--profile=" + PROFILE]) + extra
 	_node.add_child(m)
 	return m
+
+
+## A5: decor rules D1 to D8 and determinism on every shipped level, every world and a random fixture
+func _decor() -> void:
+	var pinned := {}
+	var rules_ok := {}
+	for rule in ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "B"]:
+		rules_ok[rule] = true
+	var levels: Array[MazeLevel] = []
+	for id in MazeLevels.ids():
+		levels.append(MazeLevels.load_level(id))
+	levels.append(_random_level())
+	var combos := 0
+	var kinds := {}
+	for lv in levels:
+		for w in MazeWorlds.COUNT:
+			combos += 1
+			var before := lv.render()
+			var items := MazeDecor.plan(lv, w)
+			for it in items:
+				kinds[it["kind"]] = true
+			for rule in _decor_violations(lv, w, items):
+				rules_ok[rule] = false
+			rules_ok["D6"] = rules_ok["D6"] and items == MazeDecor.plan(lv, w) and lv.render() == before
+			if lv.id == "l001":
+				pinned[w] = _signature(items)
+	for rule: String in rules_ok:
+		_check.call(rules_ok[rule], "A5 decor rule %s holds on every level, world and the random map" % rule)
+	_check.call(kinds.size() == MazeDecor.KINDS_BACK.size() + 1, "A5 every decor kind occurs (%d)" % kinds.size())
+	_check.call(combos == (MazeLevels.ids().size() + 1) * MazeWorlds.COUNT, "A5 %d combinations checked" % combos)
+	_check.call(pinned == DECOR_PINS, "A5 decor of l001 is pinned per world (%s)" % str(pinned))
+	_decor_primitives()
+
+
+## signature of a plan: item count per kind, the same on every platform
+func _signature(items: Array[Dictionary]) -> String:
+	var counts := {}
+	for it in items:
+		counts[it["kind"]] = int(counts.get(it["kind"], 0)) + 1
+	var keys: Array = counts.keys()
+	keys.sort()
+	var out := ""
+	for k in keys:
+		out += "%s:%d " % [k, counts[k]]
+	return out.strip_edges()
+
+
+## 64 x 64 map of random cells, S and F placed, from a fixed seed
+func _random_level() -> MazeLevel:
+	var rng := WhiteRng.from_text("decor-fixture")
+	var edits := {}
+	for y in 64:
+		for x in 64:
+			var r := rng.range_int(0, 99)
+			edits[Vector2i(x, y)] = "." if r < 62 else ("#" if r < 90 else ("X" if r < 95 else "^"))
+	var rows: Array = H.rows(64, 64, edits)
+	var lv := H.level(rows)
+	lv.id = "random"
+	return lv
+
+
+## names of the broken rules for one plan
+func _decor_violations(lv: MazeLevel, world: int, items: Array[Dictionary]) -> Array[String]:
+	var bad: Array[String] = []
+	var back := 0
+	var pal := MazeWorlds.palette(world)
+	var order := items.duplicate()
+	order.sort_custom(MazeDecor._before)
+	if order != items:
+		bad.append("D6")
+	for it in items:
+		var kind: String = it["kind"]
+		var c: Vector2i = it["cell"]
+		if it["layer"] == "tiles":
+			if lv.cell(c.x, c.y) != MazeLevel.Cell.SOLID:
+				bad.append("D5")
+			continue
+		back += 1
+		var fp := MazeDecor.footprint(it)
+		for y in range(fp.position.y, fp.end.y):
+			for x in range(fp.position.x, fp.end.x):
+				var inside := x >= 0 and y >= 0 and x < lv.width and y < lv.height
+				if not inside or lv.cell(x, y) != MazeLevel.Cell.EMPTY:
+					bad.append("D1")
+					continue
+				var near_start := maxi(absi(x - lv.spawn.x), absi(y - lv.spawn.y)) <= MazeDecor.SPAWN_CLEAR
+				if near_start or (absi(x - lv.finish.x) <= 1 and absi(y - lv.finish.y) <= 1):
+					bad.append("D1")
+				if lv.cell(x, y + 1) == MazeLevel.Cell.SPIKE:
+					bad.append("D2")
+		if kind == "torch" or kind == "glow":
+			var solid_next := (
+				lv.solid(c.x - 1, c.y) or lv.solid(c.x + 1, c.y) or lv.solid(c.x, c.y - 1) or lv.solid(c.x, c.y + 1)
+			)
+			var near_door := maxi(absi(c.x - lv.finish.x), absi(c.y - lv.finish.y)) < MazeDecor.DOOR_CLEAR
+			if solid_next or near_door:
+				bad.append("D3")
+		if kind == "sand" and not (lv.solid(c.x, c.y + 1) and (lv.solid(c.x - 1, c.y) or lv.solid(c.x + 1, c.y))):
+			bad.append("D4")
+		if kind == "vine" and not lv.solid(c.x, c.y - 1):
+			bad.append("D4")
+		if not _decor_shapes_ok(it, pal):
+			bad.append("D8")
+	var empty := 0
+	for v in lv.cells:
+		if v == MazeLevel.Cell.EMPTY:
+			empty += 1
+	if back * 100 > empty * MazeDecor.BACK_LIMIT_PER_100:
+		bad.append("D7")
+	for it in items:
+		if it["layer"] == "back" and not _kind_in_world(it["kind"], world):
+			bad.append("B")
+	return bad
+
+
+func _kind_in_world(kind: String, world: int) -> bool:
+	var allowed := {
+		"pillar": [0], "relief": [0], "sand": [0], "torch": [0, 1], "arch": [1], "vine": [1], "glow": [2], "spot": [2],
+	}
+	return world in allowed.get(kind, [])
+
+
+## D8 on the primitives: opaque shapes stay in the footprint, no polygon corner sharper than 80 degrees, no hairlines
+func _decor_shapes_ok(it: Dictionary, pal: Dictionary) -> bool:
+	var area := Rect2(Vector2(MazeDecor.footprint(it).position) * 40.0, Vector2(MazeDecor.footprint(it).size) * 40.0)
+	for s in MazeDecor.shapes(it, pal):
+		if s.get("glow", false):
+			continue
+		if not area.grow(0.01).encloses(MazeDecor.bounds([s], true)):
+			return false
+		if s["t"] == "poly" and _sharpest(s["pts"]) < 80.0:
+			return false
+		if s.has("w") and s["w"] < 2.0:
+			return false
+	return true
+
+
+## smallest interior corner of a simple polygon, degrees
+func _sharpest(pts: PackedVector2Array) -> float:
+	var low := 180.0
+	var n := pts.size()
+	for i in n:
+		var a := pts[(i + n - 1) % n] - pts[i]
+		var b := pts[(i + 1) % n] - pts[i]
+		low = minf(low, absf(rad_to_deg(a.angle_to(b))))
+	return low
+
+
+## specks, tufts and the pinned hash values; tufts and specks are deterministic and stay inside their cell
+func _decor_primitives() -> void:
+	var pal := MazeWorlds.palette(MazeWorlds.World.JUNGLE)
+	var inside := true
+	var tall := true
+	var steady := true
+	var blades := 0
+	var specks_ok := true
+	for y in 12:
+		for x in 12:
+			var cell := Rect2(Vector2(x, y) * 40.0, Vector2(40, 40))
+			var tuft := MazeDecor.tuft_shapes(x, y, pal)
+			steady = steady and tuft == MazeDecor.tuft_shapes(x, y, pal)
+			blades += tuft.size()
+			for s in tuft:
+				var low: float = cell.end.y
+				for p: Vector2 in s["pts"]:
+					inside = inside and cell.grow(0.01).has_point(p)
+					low = minf(low, p.y)
+				tall = tall and cell.end.y - low <= 4.0 and s["col"] == pal["lip"]
+			var dots := MazeDecor.speck_shapes(x, y, pal)
+			specks_ok = specks_ok and dots.size() >= 1 and dots.size() <= 2 and dots == MazeDecor.speck_shapes(x, y, pal)
+			for d in dots:
+				var edge := cell.grow(-5.0)
+				specks_ok = specks_ok and edge.encloses(MazeDecor.bounds([d], true))
+	_check.call(blades > 0 and steady, "A5 tufts are deterministic")
+	_check.call(inside and tall, "A5 tufts stay in their cell, at most 4 px high, in the lip colour")
+	_check.call(specks_ok, "A5 specks: one or two, deterministic, 5 px clear of the cell edge")
+	var chunk_ok := true
+	for id in ["l001", "l009"]:
+		var lv := MazeLevels.load_level(id)
+		for w in MazeWorlds.COUNT:
+			var a := MazeStaticLayer.new()
+			a.build(lv, w, MazeStaticLayer.Kind.BACK)
+			var b := MazeStaticLayer.new()
+			b.build(lv, w, MazeStaticLayer.Kind.BACK)
+			chunk_ok = chunk_ok and a._back_items.size() == b._back_items.size()
+	_check.call(chunk_ok, "A5 two builds of a layer hold the same decor")
 
 
 ## A6, A8 with the real game screen

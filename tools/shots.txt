@@ -31,3 +31,7 @@ phone-small 960x432 --level=l007 --touch --safe=40,0,40,16
 phone-temple 960x432 --level=l003 --touch --safe=40,0,40,16 --keys=R30
 phone-jungle 960x432 --level=l005 --touch --safe=40,0,40,16
 fps 1280x720 --level=l001 --fps
+decor-temple 1280x720 --level=l004 --camera=overview --world=temple
+decor-jungle 1280x720 --level=l009 --camera=overview --world=jungle
+decor-cave 1280x720 --level=l009 --camera=overview
+decor-door 1280x720 --level=l004 --camera=door --world=jungle

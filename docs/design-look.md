@@ -530,3 +530,44 @@ time of step 1 (test report look step 2, M1). The fallback of 18.10 is built.
 - Frame rates, headless Chrome, software GL, 960 x 432, 8 s, rAF counter (box load varied between the two series):
   l001 step 1 43.7 / 35 (twice), step 2 14.6 / 13, now 55.4 / 43; l006 44.2 / 35, 17.5 / 15, 60.1 / 50;
   l009 36.1 / 30, 25.3 / 20.5, 47.2 / 46.7. Now above step 1 on every level.
+
+## 18.20 Deviations as built, step 3 (card #025)
+
+- Decor lives in `MazeDecor` (`ui/decor.gd`) as two pure parts: `plan(level, world)` (items, D1 to D7) and
+  `shapes(item, palette)` (primitives `poly`, `line`, `polyline`, `circle` in world px). `footprint(item)` gives the cells
+  an item covers; `bounds(list)` the pixel rect. The static layer turns the primitives into draw calls, so the tests
+  look at the same data that is drawn. Item dictionaries have the keys of 18.8; `size` is 3 for `relief`, 4 for `arch`,
+  the run length for `pillar` and `vine`, else 1.
+- Specks and tufts are not plan items: `MazeDecor.speck_shapes` and `tuft_shapes` are called per cell from the layer.
+  Specks sit 8 px inside the cell edge so they never touch a lip. A tuft is drawn in the empty cell above an up lip face
+  (jungle only), from that cell's own chunk, so a chunk edge never cuts it; 3 to 5 blades of 2 px width, 2 to 4 px high,
+  in `lip`; none in the `S` or `F` cell.
+- Back items spanning more than one chunk or glowing past their cell are drawn by every chunk they touch (as the door
+  glow of 18.19); a baked chunk clips at its edge, so the seam is invisible.
+- Order of placement: pillar, relief, arch, torch, glow, vine, sand, spot. Footprints never overlap; a later kind skips a
+  taken cell. Spacing (relief, arch 12 columns, torch 6, glow 4) counts columns between items of the same kind.
+- D7 is enforced, not hoped for: when the plan exceeds 8 back items per 100 empty cells, the items with the highest
+  `hash3(cell, SALT_TRIM + kind)` are dropped. The random 64 x 64 fixture needs it; the shipped levels stay below.
+- Stricter than D1: no back item within two cells of the start (Lilith reads first), and `torch` and `glow` (light) stay
+  at least five cells from the door (the door glow reads first). Tested with D1 and D3.
+- Chances changed on the shots: cave `glow` 4 % (design 6 %) and `spot` 3 % (design 5 %), the cave read as dotted with
+  the design values; cave `glow` gets 4 columns between items. The cave glow is three stacked discs (r 40, 28, 16, alpha
+  0.03 each) instead of one at 0.08, so the rim of the disc is not a hard edge.
+- `crack`: chance 25 % in the temple, 12 % in the jungle (its joints are already busy), none in the cave (the joint
+  pattern of 18.18 already is a crack).
+- Arch: the arc is a quarter-turn short on the right and has no right jamb; a lone jamb stump read as a pin.
+- `sand`: a 14 x 6 px mound as a quarter ellipse of 16 steps, `detail` at alpha 0.3, so no corner is sharper than 80
+  degrees and it stays well below the lip in luminance. It sits in the cell in front of a floor lip face, under the ring
+  when a ring is placed there; the ring is drawn above it.
+- Vines hang under a ceiling block, in front of its down lip face; the vine is low contrast (`back_decor`), a ring drawn
+  there is on top and reads as before. Not moved under `X` only, that would leave the jungle almost without vines.
+- D8 is tested on the primitives: opaque shapes stay inside the footprint, no polygon corner is sharper than 80
+  degrees, no line is thinner than 2 px. Whether something looks like a spike or a ledge stays a review item.
+- Tests (`art_tests.gd`, A5): D1 to D8, the world of every kind, determinism (two plans equal, `render()` unchanged),
+  every kind occurs, pinned counts of l001 per world (`DECOR_PINS`), tuft and speck geometry, equal decor on two builds;
+  over the 9 levels in 3 worlds plus a 64 x 64 random map. 16 new checks, `MIN_CHECKS` 1029.
+- Baked memory is unchanged (same chunks, same size); the test of 24 MB per level stays as it was.
+- Frame rate, headless Chrome, software GL, `taskset -c 0-3`, 960 x 432, 5 s warm, 8 s measured, rAF counter, three runs
+  each, same machine state, develop 6495019 against this step: l001 31.1 and 31.4, l006 36.9 and 37.6, l009 33.6 and
+  33.9. No difference beyond noise.
+- Added shots: `decor-temple`, `decor-jungle`, `decor-cave` (overview of l004 and l009) and `decor-door`.
