@@ -364,7 +364,23 @@ Play in a desktop browser (web export), and on a phone if possible, on a 60 Hz s
 
 ## 20.10 Deviations as built
 
-(Filled in by the developer, card #029.)
+Built as designed (card #029, branch `feature/feel-pass`, game tests 1099 checks, `MIN_CHECKS` 1099). No rule, tuning
+value, level or solution changed; `git diff b0c5c23 -- sim/ levels/ tests/solutions.json` is empty and
+`tools/check_levels.gd` exits 0 with every solution within par. Points the design left open:
+
+- `aim-frame` is `--level=l001 --keys=R60 --aim=0`: the ring on the far wall is 416 px from Lilith and outside the
+  follow view, inside the reach of 480 px (20.5.3). The shot shows the framed ring with Lilith in view.
+- `MazeWorldView.player_params()` is public: `_draw_player` was split so that the pose, the blend and `last_rig` are
+  computed without drawing. F4 and F5 call it after every `MazeGame.advance`; the draw calls the same function.
+- `MazeGame` has `SPEED_MIN_PCT` (50) and `SPEED_MAX_PCT` (150) next to `SPEED_PCT`; `MazeMain.parse_args` reads them.
+- Death age uses `_death_tick` when set, else `sim.tick - (DEATH_TICKS - dead_ticks)`, so a view without the death
+  event still fades correctly.
+- F7 and F8 are in `tests/art_tests.gd` (next to A2 and A3), F1 and F2 and F4 to F6 in `tests/feel_tests.gd`. F8 samples
+  6 of the 144 aim directions, three phases and three throw progressions per pose pair.
+- F5 result on l001 (a scripted walk, jump, aim and throw, then the solution with its ring launches, 1831 measured
+  frames of 1/120 s): largest joint step 1.95 px (`far_foot`), largest tilt step 1.40 degrees.
+- Existing tests that assume 60 ticks per second pass `--speed=100` (A1, CAM10 to CAM13, `ui_tests.gd`,
+  `screens_tester_tests.gd`).
 
 ## 20.11 Open points for the owner
 

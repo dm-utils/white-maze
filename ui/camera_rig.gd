@@ -4,9 +4,9 @@ extends RefCounted
 ## No nodes, input or time source; MazeGame feeds one frame at a time and copies the result into a Camera2D.
 
 const TILE := 40.0
-const VIEW_H_TILES := 10.0
+const VIEW_H_TILES := 9.0
 const MIN_VIEW_W_TILES := 16.0
-const FEET_Y := 0.68 # ground anchor height in the play rect, fraction from its top
+const FEET_Y := 0.70 # ground anchor height in the play rect, fraction from its top
 const LOOK_X := 120.0
 const LOOK_SPEED := 180.0
 const LOOK_MIN_VX := 60.0
@@ -14,12 +14,12 @@ const LOOK_TURN_S := 0.2
 const X_RATE := 7.0
 const Y_RATE := 3.5
 const GUARD_X := 120.0
-const GUARD_TOP := 60.0
-const GUARD_BOTTOM := 100.0
+const GUARD_TOP := 40.0
+const GUARD_BOTTOM := 96.0
 const GUARD_BOTTOM_FALL := 160.0
 const GUARD_SPEED := 300.0
 const FALL_MIN := 40.0
-const AIM_MARGIN := 60.0
+const AIM_MARGIN := 40.0
 const AIM_RATE := 6.0
 const AIM_GRACE_S := 0.15 # real time: a throw reaches the sim up to a few frames after the key release
 const INTRO_HOLD_S := 0.8
@@ -39,7 +39,7 @@ var _level := Vector2(1280, 720)
 var _canvas := Vector2(1280, 720)
 var _band := 110.0
 var _door := Vector2.ZERO
-var _z := 1.8
+var _z := 2.0
 var _pw := 711.0
 var _ph := 339.0
 var _g_top := GUARD_TOP
@@ -68,7 +68,7 @@ var _overview := false
 var _ov := 0.0
 
 var _final_c := Vector2.ZERO
-var _final_z := 1.8
+var _final_z := 2.0
 
 
 static func target_zoom(canvas: Vector2) -> float:

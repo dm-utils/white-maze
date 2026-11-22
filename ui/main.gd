@@ -3,11 +3,13 @@ extends Control
 ## Root scene: parses the debug arguments, opens the profile and switches between level select and game.
 ## Debug (after --): --level=<id> --all-levels --lang=nl|en --touch --safe=l,t,r,b --profile=<path> --print-run
 ## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
+## --speed=<50-150> (percent of 60 ticks per second, overrides the level curve)
 ## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
 const SHOT_WAIT_S := 0.5
-const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch"] # no profile path, shot or solve from a URL
+# no profile path, shot or solve from a URL
+const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch", "speed"]
 const QUERY_FLAGS := ["fps", "touch"]
 
 var args := PackedStringArray()
@@ -47,6 +49,7 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 	var o := {
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
 		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
+		"speed": 0,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -79,6 +82,14 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 				o["world"] = w
 			else:
 				push_warning("--world: unknown world '%s'" % w)
+		elif a.begins_with("--speed="):
+			var v := a.get_slice("=", 1)
+			var lo := MazeGame.SPEED_MIN_PCT
+			var hi := MazeGame.SPEED_MAX_PCT
+			if v.is_valid_int() and int(v) >= lo and int(v) <= hi:
+				o["speed"] = int(v)
+			else:
+				push_warning("--speed: expected %d to %d, got '%s'" % [lo, hi, v])
 		elif a == "--fps":
 			o["fps"] = true
 		elif a.begins_with("--camera="):
@@ -132,7 +143,7 @@ func _debug_game_options() -> Dictionary:
 	return {
 		"keys": opts["keys"], "solve": opts["solve"], "aim": opts["aim"], "pause": opts["pause"],
 		"shot": opts["shot_mode"], "print_run": opts["print_run"], "touch": opts["touch"], "safe": opts["safe"],
-		"camera": opts["camera"], "world": opts["world"], "fps": opts["fps"],
+		"camera": opts["camera"], "world": opts["world"], "fps": opts["fps"], "speed": opts["speed"],
 	}
 
 

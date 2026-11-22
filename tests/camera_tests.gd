@@ -95,13 +95,13 @@ func _zoom() -> void:
 	var z2 := MazeCameraRig.target_zoom(PHONE)
 	var z3 := MazeCameraRig.target_zoom(TABLET)
 	_check.call(
-		is_equal_approx(z1, 1.8) and is_equal_approx(z2, 1.8),
-		"CAM1 zoom is 1.8 on 16:9 and 20:9 (%f, %f)" % [z1, z2]
+		is_equal_approx(z1, 2.0) and is_equal_approx(z2, 2.0),
+		"CAM1 zoom is 2.0 on 16:9 and 20:9 (%f, %f)" % [z1, z2]
 	)
 	_check.call(is_equal_approx(z3, 2.0), "CAM1 zoom is 2.0 on 4:3 (%f)" % z3)
 	_check.call(
-		32.0 * z1 / DESKTOP.y >= 0.075 and 32.0 * z2 / PHONE.y >= 0.075,
-		"CAM1 Lilith is at least 7.5 % of the height"
+		32.0 * z1 / DESKTOP.y >= 0.085 and 32.0 * z2 / PHONE.y >= 0.085,
+		"CAM1 Lilith is at least 8.5 % of the height"
 	)
 	_check.call(32.0 * z3 / TABLET.y >= 0.065, "CAM1 Lilith is at least 6.5 % of the height on 4:3")
 	var l001 := Vector2(48, 14) * 40.0
@@ -226,8 +226,9 @@ func _launch() -> void:
 	_check.call(sim.grounded and sim.py == 13 * 40000, "CAM5 the player landed on the ledge")
 	for i in 120:
 		_tick(sim, r, H.inp())
-	var ph := (DESKTOP.y - BAND) / 1.8
-	var target := 13.0 * 40.0 - (MazeCameraRig.FEET_Y - 0.5) * ph - BAND / 3.6
+	var z := MazeCameraRig.target_zoom(DESKTOP)
+	var ph := (DESKTOP.y - BAND) / z
+	var target := 13.0 * 40.0 - (MazeCameraRig.FEET_Y - 0.5) * ph - BAND / (2.0 * z)
 	_check.call(
 		absf(r.view_centre().y - target) <= 2.0,
 		"CAM5 the view settles on the ledge within 2 s (%.2f)" % (r.view_centre().y - target)
@@ -368,10 +369,11 @@ func _snap() -> void:
 	var sim := MazeSim.new(lv)
 	var r := _rig(lv)
 	r.snap(_frame(sim))
-	var ph := (DESKTOP.y - BAND) / 1.8
+	var z := MazeCameraRig.target_zoom(DESKTOP)
+	var ph := (DESKTOP.y - BAND) / z
 	var want := Vector2(
 		10.0 * 40.0 + 20.0 + MazeCameraRig.LOOK_X,
-		18.0 * 40.0 - (MazeCameraRig.FEET_Y - 0.5) * ph - BAND / 3.6
+		18.0 * 40.0 - (MazeCameraRig.FEET_Y - 0.5) * ph - BAND / (2.0 * z)
 	)
 	_check.call(
 		r.view_centre().distance_to(want) < 0.01,
@@ -465,7 +467,7 @@ func _clean() -> void:
 func _main(extra: Array = []) -> MazeMain:
 	var m: MazeMain = load("res://ui/main.tscn").instantiate()
 	m.use_cmdline = false
-	m.args = PackedStringArray(["--profile=" + PROFILE]) + PackedStringArray(extra)
+	m.args = PackedStringArray(["--profile=" + PROFILE, "--speed=100"]) + PackedStringArray(extra)
 	_node.add_child(m)
 	return m
 

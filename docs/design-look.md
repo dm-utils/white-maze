@@ -125,6 +125,8 @@ static func contrast(a: Color, b: Color) -> float                  # (L1 + 0.05)
 
 ### 18.6.1 Figure
 
+Changed by section 20 (`docs/design-feel.md`): hair colour and the rig the shapes are built from.
+
 Local coordinates: origin at the feet centre (the simulation's `px, py`), `y` up is negative, facing right; the view
 mirrors with `draw_set_transform(pos, 0, Vector2(facing, 1))`. Sizes in px at a hitbox of 30 x 32.
 
@@ -151,6 +153,8 @@ mirrors with `draw_set_transform(pos, 0, Vector2(facing, 1))`. Sizes in px at a 
   `x in [-19, 15]`, `y in [-34, 0]` (behind and slightly above, never in front of the face).
 
 ### 18.6.2 Poses and animation
+
+Changed by section 20 (`docs/design-feel.md`): render time, pose blending, stride length.
 
 `MazeLilith` (`ui/lilith.gd`, pure, no nodes) separates the choice of pose from the drawing so both are testable:
 

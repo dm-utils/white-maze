@@ -3,7 +3,8 @@
 Status: phase 1 (playable prototype) is built: the headless core (card #002, par counts rings used per ADR 0009) and
 the screens, controls, profile store, screenshots and the Pages deploy (cards #004 and #006); deviations in sections 14
 and 16; levels 4 to 9 in section 17. Section 18 (`docs/design-look.md`, ADR 0010) designs the look and feel of the
-adventure world and is not built yet. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
+adventure world; section 20 (`docs/design-feel.md`, ADR 0012) is the feel pass: 9 tiles of camera height, game speed
+per level and a smoother Lilith with orange hair. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
 **[later]**; they are not built in phase 1.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
@@ -1403,6 +1404,7 @@ One preset `Web`, copied from White Sum's: `export_filter="all_resources"`, `inc
 | `--aim=<index>` | With `--level`: show the aim preview for this index (frozen). |
 | `--pause` | With `--level`: open the pause overlay. |
 | `--camera=door\|overview` | With `--level`: frozen door view or full overview (section 19.11). |
+| `--speed=<pct>` | Whole number 50 to 150: game speed in percent of 60 ticks per second for every level, instead of the curve of 20.6. Other values: warning, ignored. Also a web query key (`?speed=90`). |
 | `--shot=<png>` | Screenshot mode: no profile read or write, simulation frozen after `--keys`/`--solve`, no camera smoothing; wait 0.5 s and one drawn frame, save the viewport to the PNG, quit. |
 
 ### 10.5 Screenshot scenarios (`tools/shots.txt`)
@@ -1710,3 +1712,9 @@ build steps for cards #013 and later.
 
 See `docs/design-camera.md` (section 19, ADR 0011): zoomed follow camera, overview, intro pan; replaces the camera
 bullet of 8.3 and the camera deviation of 16.1.
+
+## 20. Feel
+
+See `docs/design-feel.md` (section 20, ADR 0012): camera of 9 tiles of height, game speed per level (time scale, the
+simulation is untouched), smoother Lilith (render time, pose blending) with orange hair; changes the constants of 19.5
+and the figure of 18.6.

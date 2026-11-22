@@ -3,7 +3,7 @@ extends Node2D
 ## Static world drawn once into one texture per chunk (back wall and tiles together), then one sprite per chunk.
 ## Replaces thousands of cached canvas commands per frame by a few quads (design 18.10, ADR 0010).
 
-const SCALE := 2.0 # texels per world px; camera zoom is 1.8 to 2.0
+const SCALE := 2.0 # texels per world px; camera zoom is 2.0
 const BYTES_PER_PX := 4
 
 var baked_bytes := 0 # texture memory of the current level

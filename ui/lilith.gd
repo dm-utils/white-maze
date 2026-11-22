@@ -7,16 +7,17 @@ enum Body { IDLE, RUN, JUMP, LAUNCH, FALL, DEAD }
 enum Arm { REST, AIM, THROW, UP }
 
 const RUN_MIN_VX := 500 # units per tick
-const STRIDE_PX := 28.0
+const STRIDE_PX := 48.0
 const LAND_TICKS := 6
 const THROW_TICKS := 10
 const DEAD_TILT_TICKS := 12
 const DEAD_TILT_MAX := 70.0 # degrees
 const LAUNCH_TILT_MAX := 8.0 # degrees
+const HIP_LIFT := Vector2(0.0, -2.5)
 const TAIL_BOUNDS := Rect2(-19.0, -34.0, 34.0, 34.0)
 
 const SKIN := Color("#D9A07A")
-const HAIR := Color("#3A2418")
+const HAIR := Color("#C4701A")
 const EYE := Color("#1E1A18")
 const HEADBAND := Color("#E0306E")
 const JACKET := Color("#2F7F86")
@@ -71,18 +72,13 @@ static func arm_mode(aiming: bool, ticks_since_throw: int, body: int) -> int:
 	return Arm.REST
 
 
-## ordered shape list, outlines first. Keys of p: body, arm, phase, tick, aim_angle (radians, local frame),
-## throw_k, squash_k, dead_k, vel (px/s, local frame), slots, filled, fade (optional, alpha factor)
-static func shapes(p: Dictionary) -> Array[Dictionary]:
+## joints of the figure for a pose, local frame; shapes() builds the figure from these. Keys of p as for shapes()
+static func rig(p: Dictionary) -> Dictionary:
 	var body: int = p.get("body", Body.IDLE)
 	var arm: int = p.get("arm", Arm.REST)
 	var phase: float = p.get("phase", 0.0)
-	var tick: int = p.get("tick", 0)
+	var tick: float = p.get("tick", 0.0)
 	var vel: Vector2 = p.get("vel", Vector2.ZERO)
-	var fade: float = p.get("fade", 1.0)
-	var slots: int = clampi(p.get("slots", 0), 0, SLOT_MAX)
-	var filled: int = clampi(p.get("filled", 0), 0, slots)
-
 	# upper body offset, always downwards so the head stays under y = -32
 	var drop := 0.0
 	var tilt := 0.0
@@ -93,11 +89,43 @@ static func shapes(p: Dictionary) -> Array[Dictionary]:
 			drop = 0.5 - 0.5 * cos(phase * TAU * 2.0)
 		Body.LAUNCH:
 			tilt = deg_to_rad(clampf(vel.x / TAIL_SPEED_FULL, -1.0, 1.0) * LAUNCH_TILT_MAX)
+	var legs := _legs(body, phase)
+	return {
+		"near_foot": legs["near_foot"], "far_foot": legs["far_foot"],
+		"hand_near": _hand(arm, body, phase, p, SHOULDER), "hand_far": _hand_far(arm, body, phase),
+		"drop": drop, "tilt": tilt, "hair_up": 1.0 if body == Body.FALL else 0.0,
+	}
+
+
+## per key linear mix of two rigs, k in 0..1
+static func blend_rig(a: Dictionary, b: Dictionary, k: float) -> Dictionary:
+	var out := {}
+	for key: String in a:
+		out[key] = lerpf(a[key], b[key], k) if a[key] is float else (a[key] as Vector2).lerp(b[key], k)
+	return out
+
+
+## ordered shape list, outlines first. Keys of p: body, arm, phase, tick (float, render time), aim_angle (radians,
+## local frame), throw_k, squash_k, dead_k, vel (px/s, local frame), slots, filled, fade (optional, alpha factor),
+## rig (optional, blended joints; default rig(p))
+static func shapes(p: Dictionary) -> Array[Dictionary]:
+	var body: int = p.get("body", Body.IDLE)
+	var arm: int = p.get("arm", Arm.REST)
+	var tick: float = p.get("tick", 0.0)
+	var vel: Vector2 = p.get("vel", Vector2.ZERO)
+	var fade: float = p.get("fade", 1.0)
+	var slots: int = clampi(p.get("slots", 0), 0, SLOT_MAX)
+	var filled: int = clampi(p.get("filled", 0), 0, slots)
+
+	var r: Dictionary = p["rig"] if p.has("rig") else rig(p)
+	var drop: float = r["drop"]
+	var tilt: float = r["tilt"]
 	var up_off := Vector2(0.0, drop)
 
-	var legs := _legs(body, phase)
-	var hand_near := _hand(arm, body, phase, p, SHOULDER)
-	var hand_far := _hand_far(arm, body, phase)
+	var near_foot: Vector2 = r["near_foot"]
+	var far_foot: Vector2 = r["far_foot"]
+	var hand_near: Vector2 = r["hand_near"]
+	var hand_far: Vector2 = r["hand_far"]
 
 	var out: Array[Dictionary] = []
 	# tails first: behind the head
@@ -107,10 +135,10 @@ static func shapes(p: Dictionary) -> Array[Dictionary]:
 	# far limbs
 	out.append(_line(PackedVector2Array([SHOULDER_FAR + up_off, hand_far]), 3.0, JACKET_SHADOW, "arm"))
 	out.append(_circle(hand_far, 1.4, SKIN, "arm"))
-	out.append(_line(PackedVector2Array([Vector2(-3.5, -11.5), legs["far_hip_to"]]), 4.0, TROUSERS_FAR, "leg"))
-	out.append(_poly(_boot(legs["far_foot"]), BOOTS, "leg"))
-	out.append(_line(PackedVector2Array([Vector2(3.5, -11.5), legs["near_hip_to"]]), 4.0, TROUSERS, "leg"))
-	out.append(_poly(_boot(legs["near_foot"]), BOOTS, "leg"))
+	out.append(_line(PackedVector2Array([Vector2(-3.5, -11.5), far_foot + HIP_LIFT]), 4.0, TROUSERS_FAR, "leg"))
+	out.append(_poly(_boot(far_foot), BOOTS, "leg"))
+	out.append(_line(PackedVector2Array([Vector2(3.5, -11.5), near_foot + HIP_LIFT]), 4.0, TROUSERS, "leg"))
+	out.append(_poly(_boot(near_foot), BOOTS, "leg"))
 	# torso block
 	var upper: Array[Dictionary] = []
 	upper.append(_poly(_rrect(-12.0, -16.0, -6.0, -9.0, 1.5), SATCHEL, "body"))
@@ -133,7 +161,7 @@ static func shapes(p: Dictionary) -> Array[Dictionary]:
 		upper.append(_circle(bp, 1.9, BEAD, "bead"))
 	# head
 	upper.append(_circle(HEAD_C, HEAD_R, SKIN, "head"))
-	upper.append(_poly(_hair(body == Body.FALL), HAIR, "hair"))
+	upper.append(_poly(_hair(float(r["hair_up"])), HAIR, "hair"))
 	upper.append(_circle(Vector2(4.2, -25.5), 0.9, EYE, "head"))
 	upper.append(_line(PackedVector2Array([Vector2(-5.0, -28.5), Vector2(7.0, -28.5)]), 2.0, HEADBAND, "band"))
 	for s in upper:
@@ -194,10 +222,7 @@ static func _legs(body: int, phase: float) -> Dictionary:
 		Body.DEAD:
 			near = Vector2(5.0, -2.5)
 			far = Vector2(-5.0, -2.5)
-	return {
-		"near_foot": near, "far_foot": far,
-		"near_hip_to": near + Vector2(0.0, -2.5), "far_hip_to": far + Vector2(0.0, -2.5),
-	}
+	return {"near_foot": near, "far_foot": far}
 
 
 static func _stride(hip_x: float, phase: float) -> Vector2:
@@ -243,8 +268,8 @@ static func _hand_far(arm: int, body: int, phase: float) -> Vector2:
 	return sh + Vector2(-0.5, ARM_LEN)
 
 
-static func _hair(tips_up: bool) -> PackedVector2Array:
-	var back := Vector2(-8.0, -30.5) if tips_up else Vector2(-6.8, -27.0)
+static func _hair(hair_up: float) -> PackedVector2Array:
+	var back := Vector2(-6.8, -27.0).lerp(Vector2(-8.0, -30.5), hair_up)
 	return PackedVector2Array(
 		[
 			Vector2(-6.5, -22.0), back, Vector2(-4.5, -30.6), Vector2(0.0, -31.8), Vector2(4.5, -31.0),
@@ -254,7 +279,7 @@ static func _hair(tips_up: bool) -> PackedVector2Array:
 
 
 ## three points per tail from the knot, opposite to the velocity (down and back at rest)
-static func _tails(vel: Vector2, tick: int, knot: Vector2) -> Array[PackedVector2Array]:
+static func _tails(vel: Vector2, tick: float, knot: Vector2) -> Array[PackedVector2Array]:
 	var speed := vel.length()
 	var dir := Vector2(-0.6, 0.8).normalized()
 	if speed > TAIL_MIN_SPEED:

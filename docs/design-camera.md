@@ -37,6 +37,8 @@ scroll as you progress).
 
 ## 19.4 Zoom
 
+Changed by section 20 (`docs/design-feel.md`): 9 tiles of height, zoom 2.0 on 16:9.
+
 One fixed zoom per screen size, the **target zoom**. It does not change while playing, except for the overview (19.8).
 
 ```
