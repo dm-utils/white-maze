@@ -3,21 +3,7 @@ extends Node2D
 ## Draws the level, rings, beads, player and aim preview from a MazeSim (design 8.1, 4.5). Never changes the sim.
 
 const TILE := 40.0
-const GRID := Color("#20252D")
-const SOLID := WhiteTheme.BUTTON["normal"]
-const EDGE := WhiteTheme.BUTTON["pressed"]
-const EDGE_W := 4.0
-const NO_RING_FILL := Color("#20252D")
-const HATCH := Color("#343B48")
-const HATCH_STEP := 10
-const SPIKE := WhiteTheme.BUTTON["pressed"]
-const DOOR_FRAME := WhiteTheme.BUTTON["pressed"]
-const DOOR_LIGHT := Color("#FFE7B0")
-const DOOR_POST := 5.0
-const DOOR_LINTEL := 6.0
-const DOOR_ALPHA_BOTTOM := 0.9
-const DOOR_ALPHA_TOP := 0.15
-const DOOR_GLOWS := [[34.0, 0.06], [22.0, 0.08]]
+const BASE_Z := 10
 const LILITH_SLOTS := 4
 const NEVER := -1000
 const RING_LEN := 38.0
@@ -25,6 +11,10 @@ const RING_THICK := 10.0
 const RING_STROKE := 5.0
 const RING_LIFT := 5.0 # ring centre sits this far in front of its face
 const RING_POINTS := 28
+const RING_GLOW := [[17.0, 0.08], [11.0, 0.18]] # width, alpha of the two halo strokes
+const RING_GLOW_FLASH := [[17.0, 0.25], [11.0, 0.5]]
+const BEAD_HALO_R := 11.0
+const BEAD_HALO_ALPHA := 0.2
 const FLASH_TICKS := 10
 const FADE_IN_TICKS := 10
 const BEAD_R := 7.0
@@ -45,6 +35,11 @@ var aim_index := -1 # >= 0 while aiming
 var view_rect := Rect2() # world px visible below the HUD band (camera)
 var view_zoom := 1.0
 var overview_k := 0.0 # 0..1, weight of the overview view
+var world_id := MazeWorlds.World.TEMPLE
+var build_count := 0 # tests: static layers are built once per level
+
+var _back: MazeStaticLayer
+var _tiles: MazeStaticLayer
 
 var _flash := {}
 var _respawn_tick := NEVER
@@ -53,6 +48,10 @@ var _throw_tick := NEVER
 var _death_tick := NEVER
 var _throw_dir := Vector2.RIGHT # px, from the newest throw
 var _face := 1 # view-only facing: follows the aim and the throw
+
+
+func _init() -> void:
+	z_index = BASE_Z # layers sit at -2 and -1 relative to this, above the screen background
 
 
 ## effects that come from sim events
@@ -90,24 +89,34 @@ func player_centre() -> Vector2:
 	return Vector2(x, y - 16.0)
 
 
-func _visible_tiles() -> Rect2i:
-	var vr := get_canvas_transform().affine_inverse() * get_viewport_rect()
-	var l := clampi(floori(vr.position.x / TILE) - 1, 0, sim.level.width)
-	var t := clampi(floori(vr.position.y / TILE) - 1, 0, sim.level.height)
-	var r := clampi(ceili(vr.end.x / TILE) + 1, 0, sim.level.width)
-	var b := clampi(ceili(vr.end.y / TILE) + 1, 0, sim.level.height)
-	return Rect2i(l, t, r - l, b - t)
+## (re)creates the static layers for the current level and world; call once per level, not per attempt
+func build() -> void:
+	if _back == null:
+		_back = MazeStaticLayer.new()
+		_back.z_index = -2
+		add_child(_back)
+		_tiles = MazeStaticLayer.new()
+		_tiles.z_index = -1
+		add_child(_tiles)
+	_back.build(sim.level, world_id, MazeStaticLayer.Kind.BACK)
+	_tiles.build(sim.level, world_id, MazeStaticLayer.Kind.TILES)
+	build_count += 1
+
+
+## chunk draws of both static layers so far
+func static_draws() -> int:
+	return 0 if _back == null else _back.draws + _tiles.draws
+
+
+func chunk_count() -> int:
+	return 0 if _back == null else _back.chunk_count() + _tiles.chunk_count()
 
 
 func _draw() -> void:
 	if sim == null:
 		return
-	var vis := _visible_tiles()
-	_draw_grid(vis)
-	_draw_tiles(vis)
-	_draw_finish()
 	for r in sim.rings:
-		_draw_ring(r["cell"], r["face"], _ring_color(r))
+		_draw_ring(r["cell"], r["face"], _flashing(r))
 	_draw_beads()
 	_draw_player()
 	_draw_player_marker()
@@ -115,87 +124,9 @@ func _draw() -> void:
 		_draw_aim()
 
 
-func _draw_grid(vis: Rect2i) -> void:
-	for x in range(vis.position.x, vis.end.x + 1):
-		draw_line(Vector2(x * TILE, vis.position.y * TILE), Vector2(x * TILE, vis.end.y * TILE), GRID, 1.0)
-	for y in range(vis.position.y, vis.end.y + 1):
-		draw_line(Vector2(vis.position.x * TILE, y * TILE), Vector2(vis.end.x * TILE, y * TILE), GRID, 1.0)
-
-
-func _draw_tiles(vis: Rect2i) -> void:
-	var lv := sim.level
-	for y in range(vis.position.y, vis.end.y):
-		for x in range(vis.position.x, vis.end.x):
-			var c := lv.cell(x, y)
-			var o := Vector2(x * TILE, y * TILE)
-			match c:
-				MazeLevel.Cell.SOLID:
-					draw_rect(Rect2(o, Vector2(TILE, TILE)), SOLID)
-					_draw_edges(x, y, o)
-				MazeLevel.Cell.NO_RING:
-					draw_rect(Rect2(o, Vector2(TILE, TILE)), NO_RING_FILL)
-					_draw_hatch(o)
-				MazeLevel.Cell.SPIKE:
-					_draw_spikes(o)
-
-
-func _draw_edges(x: int, y: int, o: Vector2) -> void:
-	var lv := sim.level
-	if not lv.solid(x, y - 1):
-		draw_rect(Rect2(o, Vector2(TILE, EDGE_W)), EDGE)
-	if not lv.solid(x, y + 1):
-		draw_rect(Rect2(o + Vector2(0, TILE - EDGE_W), Vector2(TILE, EDGE_W)), EDGE)
-	if not lv.solid(x - 1, y):
-		draw_rect(Rect2(o, Vector2(EDGE_W, TILE)), EDGE)
-	if not lv.solid(x + 1, y):
-		draw_rect(Rect2(o + Vector2(TILE - EDGE_W, 0), Vector2(EDGE_W, TILE)), EDGE)
-
-
-func _draw_hatch(o: Vector2) -> void:
-	for t in range(HATCH_STEP, 2 * int(TILE), HATCH_STEP):
-		var a := Vector2(minf(t, TILE), maxf(0.0, t - TILE))
-		var b := Vector2(maxf(0.0, t - TILE), minf(t, TILE))
-		draw_line(o + a, o + b, HATCH, 1.0)
-
-
-func _draw_spikes(o: Vector2) -> void:
-	for i in 2:
-		var x := o.x + i * TILE / 2.0
-		var pts := PackedVector2Array(
-			[
-				Vector2(x + 1, o.y + TILE),
-				Vector2(x + TILE / 4.0, o.y + TILE / 2.0),
-				Vector2(x + TILE / 2.0 - 1, o.y + TILE),
-			]
-		)
-		draw_colored_polygon(pts, SPIKE)
-
-
-func _draw_finish() -> void:
-	var o := Vector2(sim.level.finish) * TILE
-	var mid := o + Vector2(TILE, TILE) / 2.0
-	for g in DOOR_GLOWS:
-		draw_circle(mid, g[0], Color(DOOR_LIGHT, g[1]))
-	var inner := Rect2(o + Vector2(DOOR_POST, DOOR_LINTEL), Vector2(TILE - 2.0 * DOOR_POST, TILE - DOOR_LINTEL))
-	var top := Color(DOOR_LIGHT, DOOR_ALPHA_TOP)
-	var bottom := Color(DOOR_LIGHT, DOOR_ALPHA_BOTTOM)
-	var corners := PackedVector2Array(
-		[
-			inner.position, Vector2(inner.end.x, inner.position.y),
-			inner.end, Vector2(inner.position.x, inner.end.y),
-		]
-	)
-	draw_polygon(corners, PackedColorArray([top, top, bottom, bottom]))
-	draw_rect(Rect2(o, Vector2(DOOR_POST, TILE)), DOOR_FRAME)
-	draw_rect(Rect2(o + Vector2(TILE - DOOR_POST, 0), Vector2(DOOR_POST, TILE)), DOOR_FRAME)
-	draw_rect(Rect2(o, Vector2(TILE, DOOR_LINTEL)), DOOR_FRAME)
-
-
-func _ring_color(r: Dictionary) -> Color:
+func _flashing(r: Dictionary) -> bool:
 	var t: Variant = _flash.get([r["cell"], r["face"]])
-	if t != null and sim.tick - int(t) < FLASH_TICKS:
-		return WhiteTheme.ACCENT
-	return WhiteTheme.TEXT
+	return t != null and sim.tick - int(t) < FLASH_TICKS
 
 
 ## point on the face centre, pushed out by lift
@@ -216,9 +147,13 @@ static func ring_points(centre: Vector2, face: int) -> PackedVector2Array:
 	return pts
 
 
-func _draw_ring(cell: Vector2i, face: int, color: Color) -> void:
+func _draw_ring(cell: Vector2i, face: int, flash: bool) -> void:
 	var centre := face_point(cell, face, RING_LIFT)
-	draw_polyline(ring_points(centre, face), color, RING_STROKE, true)
+	var pts := ring_points(centre, face)
+	var color := WhiteTheme.ACCENT if flash else MazeWorlds.RING
+	for g: Array in (RING_GLOW_FLASH if flash else RING_GLOW):
+		draw_polyline(pts, Color(color, g[1]), g[0], true)
+	draw_polyline(pts, color, RING_STROKE, true)
 	_draw_arrow(centre, face, Color(color, ARROW_ALPHA))
 
 
@@ -237,7 +172,8 @@ func _draw_beads() -> void:
 		var span := maxi(1, int(f["arrive_tick"]) - int(f["throw_tick"]))
 		var k := clampf((sim.tick - int(f["throw_tick"]) + alpha) / span, 0.0, 1.0)
 		var p := Vector2(f["from"]).lerp(Vector2(f["to"]), k) / 1000.0
-		draw_circle(p, BEAD_R, WhiteTheme.ACCENT)
+		draw_circle(p, BEAD_HALO_R, Color(MazeWorlds.RING, BEAD_HALO_ALPHA))
+		draw_circle(p, BEAD_R, MazeWorlds.RING)
 
 
 func _draw_player() -> void:
