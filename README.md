@@ -40,7 +40,9 @@ godot --path . -- --level=l001 --print-run
 ```
 
 In the web version the same debug arguments work as query parameters, for instance `?fps` for a frame rate label or
-`?fps&world=cave&level=l001` (keys: `fps`, `world`, `level`, `camera`, `lang`, `touch`, `speed`; `?speed=90` sets the game speed to 90 %).
+`?fps&world=cave&level=l001` (keys: `fps`, `world`, `level`, `camera`, `lang`, `touch`, `speed`, `lab`; `?speed=90` sets the game speed to 90 %).
+
+`--lab` (web: `?lab`) opens the test series with the sloped roofs, `levels/lab/`, with every card open; nothing is written to the profile. `?lab&level=lab01` starts the first lab level.
 
 Debug screenshots (needs `xvfb`; scenarios in `tools/shots.txt`):
 

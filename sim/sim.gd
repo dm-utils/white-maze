@@ -4,6 +4,8 @@ extends RefCounted
 ## per-tick MazeInput. Integers only; positions in units (1/1000 px), velocities per tick. No nodes, input, time or
 ## randomness in here (ADR 0002).
 
+enum Ground { NONE, FLAT, GENTLE, STEEP }
+
 const T := MazeTuning.TILE
 const HW := MazeTuning.PLAYER_W / 2
 
@@ -17,6 +19,7 @@ var vx := 0
 var vy := 0 # positive = down
 var facing := 1
 var grounded := false
+var ground := Ground.NONE # what the player stands on after the last step; grounded == (ground != NONE)
 var coyote := 0
 var buffer := 0
 var jumping := false
@@ -52,6 +55,17 @@ func alive() -> bool:
 	return dead_ticks == 0
 
 
+func sliding() -> bool:
+	return ground == Ground.STEEP
+
+
+## slope Cell under the centre when standing on a slope, else -1 (view)
+func ground_kind() -> int:
+	if ground != Ground.GENTLE and ground != Ground.STEEP:
+		return -1
+	return _slope_under(px, py).x
+
+
 func time_ticks() -> int:
 	if clock_start < 0:
 		return 0
@@ -63,8 +77,8 @@ func time_ticks() -> int:
 ## canonical text of all state except level and events, for determinism tests
 func snapshot() -> String:
 	var parts := PackedStringArray()
-	for v in [tick, px, py, prev_px, prev_py, vx, vy, facing, grounded, coyote, buffer, jumping, launched, lock_ticks,
-			dead_ticks, deaths, beads_left, rings_used, throw_count, clock_start, finish_tick]:
+	for v in [tick, px, py, prev_px, prev_py, vx, vy, facing, grounded, ground, coyote, buffer, jumping, launched,
+			lock_ticks, dead_ticks, deaths, beads_left, rings_used, throw_count, clock_start, finish_tick]:
 		parts.append(str(v))
 	for r in rings:
 		parts.append("r%s,%d,%s,%d,%d,%s" % [r["cell"], r["face"], r["preset"], r["order"], r["cooldown"], r["used"]])
@@ -105,19 +119,38 @@ func _respawn() -> void:
 	lock_ticks = 0
 	coyote = 0
 	buffer = 0
-	grounded = _is_grounded()
+	_compute_ground()
 
 
 func _box() -> Rect2i:
 	return Rect2i(px - HW, py - MazeTuning.PLAYER_H, MazeTuning.PLAYER_W, MazeTuning.PLAYER_H)
 
 
-func _is_grounded() -> bool:
-	var row := _fdiv(py, T)
-	for cx in range(_fdiv(px - HW, T), _fdiv(px + HW - 1, T) + 1):
-		if level.solid(cx, row):
-			return true
-	return false
+## (kind, row) of the slope cell in the column of x whose row is fdiv(y - 1, T) or fdiv(y, T), else (-1, 0)
+func _slope_under(x: int, y: int) -> Vector2i:
+	if level.slope_count == 0:
+		return Vector2i(-1, 0)
+	var cx := _fdiv(x, T)
+	for cy in [_fdiv(y - 1, T), _fdiv(y, T)]:
+		var kind := level.cell(cx, cy)
+		if MazeSlope.is_slope(kind):
+			return Vector2i(kind, cy)
+	return Vector2i(-1, 0)
+
+
+func _surface_at(u: Vector2i, x: int) -> int:
+	return MazeSlope.surface(u.x, u.y, x - _fdiv(x, T) * T)
+
+
+func _compute_ground() -> void:
+	var u := _slope_under(px, py)
+	if u.x >= 0 and py == _surface_at(u, px):
+		ground = Ground.STEEP if MazeSlope.steep(u.x) else Ground.GENTLE
+	elif posmod(py, T) == 0 and _solid_in_cols(py / T, px - HW, px + HW):
+		ground = Ground.FLAT
+	else:
+		ground = Ground.NONE
+	grounded = ground != Ground.NONE
 
 
 func _box_free(left: int, top: int, right: int, bottom: int) -> bool:
@@ -154,7 +187,7 @@ func step(input: MazeInput) -> void:
 	_horizontal(input)
 	_jump(input)
 	_gravity(input)
-	_move()
+	_move(input.move)
 	_launch_from_rings()
 	if _hazard_hit():
 		dead_ticks = MazeTuning.DEATH_TICKS
@@ -234,6 +267,17 @@ func _horizontal(input: MazeInput) -> void:
 	if lock_ticks > 0:
 		lock_ticks -= 1
 		return
+	if grounded and ground == Ground.STEEP:
+		var d := MazeSlope.downhill(ground_kind())
+		var goal := d * MazeTuning.SLIDE_SPEED
+		if move == d:
+			goal = d * MazeTuning.SLIDE_FAST
+		elif move == -d:
+			goal = d * MazeTuning.SLIDE_SLOW
+		vx = _approach(vx, goal, MazeTuning.SLIDE_ACCEL)
+		if move != 0:
+			facing = move
+		return
 	var same_dir := vx == 0 or (move != 0 and _sign(move) == _sign(vx))
 	var slow := absi(vx) <= MazeTuning.RUN_SPEED
 	if grounded:
@@ -273,11 +317,26 @@ func _gravity(input: MazeInput) -> void:
 	vy = mini(vy + g, MazeTuning.MAX_FALL)
 
 
-func _move() -> void:
+func _move(move: int) -> void:
+	var start := ground
 	var was_grounded := grounded
-	_move_x()
+	var vy_before := vy
+	var allow := MazeTuning.SLOPE_STEP if (start == Ground.GENTLE or start == Ground.STEEP) else 0
+	var ox := px
+	var oy := py
+	_move_x(allow)
+	if level.slope_count > 0 and _lift(allow):
+		px = ox
+		py = oy
+		vx = 0
 	var landed := _move_y()
-	grounded = _is_grounded()
+	_compute_ground()
+	if level.slope_count > 0 and was_grounded and vy >= 0:
+		if ground == Ground.NONE:
+			_snap(start, false)
+		elif ground == Ground.FLAT and (start == Ground.STEEP or start == Ground.GENTLE):
+			# leaving a slope past a block corner at the high end of the next one: follow the roof
+			_snap(start, true)
 	if grounded and vy > 0:
 		vy = 0
 		landed = true
@@ -286,10 +345,69 @@ func _move() -> void:
 		launched = false
 		if not was_grounded:
 			_event("land")
+			if ground == Ground.STEEP:
+				# fall turns into a slide
+				vx = (vx + MazeSlope.downhill(ground_kind()) * vy_before) / 2
+	if ground == Ground.STEEP and start != Ground.STEEP:
+		var d := MazeSlope.downhill(ground_kind())
+		_event("slide", {"dir": d})
+		if move == 0:
+			facing = d
 	if vy >= MazeTuning.APEX_THRESHOLD:
 		jumping = false
 	if vy >= 0:
 		launched = false
+
+
+## true when the lift put the box into a full block outside the step band
+func _lift(allow: int) -> bool:
+	var cx := _fdiv(px, T)
+	var cy := _fdiv(py - 1, T)
+	var kind := level.cell(cx, cy)
+	var before := py
+	if MazeSlope.is_slope(kind):
+		py = mini(py, MazeSlope.surface(kind, cy, px - cx * T))
+	elif allow > 0 and level.solid(cx, cy) and py - cy * T <= allow:
+		# a roof standing on this block is the floor, not the block top
+		var above := level.cell(cx, cy - 1)
+		if MazeSlope.is_slope(above):
+			py = mini(py, MazeSlope.surface(above, cy - 1, px - cx * T))
+		else:
+			py = cy * T
+	if py == before:
+		return false
+	return not _box_free(px - HW, py - MazeTuning.PLAYER_H, px + HW, py - allow)
+
+
+## keep the feet on the roof: nearest support below within SLOPE_SNAP + abs(vx)
+func _snap(start: int, slope_only: bool) -> void:
+	var reach := MazeTuning.SLOPE_SNAP + absi(vx)
+	var floor_y := -1
+	for cy in range(_fdiv(py + T - 1, T), _fdiv(py + reach, T) + 1):
+		if _solid_in_cols(cy, px - HW, px + HW):
+			floor_y = cy * T
+			break
+	var slope_y := -1
+	var cx := _fdiv(px, T)
+	for cy in range(_fdiv(py - 1, T), _fdiv(py + reach, T) + 1):
+		var kind := level.cell(cx, cy)
+		if MazeSlope.is_slope(kind):
+			var sy := MazeSlope.surface(kind, cy, px - cx * T)
+			if sy >= py and sy <= py + reach:
+				slope_y = sy
+				break
+	if slope_only and slope_y < 0:
+		return
+	# on a roof the slope under the centre wins over a nearer block corner at the high end of the next slope
+	var on_slope := slope_y >= 0 and (slope_only or start != Ground.FLAT or floor_y < 0 or slope_y <= floor_y)
+	var support := slope_y if on_slope else floor_y
+	if support < 0 or support > py + reach:
+		return
+	if not (start == Ground.GENTLE or start == Ground.STEEP or on_slope):
+		return
+	py = support
+	vy = 0
+	_compute_ground()
 
 
 func _solid_in_rows(cx: int, top: int, bottom: int) -> bool:
@@ -306,19 +424,33 @@ func _solid_in_cols(cy: int, left: int, right: int) -> bool:
 	return false
 
 
-func _move_x() -> void:
+## full blocks in rows top..bottom of column cx, or a slope whose vertical high side faces the mover
+func _blocks_x(cx: int, top: int, bottom: int, dir: int) -> bool:
+	if _solid_in_rows(cx, top, bottom):
+		return true
+	if level.slope_count == 0:
+		return false
+	for cy in range(_fdiv(top, T), _fdiv(bottom - 1, T) + 1):
+		var side := MazeSlope.high_side(level.cell(cx, cy))
+		if side == (MazeLevel.Face.LEFT if dir > 0 else MazeLevel.Face.RIGHT):
+			return true
+	return false
+
+
+func _move_x(allow: int) -> void:
 	if vx == 0:
 		return
 	var top := py - MazeTuning.PLAYER_H
+	var bottom := py - allow
 	if vx > 0:
 		for cx in range(_fdiv(px + HW - 1, T) + 1, _fdiv(px + vx + HW - 1, T) + 1):
-			if _solid_in_rows(cx, top, py):
+			if _blocks_x(cx, top, bottom, 1):
 				px = cx * T - HW
 				vx = 0
 				return
 	else:
 		for cx in range(_fdiv(px - HW, T) - 1, _fdiv(px + vx - HW, T) - 1, -1):
-			if _solid_in_rows(cx, top, py):
+			if _blocks_x(cx, top, bottom, -1):
 				px = (cx + 1) * T + HW
 				vx = 0
 				return
@@ -328,11 +460,24 @@ func _move_x() -> void:
 ## true when the player lands
 func _move_y() -> bool:
 	if vy > 0:
+		var floor_y := -1
 		for cy in range(_fdiv(py - 1, T) + 1, _fdiv(py + vy - 1, T) + 1):
 			if _solid_in_cols(cy, px - HW, px + HW):
-				py = cy * T
-				vy = 0
-				return true
+				floor_y = cy * T
+				break
+		if level.slope_count > 0:
+			var cx := _fdiv(px, T)
+			for cy in range(_fdiv(py - 1, T), _fdiv(py + vy, T) + 1):
+				var kind := level.cell(cx, cy)
+				if MazeSlope.is_slope(kind):
+					var sy := MazeSlope.surface(kind, cy, px - cx * T)
+					if sy >= py and sy <= py + vy and (floor_y < 0 or sy < floor_y):
+						floor_y = sy
+					break
+		if floor_y >= 0:
+			py = floor_y
+			vy = 0
+			return true
 		py += vy
 	elif vy < 0:
 		_move_up()
@@ -413,6 +558,7 @@ func _launch_from_rings() -> void:
 		coyote = 0
 		buffer = 0
 		grounded = false
+		ground = Ground.NONE
 		r["cooldown"] = MazeTuning.RING_COOLDOWN_TICKS
 		var counted: bool = not r["preset"] and not r["used"]
 		if counted:
@@ -451,10 +597,22 @@ func cast(dir_index: int) -> Dictionary:
 	var steps := MazeTuning.CAST_RANGE / MazeTuning.CAST_STEP
 	var hit_k := 0
 	var hit_cell := Vector2i()
+	var slope_hit := false
 	for k in range(1, steps + 1):
 		var travel := k * MazeTuning.CAST_STEP
 		var p := Vector2i(o.x + d.x * travel / MazeAim.SCALE, o.y + d.y * travel / MazeAim.SCALE)
 		var c := Vector2i(_fdiv(p.x, T), _fdiv(p.y, T))
+		if level.sky and c.y < 0 and c.x >= 0 and c.x < level.width:
+			prev_point = p
+			prev_cell = c
+			continue
+		if level.slope_count > 0:
+			var kind := level.cell(c.x, c.y)
+			if MazeSlope.is_slope(kind) and MazeSlope.inside(kind, c.x, c.y, p):
+				hit_k = k
+				hit_cell = c
+				slope_hit = true
+				break
 		if level.solid(c.x, c.y):
 			hit_k = k
 			hit_cell = c
@@ -468,13 +626,15 @@ func cast(dir_index: int) -> Dictionary:
 		elif beads_left == 0:
 			result["reason"] = "no_beads"
 		return result
-	var face := _hit_face(prev_cell, hit_cell, d)
+	var face := MazeLevel.Face.UP if slope_hit else _hit_face(prev_cell, hit_cell, d)
 	var front := hit_cell + MazeLevel.FACE_STEP[face]
 	result["cell"] = hit_cell
 	result["face"] = face
 	result["dist"] = hit_k * MazeTuning.CAST_STEP
 	var reason := "ok"
-	if level.cell(hit_cell.x, hit_cell.y) != MazeLevel.Cell.SOLID or level.solid(front.x, front.y):
+	if slope_hit:
+		reason = "slope"
+	elif level.cell(hit_cell.x, hit_cell.y) != MazeLevel.Cell.SOLID or level.covered(front.x, front.y):
 		reason = "no_ring"
 	elif level.cell(front.x, front.y) == MazeLevel.Cell.SPIKE:
 		reason = "hazard"

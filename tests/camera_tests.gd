@@ -24,6 +24,7 @@ func run(check: Callable, node: Node) -> void:
 	_launch()
 	_look_ahead()
 	_falling()
+	_sliding()
 	_aim_framing()
 	_snap()
 	_intro()
@@ -305,6 +306,52 @@ func _falling() -> void:
 			break
 	_check.call(window > 5, "CAM7 the fall lasts long enough to measure (%d frames)" % window)
 	_check.call(worst >= 140.0, "CAM7 at least 140 px below the feet while falling (%.1f)" % worst)
+
+
+## R19: sliding shows at least 3.6 tiles below the feet from 0.3 s on
+func _sliding() -> void:
+	var edits := {}
+	for k in 10:
+		edits[Vector2i(20 + k, 18 - k)] = "/"
+		for y in range(19 - k, 23):
+			edits[Vector2i(20 + k, y)] = "#"
+	for y in range(9, 23):
+		edits[Vector2i(30, y)] = "#"
+	var lv := _fixture(48, 24, 23, edits, {"format": 2})
+	_check.call(lv.valid(), "R19 slide fixture is valid (%s)" % str(lv.errors))
+	var sim := MazeSim.new(lv)
+	sim.px = 29 * 40000 + 30000
+	sim.py = 9 * 40000 + 10000
+	sim._compute_ground()
+	var r := _rig(lv)
+	r.snap(_frame(sim))
+	var t := 0.0
+	var slide_t := -1.0
+	var worst := INF
+	var reached := -1.0
+	var frames := 0
+	for i in 100:
+		var f_in := H.inp()
+		sim.step(f_in)
+		var f := _frame(sim)
+		f["slide"] = sim.sliding()
+		r.update(DT, f)
+		t += DT
+		if sim.sliding() and slide_t < 0.0:
+			slide_t = t
+		if slide_t >= 0.0 and reached < 0.0 and r._guard_b >= MazeCameraRig.GUARD_BOTTOM_FALL - 0.01:
+			reached = t - slide_t
+		if slide_t >= 0.0 and t - slide_t >= 0.3 and sim.sliding():
+			worst = minf(worst, r.play_rect().end.y - sim.py / 1000.0)
+			frames += 1
+	_check.call(
+		slide_t >= 0.0 and reached >= 0.0 and reached <= 0.3,
+		"R19 the bottom guard grows within 0.3 s (%.2f)" % reached
+	)
+	_check.call(
+		frames > 10 and worst >= 144.0,
+		"R19 at least 3.6 tiles below the feet while sliding (%.1f over %d frames)" % [worst, frames]
+	)
 
 
 func _aim_framing() -> void:

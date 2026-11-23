@@ -465,7 +465,7 @@ func _update_camera(delta: float, snap: bool) -> void:
 	var f := {
 		"player": world.player_centre(),
 		"vel": Vector2(sim.vx, sim.vy) * 60.0 / 1000.0,
-		"grounded": sim.grounded, "alive": sim.alive(), "facing": sim.facing,
+		"grounded": sim.grounded, "alive": sim.alive(), "facing": sim.facing, "slide": sim.sliding(),
 		"aim_frame": aim >= 0, "aim_hit": Vector2.ZERO, "flights": not sim.flights.is_empty(),
 	}
 	if aim >= 0:

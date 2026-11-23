@@ -13,6 +13,7 @@ func run(check: Callable, node: Node) -> void:
 	_node = node
 	_clean()
 	_args()
+	_lab()
 	_select()
 	_language()
 	_solution_flow()
@@ -99,6 +100,38 @@ func _args() -> void:
 	_check.call(cam["camera"] == "overview" and bad["camera"] == "", "debug argument --camera takes door or overview")
 	var d := MazeMain.parse_args(PackedStringArray())
 	_check.call(d["level"] == "" and not d["all_levels"] and d["aim"] == -1, "no arguments give the defaults")
+
+
+## R22: --lab and ?lab open the lab series and never write the profile
+func _lab() -> void:
+	WhiteText.lang = "nl"
+	_check.call(MazeMain.parse_args(PackedStringArray(["--lab"]))["lab"], "debug argument --lab")
+	_check.call(not MazeMain.parse_args(PackedStringArray())["lab"], "the lab is off by default")
+	_check.call(MazeMain.query_args("?lab") == PackedStringArray(["--lab"]), "the web key lab switches the lab on")
+	_check.call(MazeMain.query_args("?lab=0").is_empty(), "lab=0 switches it off")
+	var m := _main(["--lab"])
+	var s := m.select
+	_check.call(s != null and s.cards.size() == 3, "R22: the lab select has the three lab levels")
+	var open := true
+	for c in s.cards:
+		open = open and not c.disabled
+	_check.call(open, "R22: every lab card is open")
+	_close(m)
+	var g := _main(["--lab", "--level=lab03"])
+	var game := g.game
+	game.set_process(false)
+	_check.call(
+		game != null and game.level.id == "lab03" and game.level.format == 2,
+		"R22: --lab --level opens a lab level"
+	)
+	for inp: MazeInput in _solution("lab03"):
+		_feed(game, inp)
+		if game.sim.finished():
+			break
+	_check.call(game.sim.finished(), "R22: the lab solution finishes through the controls")
+	_check.call(g.store.memory_only and g.store.data["levels"].has("lab03"), "R22: the lab profile lives in memory")
+	_close(g)
+	_check.call(not FileAccess.file_exists(PROFILE), "R22: lab play never writes the profile")
 
 
 func _select() -> void:

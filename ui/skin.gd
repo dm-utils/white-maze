@@ -3,7 +3,7 @@ extends RefCounted
 ## Engine rules of a tile skin: constants, pack validation, resolving, palette checks (design 21.4, 21.13). Packs are
 ## data (MazeSkins); what keeps the game readable (lip, pins, door, outlines) lives here and never in a pack.
 
-enum Side { SAME, AIR, SPIKE, SEAM, EDGE }
+enum Side { SAME, AIR, SPIKE, SEAM, EDGE, SLOPE } # SLOPE: a slope tile in front, drawn like a seam
 enum Corner { TL, TR, BR, BL }
 enum Mode { OUTER, INNER, STONE, SLAB } # which insets an outline uses (21.5.1)
 
@@ -26,6 +26,8 @@ const FLOOR_CHIP_MAX := 3 # corners next to a floor
 const CHIP_MAX := 6
 const CONTOUR_DARKEN := 0.82 # contour = block.darkened(CONTOUR_DARKEN)
 const DOOR_FRAME_LIGHTEN := 0.15
+const ROOF_DARKEN := 0.25 # roof = block.darkened(ROOF_DARKEN) until a pack names one (23.9.1)
+const ROOF_LO_DARKEN := 0.45
 const SHEEN_ALPHAS := [0.18, 0.45, 0.4] # wide band, thin line, top line
 const MOTIF_MARGIN := 4.0
 const LIP_TINTS := {
@@ -123,6 +125,9 @@ static func resolve(pack: Dictionary) -> Dictionary:
 	pal["lip_lo"] = Color(tint[2])
 	pal["contour"] = (pal["block"] as Color).darkened(CONTOUR_DARKEN)
 	pal["door_frame"] = (pal["block"] as Color).lightened(DOOR_FRAME_LIGHTEN)
+	pal["roof"] = (pal["block"] as Color).darkened(ROOF_DARKEN)
+	pal["roof_hi"] = pal["block"]
+	pal["roof_lo"] = (pal["block"] as Color).darkened(ROOF_LO_DARKEN)
 	var st: Dictionary = pack["stones"]
 	var rim: Dictionary = pack["rim"]
 	var motifs: Array = []
@@ -404,6 +409,8 @@ static func _side(level: MazeLevel, cell: Vector2i, face: int) -> int:
 		return Side.AIR
 	if other == MazeLevel.Cell.SPIKE:
 		return Side.SPIKE
+	if MazeSlope.is_slope(other):
+		return Side.SLOPE
 	return Side.SAME if other == level.cell(cell.x, cell.y) else Side.SEAM
 
 
@@ -482,7 +489,7 @@ static func inset(skin: Dictionary, kind: int, mode: int) -> float:
 	match kind:
 		Side.AIR, Side.SPIKE:
 			return CONTOUR_W
-		Side.SEAM:
+		Side.SEAM, Side.SLOPE:
 			return SEAM_W
 	match mode:
 		Mode.STONE:

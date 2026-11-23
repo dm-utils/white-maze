@@ -37,6 +37,7 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Clasp | The buckle at the door end of the chain, in the world's lip tint, shown when rings used is at most par. Over par the thread ends in a plain knot. |
 | Clock | Game time of the current attempt, shown as `m:ss.cc`; starts at the first active tick. Runs at the level speed and slower while aiming. |
 | Contour | The dark band, 3 px wide, inside the edge of a block where it faces air, a spike or `X` (1.5 px per side at a seam). Its colour is derived by the engine from the block colour. Lilith's own outline is half as thick. |
+| Covered face | A face whose front cell is solid or a slope; never a ring face, never a lip. |
 | Coyote time (`COYOTE_TICKS`) | A jump still works for a few ticks after walking off a ledge. |
 | Corner correction (`CORNER_CORRECTION`) | A rising player whose head clips a ceiling corner by a few pixels is shifted sideways instead of stopped. |
 | Counters (`counts`) | Per-device statistics of a level in the profile: `starts`, `finishes`, `deaths`, `play_ticks`. |
@@ -47,6 +48,7 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Device id (`device`) | 16 random hex characters created with the profile; the key of this installation's counters. |
 | Door | How the finish tile is drawn: a doorway with posts, a lintel and warm light. Engine-owned: a skin pack cannot change it. |
 | Door view | The camera view centred on the door, shown at the start of the intro pan. |
+| Eave | The low end of a roof over open air. |
 | Edge marker | A small chevron at the edge of the play rect where the aim line leaves the view, when the hit point is off screen. |
 | Engine-owned | A look value a skin pack may not set: lip placement and shape, lip shades, contour, pin colours, door, white, `X` form, floor straightness, maximum edge offsets (design 21.4.1). |
 | Face | One side of a tile: `UP` (top, floor), `DOWN` (bottom, ceiling), `LEFT`, `RIGHT` (walls), named after the direction it points to. |
@@ -58,10 +60,14 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Format (`format`) | Version number of the profile (2 since the chain record and its backfill, design 22.9), of a level file or of a skin pack; raised when a field changes meaning. |
 | Game rate | Simulation ticks per real second divided by 60: the level speed times the aim rate (a quarter while aiming), 0 while paused or in the overview. |
 | Game time | Time counted in simulation ticks (60 per second at a game rate of 1). Slow motion and the level speed slow game time down. |
+| Gentle slope | Half of a 1 in 2 slope pair (`rR`, `Ll`); walked on like a floor. |
 | Ghost map | The faint picture of a level's solid cells behind the chain on the result card and the share card. |
+| Ground (`MazeSim.Ground`) | What the player stands on after a step: none, flat, gentle or steep. |
 | Ground anchor | The feet height of the last ground Lilith stood on; the follow camera keeps it at a fixed height in the play rect, so jumps do not move the view. Falling below it moves the view down. |
+| Gutter | A block at the low end of a roof whose top is a floor (and a ring face). |
 | Hazard box | The player's hitbox shrunk by 4 px on every side; used against spikes. |
 | Hazard colour (`MazeWorlds.HAZARD`) | The one warm red of spikes in every world; no other world colour comes near its hue. |
+| High side, low side | The vertical end of a slope tile (it blocks like a wall from outside) and the open lower end. |
 | Hint | An optional line of a level shown at the bottom of the game screen, with control names filled in for the current input mode. |
 | HUD band | The top 110 px of the screen (plus the safe area) with the HUD, darkened by a scrim; not part of the play rect. |
 | Index (`levels/index.json`) | The ordered list of level ids that forms the series. |
@@ -70,9 +76,11 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Intro pan | At the opening of a level the camera shows the door, holds briefly and pans to Lilith; any input skips it, and it never blocks play. |
 | Jump buffer (`JUMP_BUFFER_TICKS`) | A jump pressed shortly before landing still happens on landing. |
 | Knot | A small knot on the chain where the route used a preset ring for the first time; not a bead and never counted. |
+| Lab | The test series `levels/lab/`, opened with `--lab` or `?lab`; every card open, never written to the profile. |
 | Launch | A ring setting the player's velocity away from its face. The first launch of a thrown ring makes it a used ring. |
 | Level (`MazeLevel`) | One handmade map with metadata, loaded from `levels/<id>.json`. |
 | Level check (`tools/check_levels.gd`) | Headless tool that validates all levels and replays their solutions. |
+| Level format 2 | The level format with slope tiles and `sky`; format 1 stays valid. |
 | Level id | Stable name of a level (`l001`), the key of its statistics. |
 | Level speed (`MazeGame.speed`) | The time scale of a level, from its position in the series (`SPEED_PCT`, 80 % for level 1 up to 96 % from level 9); fewer ticks per real second, the same trajectories (ADR 0012). |
 | Lilith (`MazeLilith`) | The player character: an original explorer with orange hair, a rose-red headband with two fluttering tails and a bandolier, drawn in code inside the 30 x 32 hitbox. |
@@ -98,6 +106,7 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Profile (`MazeProfile`, `user://profile.json`) | The local file with the language and per-level statistics. |
 | Render time | The moment the view draws, in ticks as a float: `tick - 1 + alpha`. The interpolated position is the state at this moment; Lilith's animation runs on it. |
 | Respawn | Returning the player to the start after a death. The camera cuts to the start at that moment. |
+| Ridge | Two slopes meeting at their high sides (`/\`, `rRLl`). |
 | Rig (`MazeLilith.rig`) | Lilith's joints for one pose: feet, hands, upper-body drop, tilt and how far the hair tips are up. The shapes are built from it; blends mix two rigs. |
 | Ring | A bounce ring on a block face, made by a bead or preset; it launches the player away from its face. Drawn white with a dark outline. |
 | Rings used (`rings_used`) | The score of an attempt: the number of thrown rings that launched the player at least once. Never goes down within an attempt (not by bead back, not by a death); compared with par (ADR 0009). |
@@ -110,15 +119,22 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Side kind (`MazeSkin.Side`) | What a face of a block looks at: `AIR`, `SPIKE`, `SAME` (same block kind), `SEAM` (the other block kind) or `EDGE` (outside the level). Decides contour, trim, crumbly edge and inset. |
 | Skin (`MazeSkins.skin`) | The resolved look of a world: a skin pack with clamped numbers, parsed colours and the engine-derived colours added. |
 | Skin pack (`MazeSkins.TEMPLE`, ...) | The data that makes a world look like itself: palette, lip tint name, pin shape, back line pattern, stone grouping and bevel, mortar, edge amplitudes, motifs. JSON-compatible; validated by `MazeSkin.validate` (design 21.4). The base for a world studio [later]. |
+| Sky (`sky`) | Level field (format 2): a bead that leaves the grid at the top flies on; the player is still stopped at the top edge. |
 | Slab | One `X` block drawn as a single rounded, smooth plate over a whole row run (or a column run when the row run is one cell). |
+| Slide | Moving down a steep slope: the speed goes to 360 px/s, 480 with input downhill, 240 with input uphill; never stops while on the slope. |
+| Slope (`MazeSlope`) | A sloped tile: `/` and `\` (steep, 45 degrees) or a gentle pair `rR` / `Ll`. Always on a full block with air above; never a ring face. |
+| Slope surface | The line a slope tile's walking surface follows; the player's centre stands on it. |
 | Slow motion | A quarter of the level speed while aiming (`AIM_TIME_SCALE`), ramped over 0.08 s. |
 | Snap | Moving the camera to its follow target at once, without smoothing: at the start of an attempt, at a respawn and for screenshots. |
+| Snap | Keeping the feet on the roof when walking or sliding downhill, within 16 px plus the horizontal speed. |
 | Solid | A tile the player cannot pass: `#`, `X`, and everything outside the grid to the left, right and top. |
 | Solution | A run script in `tests/solutions.json` that finishes a level within par (rings used <= par). |
 | Spawn (`S`) | The start tile; the player stands on the floor below it. |
 | Speed curve (`MazeGame.SPEED_PCT`) | The table of level speeds by series position (design 20.6.2). |
 | Spike (`^`) | A hazard tile; its hitbox is the lower half of the tile, slightly narrower. Drawn in the hazard colours with a dark inner outline. |
 | Static layer (`MazeStaticLayer`) | The back wall or tile layer of the world view, split into chunks and drawn once per level. |
+| Steep slope | A 45 degree slope tile; standing on it means sliding. |
+| Step band (`SLOPE_STEP`) | The bottom 16 px of the box that may overlap a full block while standing on a slope, so a slope runs into the floor at its top without a wall. |
 | Stone (`MazeSkin.stone_of`) | One carved block of a `#` mass: 1 x 1, 2 x 1 or 2 x 2 cells, chosen from lattice anchors and the hash, with a chamfer, a bevel and a slight shade. |
 | Stringing | The finish animation: the beads drop onto the thread one by one, the thread pulls taut, the clasp closes; at most 2.05 s, skippable, off with reduced motion. |
 | Supply | The beads left; see beads left. |

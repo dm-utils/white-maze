@@ -350,10 +350,10 @@ static func _cracks(level: MazeLevel, world: int, items: Array[Dictionary]) -> v
 			if level.cell(x, y) != MazeLevel.Cell.SOLID or not MazeArt.chance(x, y, SALT_CRACK, CRACK_PERCENT[world]):
 				continue
 			if (
-				level.solid(x - 1, y)
-				and level.solid(x + 1, y)
-				and level.solid(x, y - 1)
-				and level.solid(x, y + 1)
+				level.covered(x - 1, y)
+				and level.covered(x + 1, y)
+				and level.covered(x, y - 1)
+				and level.covered(x, y + 1)
 			):
 				items.append(
 					{
@@ -385,7 +385,7 @@ static func _far_from_door(level: MazeLevel, x: int, y: int) -> bool:
 
 
 static func _solid_next_to(level: MazeLevel, x: int, y: int) -> bool:
-	return level.solid(x - 1, y) or level.solid(x + 1, y) or level.solid(x, y - 1) or level.solid(x, y + 1)
+	return level.covered(x - 1, y) or level.covered(x + 1, y) or level.covered(x, y - 1) or level.covered(x, y + 1)
 
 
 ## 0 when the sand leans on the left wall, 1 on the right; hash decides when both are solid

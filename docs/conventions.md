@@ -42,7 +42,7 @@ There is no `LICENSE` file: all rights reserved.
   `MazeCameraRig`, `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`, `MazeLilith`,
   `MazePoseBlend`, `MazeArt`, `MazeWorlds`, `MazeDecor`, `MazeStaticLayer`, `MazeStaticBake`, `MazeSkin`,
   `MazeSkins`, `MazeTileShapes`, `MazeChain`, `MazeChainShapes`, `MazeChainView`, `MazeChainExport`,
-  `MazeChainShare`). Kit classes have the prefix `White`; do not declare `White*` names here. Test scripts
+  `MazeChainShare`, `MazeSlope`). Kit classes have the prefix `White`; do not declare `White*` names here. Test scripts
   declare no `class_name`.
 - Documentation comments use `##`; ordinary comments `#`. Comments and identifiers in English.
 - Player-facing texts live in `ui/strings.gd` (`MazeStrings.TEXT`, Dutch and English), registered through the kit;
@@ -81,6 +81,11 @@ There is no `LICENSE` file: all rights reserved.
 - One file per level, `levels/<id>.json`; ids `^[a-z0-9-]{1,32}$`, never reused or renamed once a level has shipped
   (statistics are keyed by id). The order lives only in `levels/index.json`.
 - Rows in a monospace editor; the design (5.4) shows rows in blocks of 8 for review.
+- A level with slope characters (`/ \ r R L l`) or the field `sky` is format 2 (design 23.4.3); format-1 levels never
+  change meaning. The test series `levels/lab/` (opened with `--lab` or `?lab`, never written to the profile) is checked
+  like the real series: `godot --headless --path . -s res://tools/check_levels.gd -- --dir=res://levels/lab`.
+- `tests/inert_tests.gd` pins the per-tick state of every stored solution of l001 to l009 (design 23.15, R1). A change of
+  the simulation that changes that hash changes how the ruins play; do it on purpose or not at all.
 - After every level change:
 
 ```bash

@@ -174,7 +174,7 @@ func update(dt: float, f: Dictionary) -> void:
 	var feet_y := p.y + 16.0
 	if f["grounded"]:
 		_anchor_y = feet_y
-	var falling: bool = not f["grounded"] and vel.y > 0.0 and feet_y > _anchor_y + FALL_MIN
+	var falling: bool = (not f["grounded"] and vel.y > 0.0 and feet_y > _anchor_y + FALL_MIN) or f.get("slide", false)
 	# look dir from velocity, not facing: wall launches look where the player flies
 	var vdir := signf(vel.x) if absf(vel.x) >= LOOK_MIN_VX else 0.0
 	if vdir != 0.0 and int(vdir) != _look_dir:

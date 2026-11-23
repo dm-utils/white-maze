@@ -18,12 +18,12 @@ static func chance(x: int, y: int, salt: int, percent: int) -> bool:
 	return hash3(x, y, salt) % 100 < percent
 
 
-## true when a ring may sit on this face: # block, cell in front neither solid nor spike (design 3.10 step 6)
+## true when a ring may sit on this face: # block, cell in front neither solid, slope nor spike (design 3.10 step 6)
 static func lip_face(level: MazeLevel, cell: Vector2i, face: int) -> bool:
 	if level.cell(cell.x, cell.y) != MazeLevel.Cell.SOLID:
 		return false
 	var front := cell + MazeLevel.FACE_STEP[face]
-	return not level.solid(front.x, front.y) and level.cell(front.x, front.y) != MazeLevel.Cell.SPIKE
+	return not level.covered(front.x, front.y) and level.cell(front.x, front.y) != MazeLevel.Cell.SPIKE
 
 
 ## WCAG relative luminance

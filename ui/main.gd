@@ -7,14 +7,15 @@ extends Control
 ## --chain-t=<seconds> (freeze the result chain at that time) --reduced-motion (no chain animation)
 ## --chain-export (the result shows only the share card) --demo-profile (with --shot: finished levels from the
 ## stored solutions, for the mini chains on the level select)
+## --lab (the test series res://levels/lab/ instead of the levels, every card open, profile in memory only)
 ## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
 const SHOT_WAIT_S := 0.5
 const REDUCED_MOTION_JS := "!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)"
 # no profile path, shot or solve from a URL
-const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch", "speed"]
-const QUERY_FLAGS := ["fps", "touch"]
+const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch", "speed", "lab"]
+const QUERY_FLAGS := ["fps", "touch", "lab"]
 
 var args := PackedStringArray()
 var use_cmdline := true # tests set this false and fill args
@@ -54,7 +55,7 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
 		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
 		"speed": 0, "chain_t": -1.0, "reduced_motion": false,
-		"chain_export": false, "demo_profile": false,
+		"chain_export": false, "demo_profile": false, "lab": false,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -109,6 +110,8 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 			o["demo_profile"] = true
 		elif a == "--fps":
 			o["fps"] = true
+		elif a == "--lab":
+			o["lab"] = true
 		elif a.begins_with("--camera="):
 			var v := a.get_slice("=", 1)
 			if v == "door" or v == "overview":
@@ -135,17 +138,18 @@ func _ready() -> void:
 		opts["reduced_motion"] = true
 	MazeStrings.register()
 	var now := int(Time.get_unix_time_from_system())
-	level_ids = MazeLevels.ids()
+	var dir: String = MazeLevels.LAB_DIR if opts["lab"] else MazeLevels.DIR
+	level_ids = MazeLevels.ids(dir)
 	var valid := {}
 	for id in level_ids:
-		var lv := MazeLevels.load_level(id)
+		var lv := MazeLevels.load_level(id, dir)
 		if lv.valid():
 			valid[id] = lv
 		else:
 			push_error("level %s is invalid: %s" % [id, "; ".join(lv.errors)])
 		levels.append(lv)
 	store = MazeProfileStore.new()
-	if opts["shot_mode"]:
+	if opts["shot_mode"] or opts["lab"]:
 		store.open_memory(opts["lang"] if opts["lang"] != "" else "nl", now)
 	else:
 		store.open(opts["profile"] if opts["profile"] != "" else MazeProfileStore.DEFAULT_PATH, now, valid)
@@ -194,7 +198,7 @@ func show_select() -> void:
 	select = MazeLevelSelect.new()
 	select.levels = levels
 	select.store = store
-	select.all_open = opts["all_levels"]
+	select.all_open = opts["all_levels"] or opts["lab"]
 	select.safe_override = opts["safe"]
 	select.level_chosen.connect(start_level)
 	select.language_toggled.connect(toggle_language)
