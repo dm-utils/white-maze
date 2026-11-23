@@ -26,6 +26,7 @@ func run(check: Callable, node: Node) -> void:
 	_args(check)
 	_skip(check)
 	await _result_layout(check)
+	await _export_and_share(check)
 	_clean()
 	WhiteText.lang = "nl"
 
@@ -515,3 +516,132 @@ func _result_layout(check: Callable) -> void:
 	check.call(not plain, "K13: a result with rings has no no_rings line")
 	_node.remove_child(sv2)
 	sv2.free()
+
+
+func _export_info(id: String) -> Dictionary:
+	_clean()
+	var m := _main(["--level=" + id, "--solve"])
+	var r: Dictionary = m.game.last_result
+	var info := {
+		"level": r["level"], "links": r["links"], "world": r["world"], "clasp": r["rings"] <= r["par"],
+		"number": r["number"], "name": r["name"], "ticks": r["ticks"], "rings": r["rings"], "par": r["par"],
+		"code": r["code"],
+	}
+	_close(m)
+	return info
+
+
+func _texts_of(info: Dictionary) -> Array:
+	var v := MazeChainView.new()
+	v.style = Style.EXPORT
+	v.export_info = info
+	v.size = Vector2(MazeChainView.EXPORT_SIZE)
+	v.setup(info["level"], info["links"], info["world"], info["clasp"], MazeChainShapes.FINAL_T, true)
+	_node.add_child(v)
+	var out := v.texts()
+	_node.remove_child(v)
+	v.free()
+	return out
+
+
+func _export_and_share(check: Callable) -> void:
+	WhiteText.lang = "nl"
+	var info := _export_info("l004")
+	var lines := {}
+	for t: Dictionary in _texts_of(info):
+		lines[t["text"]] = t
+	var code: String = info["code"]
+	check.call(
+		lines.has("WHITE MAZE") and lines.has("4  Eén kraal") and lines.has("0:06.18")
+			and lines.has("Ringen: 3 · par 3  Precies par!") and lines.has(code) and lines.has("play.white-maze.steefbeest.nl"),
+		"K14: the export holds title, level, time, rings line, code and play address (%s)" % str(lines.keys())
+	)
+	check.call(
+		lines["WHITE MAZE"]["pos"] == Vector2(40, 46) and lines["4  Eén kraal"]["pos"] == Vector2(40, 92)
+			and lines["0:06.18"]["pos"] == Vector2(1160, 52) and lines["0:06.18"]["align"] == "right"
+			and lines[code]["pos"] == Vector2(40, 652) and lines["play.white-maze.steefbeest.nl"]["pos"] == Vector2(1160, 652),
+		"K14: the export texts sit at the places of 22.11.1"
+	)
+	var no_code := info.duplicate()
+	no_code["code"] = ""
+	var count := _texts_of(no_code).size()
+	check.call(count == _texts_of(info).size() - 1, "K14: without a share code the code line is left out")
+	var zero := info.duplicate()
+	zero["rings"] = 0
+	var has_no_rings := false
+	for t: Dictionary in _texts_of(zero):
+		has_no_rings = has_no_rings or t["text"] == "Ringen: 0 · par 3  Zonder ringen!"
+	check.call(has_no_rings, "K14: the zero-ring export says no rings")
+	var cave := _export_info("l009")
+	WhiteText.lang = "en"
+	var english := ""
+	for t: Dictionary in _texts_of(cave):
+		english += t["text"] + "|"
+	check.call("Rings: 4 · par 4  Exactly par!" in english, "K14: the export follows the language (%s)" % english)
+	WhiteText.lang = "nl"
+	var long_name := info.duplicate()
+	long_name["name"] = "x".repeat(90)
+	var heading := ""
+	for t: Dictionary in _texts_of(long_name):
+		if t["pos"] == Vector2(40, 92):
+			heading = t["text"]
+	var width := ThemeDB.fallback_font.get_string_size(heading, HORIZONTAL_ALIGNMENT_LEFT, -1, 36).x
+	check.call(heading.ends_with("…") and width <= MazeChainView.NAME_MAX_W, "K14: a long name is cut with an ellipsis within 640 px (%.0f)" % width)
+	# file name, share text, JS
+	check.call(MazeChainShare.file_name("l004", 3, 371) == "white-maze-l004-3-371.png", "K14: the file name follows 22.11.3")
+	var text := MazeChainShare.share_text(info)
+	check.call(
+		text == "White Maze 4 · Eén kraal · 3 ringen · par 3 · 0:06.18\n%s\nhttps://play.white-maze.steefbeest.nl" % code,
+		"K14: the share text is the line, the code and the play address (%s)" % text
+	)
+	var rest := text.replace("https://play.white-maze.steefbeest.nl", "")
+	check.call(not rest.contains("http") and not rest.contains("www."), "K14: the share text has no other address")
+	var js := MazeChainShare.SHARE_JS
+	var clean := true
+	for bad in ["fetch", "XMLHttpRequest", "sendBeacon", "http", "import(", "WebSocket", "eval("]:
+		clean = clean and not js.contains(bad)
+	check.call(clean, "K14: the share script makes no network request and loads nothing")
+	check.call(js.count("window.") == 2 and js.begins_with("window.whiteMazeShare = window.whiteMazeShare ||"), "K14: the script keeps to one global")
+	# the result overlay: button, feedback, local save
+	for is_web in [false, true]:
+		var sv := SubViewport.new()
+		sv.size = Vector2i(1280, 720)
+		_node.add_child(sv)
+		var ov := MazeOverlays.new()
+		ov.web = is_web
+		sv.add_child(ov)
+		var data := _result_data(1, 1)
+		data["code"] = "wm1/l001/1/1/391/ku26.11-bu38.11"
+		ov.show_result(data)
+		await _node.get_tree().process_frame
+		var btn := ov.share_button
+		check.call(
+			btn != null and btn.text == ("Delen" if is_web else "Afbeelding bewaren") and btn.focus_mode == Control.FOCUS_ALL,
+			"K14: web %s: the share button says %s and takes focus by keys" % [is_web, btn.text if btn != null else "-"]
+		)
+		check.call(not btn.has_focus() and ov.share_feedback.text == "", "K14: web %s: the button is not focused and the feedback is empty" % is_web)
+		var ready := not ov._export.png.is_empty()
+		check.call(btn.disabled == not ready, "K14: web %s: the button is disabled until the image is ready (ready %s)" % [is_web, ready])
+		if not is_web:
+			ov._export.png = PackedByteArray([137, 80, 78, 71])
+			btn.disabled = false
+			btn.pressed.emit()
+			var saved := FileAccess.get_file_as_bytes("user://chains/white-maze-l001-1-391.png")
+			check.call(saved.size() == 4 and ov.share_feedback.text.begins_with("Bewaard: "), "K14: saving writes the file and shows where (%s)" % ov.share_feedback.text)
+			DirAccess.remove_absolute("user://chains/white-maze-l001-1-391.png")
+			DirAccess.remove_absolute("user://chains")
+		sv.remove_child(ov)
+		ov.free()
+		_node.remove_child(sv)
+		sv.free()
+	check.call(MazeChainShare.save_local(PackedByteArray(), "x.png") == "", "K14: an empty image is not saved")
+	# --chain-export shows only the share card
+	_clean()
+	var m := _main(["--level=l004", "--solve", "--chain-export"])
+	var ov2 := m.game.overlays
+	check.call(
+		ov2.result_visible() and ov2.chain_view != null and ov2.chain_view.style == Style.EXPORT and ov2.share_button == null,
+		"K14: --chain-export shows only the share card"
+	)
+	_close(m)
+	_clean()

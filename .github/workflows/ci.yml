@@ -60,6 +60,9 @@ jobs:
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri >/dev/null
           addons/white_kit/tools/shots.sh run . tools/shots.txt build/shots
 
+      - name: Share card render (real renderer)
+        run: xvfb-run -a godot --path . --rendering-driver opengl3 -s res://tools/check_chain_export.gd
+
       - uses: actions/upload-artifact@v7
         if: always() && hashFiles('tools/shots.txt') != ''
         with:

@@ -5,6 +5,7 @@ extends Control
 ## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
 ## --speed=<50-150> (percent of 60 ticks per second, overrides the level curve)
 ## --chain-t=<seconds> (freeze the result chain at that time) --reduced-motion (no chain animation)
+## --chain-export (the result shows only the share card)
 ## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
@@ -52,6 +53,7 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
 		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
 		"speed": 0, "chain_t": -1.0, "reduced_motion": false,
+		"chain_export": false,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -100,6 +102,8 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 				push_warning("--chain-t: expected seconds >= 0, got '%s'" % v)
 		elif a == "--reduced-motion":
 			o["reduced_motion"] = true
+		elif a == "--chain-export":
+			o["chain_export"] = true
 		elif a == "--fps":
 			o["fps"] = true
 		elif a.begins_with("--camera="):
@@ -159,7 +163,7 @@ func _debug_game_options() -> Dictionary:
 		"keys": opts["keys"], "solve": opts["solve"], "aim": opts["aim"], "pause": opts["pause"],
 		"shot": opts["shot_mode"], "print_run": opts["print_run"], "touch": opts["touch"], "safe": opts["safe"],
 		"camera": opts["camera"], "world": opts["world"], "fps": opts["fps"], "speed": opts["speed"],
-		"chain_t": opts["chain_t"], "reduced_motion": opts["reduced_motion"],
+		"chain_t": opts["chain_t"], "reduced_motion": opts["reduced_motion"], "chain_export": opts["chain_export"],
 	}
 
 

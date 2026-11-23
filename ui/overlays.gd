@@ -17,6 +17,12 @@ const SKIP_GRACE_S := 0.3
 var chain_view: MazeChainView # the card of the open result, or null
 var result_column: Control # the text and button column of the open result
 var safe_override := ""
+var web := OS.has_feature("web") # tests set it to check both share paths
+var share_button: Button # the open result's share button, or null
+var share_feedback: Label
+
+var _export: MazeChainExport
+var _share_info := {}
 
 var _result_margin: MarginContainer
 var _result_vs := Vector2.ZERO
@@ -71,6 +77,13 @@ func hide_pause() -> void:
 func show_result(data: Dictionary) -> void:
 	_free(_result)
 	chain_view = null
+	share_button = null
+	share_feedback = null
+	_export = null
+	_share_info = _info_for_share(data)
+	if data.get("chain_export", false) and not _share_info.is_empty():
+		_show_export_screen()
+		return
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", WhiteTheme.SPACING)
 	col.custom_minimum_size = Vector2(RESULT_COL_W, 0)
@@ -89,6 +102,13 @@ func show_result(data: Dictionary) -> void:
 	else:
 		var best := MazeStrings.s("best_time") % MazeFormat.time(data["best_ticks"])
 		col.add_child(_centered(WhiteUi.label(best, WhiteTheme.FONT_INFO, WhiteTheme.DIM)))
+	if not _share_info.is_empty():
+		share_button = _button(col, "share" if web else "share_save", _share)
+		share_button.disabled = true
+		share_feedback = WhiteUi.label("", WhiteTheme.FONT_MESSAGE, WhiteTheme.DIM)
+		share_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		share_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(share_feedback) # always in the layout, so the buttons do not jump when it fills
 	var restart := _button(col, "restart", func() -> void: restart_pressed.emit())
 	var next: Button = null
 	if data["has_next"]:
@@ -102,9 +122,55 @@ func show_result(data: Dictionary) -> void:
 		row.add_child(chain_view)
 	row.add_child(col)
 	_result = _result_panel(row)
+	if not _share_info.is_empty():
+		_export = MazeChainExport.new()
+		_result.add_child(_export)
+		_export.ready_png.connect(func() -> void: share_button.disabled = false)
+		_export.render(_share_info)
 	_layout_result()
 	_keep_rotate_on_top()
 	(next if next != null else restart).grab_focus()
+
+
+## what the share card and the share text need; {} for a result without a level
+func _info_for_share(data: Dictionary) -> Dictionary:
+	if not (data.get("level") is MazeLevel):
+		return {}
+	return {
+		"level": data["level"], "links": data.get("links", []), "world": int(data.get("world", 0)),
+		"clasp": data["rings"] <= data["par"], "number": int(data.get("number", 1)), "name": str(data.get("name", "")),
+		"ticks": data["ticks"], "rings": data["rings"], "par": data["par"], "code": str(data.get("code", "")),
+	}
+
+
+func _share() -> void:
+	if _export == null or _export.png.is_empty():
+		return
+	var info := _share_info
+	var file := MazeChainShare.file_name(info["level"].id, info["rings"], info["ticks"])
+	var note := ""
+	if web:
+		var how := MazeChainShare.share(_export.png, file, MazeChainShare.TITLE, MazeChainShare.share_text(info))
+		note = MazeStrings.s("chain_downloaded") if how == "download" else ""
+	else:
+		var path := MazeChainShare.save_local(_export.png, file)
+		note = MazeStrings.s("chain_saved") % ProjectSettings.globalize_path(path) if path != "" else ""
+	share_feedback.text = note
+
+
+## --chain-export: only the share card, scaled to fill the canvas (debug screenshot of the image)
+func _show_export_screen() -> void:
+	var view := MazeChainView.new()
+	view.style = MazeChainShapes.Style.EXPORT
+	view.export_info = _share_info
+	view.size = MazeChainView.EXPORT_SIZE
+	var k := get_viewport_rect().size.x / MazeChainView.EXPORT_SIZE.x
+	view.scale = Vector2(k, k)
+	view.setup(_share_info["level"], _share_info["links"], _share_info["world"], _share_info["clasp"],
+			MazeChainShapes.FINAL_T, true)
+	chain_view = view
+	_result = _solid_panel(view)
+	_keep_rotate_on_top()
 
 
 func _chain_card(data: Dictionary) -> MazeChainView:
@@ -182,6 +248,9 @@ func hide_result() -> void:
 	_result_margin = null
 	chain_view = null
 	result_column = null
+	share_button = null
+	share_feedback = null
+	_export = null
 
 
 func show_rotate(on: bool) -> void:

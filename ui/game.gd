@@ -418,6 +418,7 @@ func _on_finish() -> void:
 		"code": MazeChain.code(level.id, sim.rings_used, level.par, ticks, links_text) if storable else "",
 		"level": level, "world": world.world_id, "number": number, "name": str(level.names.get(WhiteText.lang, "")),
 		"reduced_motion": still, "chain_t": options.get("chain_t", -1.0),
+		"chain_export": options.get("chain_export", false),
 	}
 	if store != null:
 		_flush_play()

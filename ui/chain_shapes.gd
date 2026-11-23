@@ -279,7 +279,7 @@ static func _segment(a: Vector2, b: Vector2, slack: float, inner_h: float) -> Pa
 
 
 static func _background(out: Array[Dictionary], lay: Dictionary, cols: Dictionary, style: int, card_a: float) -> void:
-	var box: Rect2 = lay["box"]
+	var box: Rect2 = lay.get("canvas", lay["box"]) # export: the whole image, the chain sits in a smaller box
 	var top: Color = _fade(cols["bg_top"], card_a)
 	var bottom: Color = _fade(cols["bg_bottom"], card_a)
 	var pts := PackedVector2Array()
