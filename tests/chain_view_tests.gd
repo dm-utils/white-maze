@@ -92,9 +92,9 @@ func _layout(check: Callable) -> void:
 			)
 			var mini := style == Style.MINI
 			var r: float = lay["bead_r"]
-			var bead_ok := r >= (2.5 if mini else 8.0) and r <= (4.0 if mini else 14.0)
+			var bead_ok := r >= (3.2 if mini else 8.0) and r <= (4.5 if mini else 14.0)
 			var w: float = lay["thread_w"]
-			bead_ok = bead_ok and (is_equal_approx(w, 1.25) if mini else (w >= 2.5 and w <= 4.0))
+			bead_ok = bead_ok and (is_equal_approx(w, 2.0) if mini else (w >= 2.5 and w <= 4.0))
 			check.call(bead_ok, "K6: %s style %d: bead and thread sizes are within their clamps" % [id, style])
 			check.call(
 				lay["points"].size() == links.size() + 2 and lay["kinds"].size() == lay["points"].size()
@@ -493,6 +493,26 @@ func _result_layout(check: Callable) -> void:
 		ov.free()
 		_node.remove_child(sv)
 		sv.free()
+	# L2: the tallest column (no rings line, share feedback) stays under the HUD buttons, also in English on a phone
+	WhiteText.lang = "en"
+	for c: Array in [[Vector2i(1600, 720), "40,0,40,16"], [Vector2i(1600, 720), "60,0,60,24"], [Vector2i(1280, 720), ""]]:
+		var sv := SubViewport.new()
+		sv.size = c[0]
+		_node.add_child(sv)
+		var ov := MazeOverlays.new()
+		ov.safe_override = c[1]
+		sv.add_child(ov)
+		ov.show_result(_result_data(0, 1))
+		ov.share_feedback.text = "Saved: /somewhere/white-maze-l001-0-391.png"
+		await _node.get_tree().process_frame
+		await _node.get_tree().process_frame
+		var ins := WhiteSafeArea.parse(c[1])
+		var col := ov.result_column.get_global_rect()
+		check.call(col.position.y >= MazeOverlays.HUD_CLEAR + ins["top"] - 0.5 and col.end.y <= c[0].y - ins["bottom"] + 0.5,
+				"L2: en %s %s: the column stays under the HUD and above the bottom (%s)" % [c[0], c[1], col])
+		_node.remove_child(sv)
+		sv.free()
+	WhiteText.lang = "nl"
 	check.call(MazeOverlays.card_size(Vector2(1232, 300)) == Vector2(533, 300), "K13: a low screen shrinks the card to the free height")
 	# a resized viewport is followed
 	var sv2 := SubViewport.new()

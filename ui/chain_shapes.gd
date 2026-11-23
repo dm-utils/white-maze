@@ -50,8 +50,8 @@ static func layout(level: MazeLevel, links: Array, box: Rect2, style: int) -> Di
 	var map_size := frame.size * k
 	var map := Rect2(inner.position + (inner.size - map_size) / 2.0, map_size)
 	var mini := style == Style.MINI
-	var bead_r := clampf(BEAD_K * TILE * k, 2.5 if mini else 8.0, 4.0 if mini else 14.0)
-	var thread_w := 1.25 if mini else clampf(0.35 * bead_r, 2.5, 4.0)
+	var bead_r := clampf(BEAD_K * TILE * k, 3.2 if mini else 8.0, 4.5 if mini else 14.0)
+	var thread_w := 2.0 if mini else clampf(0.35 * bead_r, 2.5, 4.0)
 	var knot_r := (0.6 if mini else 0.45) * bead_r
 	var pts := PackedVector2Array()
 	var kinds := PackedInt32Array()

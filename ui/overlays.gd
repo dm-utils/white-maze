@@ -13,6 +13,8 @@ const RESULT_GAP := 40.0
 const CARD_MIN_W := 480.0
 const CARD_MAX_W := 800.0
 const SKIP_GRACE_S := 0.3
+const HUD_CLEAR := 70.0 # the HUD buttons end about here; the result stays below them
+const MIN_GAP := 4
 
 var chain_view: MazeChainView # the card of the open result, or null
 var result_column: Control # the text and button column of the open result
@@ -238,13 +240,29 @@ func _layout_result() -> void:
 	_result_vs = vs
 	var ins := WhiteSafeArea.insets(vs, safe_override)
 	var m := float(WhiteTheme.MARGIN)
+	var top: float = maxf(m, HUD_CLEAR) + ins["top"]
+	var bottom: float = m + ins["bottom"]
 	_result_margin.add_theme_constant_override("margin_left", int(m + ins["left"]))
 	_result_margin.add_theme_constant_override("margin_right", int(m + ins["right"]))
-	_result_margin.add_theme_constant_override("margin_top", int(m + ins["top"]))
-	_result_margin.add_theme_constant_override("margin_bottom", int(m + ins["bottom"]))
+	_result_margin.add_theme_constant_override("margin_top", int(top))
+	_result_margin.add_theme_constant_override("margin_bottom", int(bottom))
+	var avail := Vector2(vs.x - 2.0 * m - ins["left"] - ins["right"], vs.y - top - bottom)
 	if chain_view != null:
-		chain_view.custom_minimum_size = card_size(vs - Vector2(2.0 * m + ins["left"] + ins["right"],
-				2.0 * m + ins["top"] + ins["bottom"]))
+		chain_view.custom_minimum_size = card_size(avail)
+	_fit_column(avail.y)
+
+
+## the column keeps to the free height: the gaps shrink before it grows into the HUD (down to MIN_GAP)
+func _fit_column(height: float) -> void:
+	if result_column == null:
+		return
+	var kids := result_column.get_children()
+	var content := 0.0
+	for c: Control in kids:
+		content += c.get_combined_minimum_size().y
+	var gaps := maxi(kids.size() - 1, 1)
+	var gap := clampi(int(floorf((height - content) / gaps)), MIN_GAP, WhiteTheme.SPACING)
+	result_column.add_theme_constant_override("separation", gap)
 
 
 ## 16:9 card beside the column in the free area (design 22.8)

@@ -194,8 +194,8 @@ player's full trajectory (a tangle).
 
 | Value | CARD, EXPORT | MINI |
 |---|---|---|
-| `bead_r` | `clampf(0.30 * 40 * scale, 8, 14)` | `clampf(0.30 * 40 * scale, 2.5, 4)` |
-| `thread_w` | `clampf(0.35 * bead_r, 2.5, 4)` | 1.25 |
+| `bead_r` | `clampf(0.30 * 40 * scale, 8, 14)` | `clampf(0.30 * 40 * scale, 3.2, 4.5)` |
+| `thread_w` | `clampf(0.35 * bead_r, 2.5, 4)` | 2 |
 | `knot_r` | `0.45 * bead_r` | `0.6 * bead_r` |
 
 Beads are allowed to be larger than a tile on the card (l001 on the in-game card: a tile is 13.8 px, a bead 16 px wide);
