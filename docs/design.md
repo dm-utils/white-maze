@@ -5,7 +5,9 @@ the screens, controls, profile store, screenshots and the Pages deploy (cards #0
 and 16; levels 4 to 9 in section 17. Section 18 (`docs/design-look.md`, ADR 0010) designs the look and feel of the
 adventure world; section 20 (`docs/design-feel.md`, ADR 0012) is the feel pass: 9 tiles of camera height, game speed
 per level and a smoother Lilith with orange hair; section 21 (`docs/design-skins.md`, ADR 0013) gives the tiles carved
-stone skins as data packs per world, with a crumbly outer edge and outlines on pins and rings. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
+stone skins as data packs per world, with a crumbly outer edge and outlines on pins and rings; section 22
+(`docs/design-chain.md`, ADR 0014) is the chain, a necklace of the used rings at the finish that can be shared, built in
+card #038. The owner's playtest and the tester's review of the screens are open. Later phases are outlined and marked
 **[later]**; they are not built in phase 1.
 This document describes the game as it must be built. Decisions with their trade-offs are in `docs/adr/`; terms are
 defined in `docs/glossary.md`; code, test and level rules are in `docs/conventions.md`.
@@ -1068,6 +1070,8 @@ Unknown keys at the top level and inside level entries are kept unchanged on wri
 format). `best_beads` and `fewest_beads` are no longer known keys; if a development profile still has them, they pass
 through as unknown keys and are never read.
 
+Changed by section 22 (`docs/design-chain.md`): format 2 adds the `chain` record per level and a one-time backfill.
+
 ### 7.3 Operations (`MazeProfile`, `sim/profile.gd`, pure, no file access)
 
 ```gdscript
@@ -1236,6 +1240,8 @@ MazeGame (Node)
   result), update view and HUD.
 - Pause triggers (2.7) open the pause overlay and call `cancel_aim()`.
 
+Changed by section 22 (`docs/design-chain.md`): finished cards show their best chain as a mini chain.
+
 ### 8.4 Overlays (`MazeOverlays`, `ui/overlays.gd`)
 
 - Pause: full-screen `BG` at 85 % alpha; centred column: `t("pause")` (`FONT_TITLE`), buttons `t("resume")`,
@@ -1248,6 +1254,8 @@ MazeGame (Node)
   level `Enter` opens the level select), `t("levels_btn")` (`Esc`). Focus on Next (or Restart on the last level).
 - Rotate hint: when the viewport is taller than wide, a full-screen `BG` panel with `t("rotate")`; the game pauses;
   turning back closes the hint but keeps the pause overlay.
+
+Changed by section 22 (`docs/design-chain.md`): the result shows the chain card beside the column and a share button.
 
 ### 8.5 Main (`MazeMain`, `ui/main.tscn`, `ui/main.gd`)
 
@@ -1408,6 +1416,8 @@ One preset `Web`, copied from White Sum's: `export_filter="all_resources"`, `inc
 | `--speed=<pct>` | Whole number 50 to 150: game speed in percent of 60 ticks per second for every level, instead of the curve of 20.6. Other values: warning, ignored. Also a web query key (`?speed=90`). |
 | `--shot=<png>` | Screenshot mode: no profile read or write, simulation frozen after `--keys`/`--solve`, no camera smoothing; wait 0.5 s and one drawn frame, save the viewport to the PNG, quit. |
 
+Changed by section 22 (`docs/design-chain.md`): `--chain-t=<s>`, `--chain-export`, `--demo-profile` and `--reduced-motion`.
+
 ### 10.5 Screenshot scenarios (`tools/shots.txt`)
 
 ```
@@ -1471,6 +1481,9 @@ timeout 300 godot --headless --path . res://tests/run_tests.tscn -- --min-checks
 | `profile_tests.gd` | P1-P6. |
 | `controls_tests.gd` | C1-C6 with synthetic `InputEventKey`, `InputEventMouseButton`, `InputEventScreenTouch` and `InputEventScreenDrag` passed to `handle_event` of the controls and the overlay. |
 | `ui_tests.gd` | U1-U7 and U9 with the main scene in the test tree (`--profile` under `user://white_maze_test_*`). |
+
+Section 22 adds `chain_tests.gd` (K2-K5, K10, K11: links, codec, profile format 2) and `chain_view_tests.gd` (K6-K9,
+K12-K14: layout, timeline, result screen, export, level select).
 
 Fixture maps in tests are written as row arrays in the test files (no extra level files).
 
@@ -1725,3 +1738,9 @@ and the figure of 18.6.
 See `docs/design-skins.md` (section 21, ADR 0013): carved stone tiles with a crumbly outer edge, `X` slabs, trims on ring
 faces, outlined pins, rings and beads; skins are data packs per world with the reading rules owned by the engine.
 Replaces the tiles layer of 18.8, the palettes of 18.4 and the outline of 18.9.
+
+## 22. The chain
+
+See `docs/design-chain.md` (section 22, ADR 0014): the used rings as a necklace in the shape of the route, shown at the
+finish, shared as a PNG, stored as a chain record in profile format 2; view and profile only, the simulation is
+untouched. Changes 7.2, 8.2, 8.4 and 10.4.

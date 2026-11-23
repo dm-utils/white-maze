@@ -8,7 +8,28 @@ signal levels_pressed
 signal next_pressed
 
 const PANEL_BG := Color(0.106, 0.122, 0.149, 0.85)
+const RESULT_COL_W := 480.0
+const RESULT_GAP := 40.0
+const CARD_MIN_W := 480.0
+const CARD_MAX_W := 800.0
+const SKIP_GRACE_S := 0.3
+const HUD_CLEAR := 70.0 # the HUD buttons end about here; the result stays below them
+const MIN_GAP := 4
 
+var chain_view: MazeChainView # the card of the open result, or null
+var result_column: Control # the text and button column of the open result
+var safe_override := ""
+var web := OS.has_feature("web") # tests set it to check both share paths
+var share_button: Button # the open result's share button, or null
+var share_feedback: Label
+
+var _export: MazeChainExport
+var _share_info := {}
+var _blocking := false # eating the rest of the press that skipped the chain
+var _block_frame := -1
+
+var _result_margin: MarginContainer
+var _result_vs := Vector2.ZERO
 var _pause: Control
 var _result: Control
 var _rotate: Control
@@ -55,11 +76,22 @@ func hide_pause() -> void:
 	_pause = null
 
 
-## data: ticks, rings, par, new_best, best_ticks, has_next
+## data: ticks, rings, par, new_best, best_ticks, has_next; for the chain card also level, links, world and
+## optionally reduced_motion, chain_t (design 22.8)
 func show_result(data: Dictionary) -> void:
 	_free(_result)
+	_blocking = false
+	chain_view = null
+	share_button = null
+	share_feedback = null
+	_export = null
+	_share_info = _info_for_share(data)
+	if data.get("chain_export", false) and not _share_info.is_empty():
+		_show_export_screen()
+		return
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", WhiteTheme.SPACING)
+	col.custom_minimum_size = Vector2(RESULT_COL_W, 0)
 	col.add_child(_centered(WhiteUi.label(MazeStrings.s("finished"), WhiteTheme.FONT_TITLE, WhiteTheme.ACCENT)))
 	col.add_child(_centered(WhiteUi.label(MazeFormat.time(data["ticks"]), WhiteTheme.FONT_TITLE, WhiteTheme.TEXT)))
 	var rings := MazeStrings.s("result_rings") % [data["rings"], data["par"]]
@@ -68,24 +100,190 @@ func show_result(data: Dictionary) -> void:
 	elif data["rings"] < data["par"]:
 		rings += "  " + MazeStrings.s("under_par")
 	col.add_child(_centered(WhiteUi.label(rings, WhiteTheme.FONT_INFO, WhiteTheme.TEXT)))
+	if data["rings"] == 0:
+		col.add_child(_centered(WhiteUi.label(MazeStrings.s("no_rings"), WhiteTheme.FONT_INFO, WhiteTheme.TEXT)))
 	if data["new_best"]:
 		col.add_child(_centered(WhiteUi.label(MazeStrings.s("new_record"), WhiteTheme.FONT_INFO, WhiteTheme.ACCENT)))
 	else:
 		var best := MazeStrings.s("best_time") % MazeFormat.time(data["best_ticks"])
 		col.add_child(_centered(WhiteUi.label(best, WhiteTheme.FONT_INFO, WhiteTheme.DIM)))
+	if not _share_info.is_empty():
+		share_button = _button(col, "share" if web else "share_save", _share)
+		share_button.disabled = true
+		share_feedback = WhiteUi.label("", WhiteTheme.FONT_MESSAGE, WhiteTheme.DIM)
+		share_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		share_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(share_feedback) # always in the layout, so the buttons do not jump when it fills
 	var restart := _button(col, "restart", func() -> void: restart_pressed.emit())
 	var next: Button = null
 	if data["has_next"]:
 		next = _button(col, "next", func() -> void: next_pressed.emit())
 	_button(col, "levels_btn", func() -> void: levels_pressed.emit())
-	_result = _panel(col)
+	result_column = col
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", int(RESULT_GAP))
+	if data.has("level") and data["level"] is MazeLevel:
+		chain_view = _chain_card(data)
+		row.add_child(chain_view)
+	row.add_child(col)
+	_result = _result_panel(row)
+	if not _share_info.is_empty():
+		_export = MazeChainExport.new()
+		_result.add_child(_export)
+		_export.ready_png.connect(func() -> void: share_button.disabled = false)
+		_export.render(_share_info)
+	_layout_result()
 	_keep_rotate_on_top()
 	(next if next != null else restart).grab_focus()
+
+
+## what the share card and the share text need; {} for a result without a level
+func _info_for_share(data: Dictionary) -> Dictionary:
+	if not (data.get("level") is MazeLevel):
+		return {}
+	return {
+		"level": data["level"], "links": data.get("links", []), "world": int(data.get("world", 0)),
+		"clasp": data["rings"] <= data["par"], "number": int(data.get("number", 1)), "name": str(data.get("name", "")),
+		"ticks": data["ticks"], "rings": data["rings"], "par": data["par"], "code": str(data.get("code", "")),
+	}
+
+
+func _share() -> void:
+	if _export == null or _export.png.is_empty():
+		return
+	var info := _share_info
+	var file := MazeChainShare.file_name(info["level"].id, info["rings"], info["ticks"])
+	var note := ""
+	if web:
+		var how := MazeChainShare.share(_export.png, file, MazeChainShare.TITLE, MazeChainShare.share_text(info))
+		note = MazeStrings.s("chain_downloaded") if how == "download" else ""
+	else:
+		var path := MazeChainShare.save_local(_export.png, file)
+		note = MazeStrings.s("chain_saved") % ProjectSettings.globalize_path(path) if path != "" else ""
+	share_feedback.text = note
+
+
+## --chain-export: only the share card, scaled to fill the canvas (debug screenshot of the image)
+func _show_export_screen() -> void:
+	var view := MazeChainView.new()
+	view.style = MazeChainShapes.Style.EXPORT
+	view.export_info = _share_info
+	view.size = MazeChainView.EXPORT_SIZE
+	var k := get_viewport_rect().size.x / MazeChainView.EXPORT_SIZE.x
+	view.scale = Vector2(k, k)
+	view.setup(_share_info["level"], _share_info["links"], _share_info["world"], _share_info["clasp"],
+			MazeChainShapes.FINAL_T, true)
+	chain_view = view
+	_result = _solid_panel(view)
+	_keep_rotate_on_top()
+
+
+func _chain_card(data: Dictionary) -> MazeChainView:
+	var view := MazeChainView.new()
+	view.style = MazeChainShapes.Style.CARD
+	view.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var t0 := 0.0
+	var frozen := false
+	if data.get("reduced_motion", false):
+		t0 = MazeChainShapes.FINAL_T
+		frozen = true
+	elif float(data.get("chain_t", -1.0)) >= 0.0:
+		t0 = float(data["chain_t"])
+		frozen = true
+	view.setup(data["level"], data.get("links", []), int(data.get("world", 0)), data["rings"] <= data["par"], t0, frozen)
+	return view
+
+
+## true while the chain is still being strung
+func chain_animating() -> bool:
+	return result_visible() and chain_view != null and chain_view.animating()
+
+
+## key, mouse or touch press during the animation skips it; the first SKIP_GRACE_S of it eat presses silently. A
+## pointer press that skipped it never reaches a button: the emulated twin of a touch (mouse or touch, same frame) and
+## the release are eaten too, buttons work again from the next press that starts in a later frame
+func _input(event: InputEvent) -> void:
+	var pointer := event is InputEventMouseButton or event is InputEventScreenTouch
+	if _blocking and pointer:
+		if event.pressed and Engine.get_process_frames() > _block_frame:
+			_blocking = false
+		else:
+			get_viewport().set_input_as_handled()
+			return
+	if not chain_animating():
+		return
+	var pressed := false
+	if event is InputEventKey:
+		pressed = event.pressed and not event.echo
+	elif pointer:
+		pressed = event.pressed
+	if not pressed:
+		return
+	get_viewport().set_input_as_handled()
+	if pointer:
+		_blocking = true
+		_block_frame = Engine.get_process_frames()
+	if chain_view.time() >= SKIP_GRACE_S:
+		chain_view.finish_now()
+
+
+## card size and safe margins follow the viewport (design 22.8)
+func _process(_delta: float) -> void:
+	if result_visible() and get_viewport_rect().size != _result_vs:
+		_layout_result()
+
+
+func _layout_result() -> void:
+	if _result_margin == null:
+		return
+	var vs := get_viewport_rect().size
+	_result_vs = vs
+	var ins := WhiteSafeArea.insets(vs, safe_override)
+	var m := float(WhiteTheme.MARGIN)
+	var top: float = maxf(m, HUD_CLEAR) + ins["top"]
+	var bottom: float = m + ins["bottom"]
+	_result_margin.add_theme_constant_override("margin_left", int(m + ins["left"]))
+	_result_margin.add_theme_constant_override("margin_right", int(m + ins["right"]))
+	_result_margin.add_theme_constant_override("margin_top", int(top))
+	_result_margin.add_theme_constant_override("margin_bottom", int(bottom))
+	var avail := Vector2(vs.x - 2.0 * m - ins["left"] - ins["right"], vs.y - top - bottom)
+	if chain_view != null:
+		chain_view.custom_minimum_size = card_size(avail)
+	_fit_column(avail.y)
+
+
+## the column keeps to the free height: the gaps shrink before it grows into the HUD (down to MIN_GAP)
+func _fit_column(height: float) -> void:
+	if result_column == null:
+		return
+	var kids := result_column.get_children()
+	var content := 0.0
+	for c: Control in kids:
+		content += c.get_combined_minimum_size().y
+	var gaps := maxi(kids.size() - 1, 1)
+	var gap := clampi(int(floorf((height - content) / gaps)), MIN_GAP, WhiteTheme.SPACING)
+	result_column.add_theme_constant_override("separation", gap)
+
+
+## 16:9 card beside the column in the free area (design 22.8)
+static func card_size(avail: Vector2) -> Vector2:
+	var w := clampf(avail.x - RESULT_COL_W - RESULT_GAP, CARD_MIN_W, CARD_MAX_W)
+	var h := floorf(w * 9.0 / 16.0)
+	if h > avail.y:
+		h = avail.y
+		w = floorf(h * 16.0 / 9.0)
+	return Vector2(w, h)
 
 
 func hide_result() -> void:
 	_free(_result)
 	_result = null
+	_result_margin = null
+	chain_view = null
+	result_column = null
+	share_button = null
+	share_feedback = null
+	_export = null
 
 
 func show_rotate(on: bool) -> void:
@@ -119,6 +317,23 @@ func _solid_panel(content: Control) -> Control:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	bg.add_child(content)
+	add_child(bg)
+	return bg
+
+
+## full-screen dim panel with the content centred inside the safe margins
+func _result_panel(content: Control) -> Control:
+	var bg := ColorRect.new()
+	bg.color = PANEL_BG
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_result_margin = MarginContainer.new()
+	_result_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.add_child(content)
+	_result_margin.add_child(center)
+	bg.add_child(_result_margin)
 	add_child(bg)
 	return bg
 

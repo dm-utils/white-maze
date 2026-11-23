@@ -194,8 +194,8 @@ player's full trajectory (a tangle).
 
 | Value | CARD, EXPORT | MINI |
 |---|---|---|
-| `bead_r` | `clampf(0.30 * 40 * scale, 8, 14)` | `clampf(0.30 * 40 * scale, 2.5, 4)` |
-| `thread_w` | `clampf(0.35 * bead_r, 2.5, 4)` | 1.25 |
+| `bead_r` | `clampf(0.30 * 40 * scale, 8, 14)` | `clampf(0.30 * 40 * scale, 3.2, 4.5)` |
+| `thread_w` | `clampf(0.35 * bead_r, 2.5, 4)` | 2 |
 | `knot_r` | `0.45 * bead_r` | `0.6 * bead_r` |
 
 Beads are allowed to be larger than a tile on the card (l001 on the in-game card: a tile is 13.8 px, a bead 16 px wide);
@@ -838,6 +838,98 @@ Changed entry: **Format** (profile format is now 2; design 22.9).
     saves nothing until reloaded.
   - The share text includes the play address; it can be left out.
 
-## 22.21 Deviations as built
+## 22.21 Deviations as built (card #038)
 
-To be filled in by the developer (card #038).
+Result: 1711 game checks (`MIN_CHECKS` 1711, was 1193; 1630 after round 1, round 2 is 22.21.2), kit tests 764, `tools/check_levels.gd`, `tools/check_search_par.sh`
+and the web export green. K1 holds: `git diff 8e4574b -- sim/sim.gd sim/tuning.gd sim/level.gd sim/aim.gd sim/input.gd
+sim/run_script.gd levels tests/solutions.json` is empty; `sim/` only gained `chain.gd` and the profile changes.
+
+**K3 pinned chains.** All nine values equal the expected ones; no ring list of 5.4 or 17 was wrong. The open values
+of the estimate: l001 `ku26.11-bu38.11` (as expected), l002 `ku1.11-br0.5-bu22.11` (the open row is 5), l003
+`bu1.11-br0.4-bu24.11` (as expected). They are pinned in `tests/chain_tests.gd`.
+
+**Tests.** Two suites instead of one: `tests/chain_tests.gd` (K2 to K5, K10, K11, K15) and `tests/chain_view_tests.gd`
+(K6 to K9, K12 to K14); both in `SUITES`. Existing tests changed: P1, P2, P4 and the store and robustness checks that
+asserted format 1 now assert 2 (`profile_tests`: create, "format 3 is newer", migrate; `profile_store_tests`: a format 3
+file is the newer one; `robust_tests`: merge result; `screens_tester_tests`: repaired store files). Two tests that press
+Enter right after a finish call `overlays.chain_view.finish_now()` first: `ui_tests` (Enter on the result opens the next
+level) and `screens_tester_tests` (Enter on the last level's result).
+
+**K14 with a real renderer.** The headless runner has the dummy renderer, where the share image stays empty (CH4), so the
+render and the save are checked by `tools/check_chain_export.gd` (xvfb, opengl3: a 1200 x 675 PNG with the card on it,
+saved with `save_local`, removed again) and a CI step after the shots. The headless suite checks the texts, the file
+name, the share text, the script, the button states and `save_local` with fake bytes. The web path was smoke-tested
+in headless Chrome (22.21.1).
+
+**Shapes and view.** `layout` also returns `box`, `style` and `n` (drawn links); for EXPORT the view adds `canvas`, the
+whole image, because the background covers the image while the chain sits in the chain box. `shapes` knows one
+primitive kind beyond the decor format: `text` (the `+N` label). Names that differ from the sketch: `drawn_count`,
+`bead_step`, `level_rect`, `FINAL_T` (99 s, the end state), `MazeChain.key` (public; `seen` holds integers, not
+`[cell, face]` arrays). `colours(world, under)` takes a transparent `under` for the card and the export (contrast against
+both background colours) and the button colour for MINI. Clasp: centred on the door point, rotated to the last segment;
+the last segment ends at the frame's near side. The start tail points down and left; the `+N` label sits right of and
+below the last bead. The `MINI` clasp is the filled circle with a 1 px outline, drawn at the door point.
+
+**Skip.** The 0.3 s grace is measured in the view's own animation time (capped at 0.1 s per frame, like the animation),
+not wall clock, so it stretches when the frame rate is very low and stays testable with fixed deltas. The first 0.3 s
+eat key, mouse and touch presses; releases and key echoes never count. Shots (`--shot`) start in the final state unless
+`--chain-t` is given.
+
+**Result layout.** `MazeOverlays` gets `safe_override` (set by the game from `--safe`); the card height is floored
+(712 x 400, not 400.5) and the view is centred vertically beside the column. The share feedback label is always in the
+layout (empty text) instead of hidden: when it filled, the column grew and the buttons jumped under the pointer.
+`MazeOverlays.card_size(avail)` is static and tested.
+
+**`--chain-export`.** The window of the scenario is 1200 x 675 but the canvas is 1280 x 720 (stretch `canvas_items`), so
+the export view is scaled by `canvas width / 1200` to fill the window; the screenshot is the share card. The share
+image itself is rendered in its own `SubViewport` of exactly 1200 x 675. The rings line of the export says `no_rings`
+for a zero-ring finish where the result screen shows `under_par` and `no_rings` on two lines.
+
+**Level select.** The card's top and bottom padding of the scroll area went from 6 to 5 px: nine cards were 1 px too
+tall for 1280 x 720 (a scrollbar showed on the select shots before this card), K12 needs them to fit. So the `select`
+and `select-en` shots changed slightly (no scrollbar, the cards are a few px wider), unlike the design expected. `--demo-profile`
+is `MazeMain.fill_demo_profile` and only works with `--shot` (else a warning).
+
+**Profile.** `MazeProfileStore.open` saves after a migration; `MazeMain` loads the levels before the profile and
+passes the valid ones. `sanitize` returns `migrated`; `migrate` raises the format number of a format 1 copy.
+
+**Fixtures of the shots.** `chain-zero` and `chain-export-zero` use the 0-ring route of l001 from the report of
+`docs/test-reports/2026-11-21-levels-4-9.md` (B1, card #010): `R96 RJ4 R32 RJ4 R16 RJ4 R12 RJ8 R24 L4 R28 RJ4 R16 -4 L4
+R8 RJ24 R48` (337 ticks, chain `ku26.11`). It only exists while that opening can be jumped: `tests/chain_view_tests.gd`
+checks the fixture and says so in its message, so closing the opening fails that one check and the two scenarios
+must then get another route (no other shipped level can be finished without a thrown ring). `chain-overpar` uses
+`R2 T142 R70 U L64 -8 T142 R70 U R20 -24 T142 R6 RJ14 R80 R12 U -3 T142 R300` on l004: 4 rings, par 3, chain
+`bu7.11-bu7.11-bu19.11-bu31.11` (the first face used twice: stacked beads), 513 ticks.
+
+### 22.21.2 Repairs after the test of card #039 (round 2)
+
+- **H1, a tap that skips the chain presses no button.** With `emulate_mouse_from_touch` a tap is a mouse press and a
+  touch press; the first ended the animation and the second reached the button under the finger. `MazeOverlays._input`
+  now eats every pointer press (mouse or touch) of the frame that skipped, and their releases, until a press arrives
+  in a later frame; only then do the buttons answer again. The test (`_skip_real_input`) uses `Input.parse_input_event`
+  with a touch (and so its emulated mouse click) and with a mouse, on Next, Restart and Levels, and checks the new tap
+  after the animation. K9's direct `_input` calls now sit one frame apart.
+- **M1, the share image takes any length.** The share code has a line of its own (baseline 618) above the address
+  (baseline 654, right aligned); a code wider than 1120 px is cut in the image with an ellipsis, the share text keeps the
+  whole code. The chain box is `Rect2(40, 124, 1120, 464)` (was 488 high), so the chain scales into what the footer
+  leaves. Tested with 1, 4, 11, 13, 30 and 64 beads. Changes 22.11.1: footer rows `y` 592 to 675.
+- **L1.** `backfill_chains` first checks the length with `MazeChain.script_fits` (adds the hold counts without expanding
+  inputs, over 5 digits or over the limit is refused) and only then runs the replay; 100 tokens of `R99999` open at once.
+  `sim/run_script.gd` is untouched (K1).
+- **L2.** The result keeps below the HUD buttons: the top margin is `max(MARGIN, 70) + safe top`, and the gaps of the
+  column shrink (down to 4 px) when it would not fit. The result is about 23 px lower on 1280 x 720 than before.
+- **L3.** Mini chain: thread 2 px (was 1.25), bead radius clamp 3.2 to 4.5 (was 2.5 to 4); the knot is still 0.6 of a
+  bead and has no outline, so it stays smaller and without the dark ring.
+- **L4.** `record_finish` refuses links whose bead count differs from `rings` (K10 stays true: the profile only holds
+  consistent chains).
+
+### 22.21.1 Web smoke test (K17, partly)
+
+The release build cannot finish a level from the URL (no `solve` key, `tests/` is left out of the export), so the smoke
+test ran on a scratch copy of the project with `?solve` and `tests/` enabled, exported for the web and served on
+localhost, driven in headless Chrome over the DevTools protocol (software GL). Results: the card renders, the animation
+ends, Share enables once the image is ready; with `navigator.canShare` and `navigator.share` present the page called
+`share` once with `white-maze-l004-3-371.png` (image/png, 36 517 bytes), the title `White Maze` and the text of 22.11.3;
+with both removed a download of the same file name started and the file is a 1200 x 675 PNG; no network request left
+the page after the click in either case; the feedback line `Afbeelding gedownload` showed after the download. Not
+covered: a real phone share sheet, iOS Safari, Android Chrome (left to the tester, K17).

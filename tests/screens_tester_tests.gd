@@ -107,11 +107,11 @@ func _store_garbage() -> void:
 		_write(cases[name])
 		var s := MazeProfileStore.new()
 		s.open(PROFILE, 4242)
-		var ok: bool = s.data.get("format") == 1 and s.data.get("levels") is Dictionary
+		var ok: bool = s.data.get("format") == 2 and s.data.get("levels") is Dictionary
 		_check.call(ok, "store: '%s' gives a usable profile" % name)
 		var again := MazeProfileStore.new()
 		again.open(PROFILE, 4243)
-		_check.call(again.notice == "" and again.data.get("format") == 1, "store: '%s' is repaired on disk" % name)
+		_check.call(again.notice == "" and again.data.get("format") == 2, "store: '%s' is repaired on disk" % name)
 		var sel := MazeLevelSelect.new()
 		var lv: Array[MazeLevel] = [MazeLevels.load_level("l001"), MazeLevels.load_level("l002")]
 		sel.levels = lv
@@ -204,6 +204,7 @@ func _unlock_chain() -> void:
 	var m4 := _main(["--level=l009", "--solve"])
 	var left := [false]
 	m4.game.levels_requested.connect(func() -> void: left[0] = true)
+	m4.game.overlays.chain_view.finish_now()
 	m4.game._input(_key(KEY_ENTER))
 	_check.call(left[0], "unlock: Enter on the last level's result opens the level select")
 	_close(m4)

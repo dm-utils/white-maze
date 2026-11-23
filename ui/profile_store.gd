@@ -18,7 +18,8 @@ func open_memory(lang: String, now: int) -> void:
 	data = MazeProfile.create(_new_device(), lang, now)
 
 
-func open(p: String, now: int) -> void:
+## levels: id -> MazeLevel, for the chain backfill when a format 1 file is migrated (design 22.9.5)
+func open(p: String, now: int, levels: Dictionary = {}) -> void:
 	path = p
 	notice = ""
 	writable = true
@@ -31,7 +32,7 @@ func open(p: String, now: int) -> void:
 	var text := FileAccess.get_file_as_string(path)
 	if json.parse(text) == OK:
 		parsed = json.data
-	var res := MazeProfile.sanitize(parsed)
+	var res := MazeProfile.sanitize(parsed, levels)
 	match res["status"]:
 		"newer":
 			data = MazeProfile.create(_new_device(), "nl", now)
@@ -46,6 +47,8 @@ func open(p: String, now: int) -> void:
 			data = res["profile"]
 			if str(data.get("device", "")) == "":
 				data["device"] = _new_device()
+				save(now)
+			elif res["migrated"]:
 				save(now)
 
 

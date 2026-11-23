@@ -4,10 +4,14 @@ extends Control
 ## Debug (after --): --level=<id> --all-levels --lang=nl|en --touch --safe=l,t,r,b --profile=<path> --print-run
 ## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
 ## --speed=<50-150> (percent of 60 ticks per second, overrides the level curve)
+## --chain-t=<seconds> (freeze the result chain at that time) --reduced-motion (no chain animation)
+## --chain-export (the result shows only the share card) --demo-profile (with --shot: finished levels from the
+## stored solutions, for the mini chains on the level select)
 ## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
 const SHOT_WAIT_S := 0.5
+const REDUCED_MOTION_JS := "!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)"
 # no profile path, shot or solve from a URL
 const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch", "speed"]
 const QUERY_FLAGS := ["fps", "touch"]
@@ -49,7 +53,8 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 	var o := {
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
 		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
-		"speed": 0,
+		"speed": 0, "chain_t": -1.0, "reduced_motion": false,
+		"chain_export": false, "demo_profile": false,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -90,6 +95,18 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 				o["speed"] = int(v)
 			else:
 				push_warning("--speed: expected %d to %d, got '%s'" % [lo, hi, v])
+		elif a.begins_with("--chain-t="):
+			var v := a.get_slice("=", 1)
+			if v.is_valid_float() and float(v) >= 0.0:
+				o["chain_t"] = float(v)
+			else:
+				push_warning("--chain-t: expected seconds >= 0, got '%s'" % v)
+		elif a == "--reduced-motion":
+			o["reduced_motion"] = true
+		elif a == "--chain-export":
+			o["chain_export"] = true
+		elif a == "--demo-profile":
+			o["demo_profile"] = true
 		elif a == "--fps":
 			o["fps"] = true
 		elif a.begins_with("--camera="):
@@ -114,22 +131,32 @@ func _ready() -> void:
 			args.append_array(query_args(str(JavaScriptBridge.eval("window.location.search", true))))
 	opts = parse_args(args)
 	opts["shot_mode"] = opts["shot"] != ""
+	if OS.has_feature("web") and JavaScriptBridge.eval(REDUCED_MOTION_JS, true):
+		opts["reduced_motion"] = true
 	MazeStrings.register()
 	var now := int(Time.get_unix_time_from_system())
+	level_ids = MazeLevels.ids()
+	var valid := {}
+	for id in level_ids:
+		var lv := MazeLevels.load_level(id)
+		if lv.valid():
+			valid[id] = lv
+		else:
+			push_error("level %s is invalid: %s" % [id, "; ".join(lv.errors)])
+		levels.append(lv)
 	store = MazeProfileStore.new()
 	if opts["shot_mode"]:
 		store.open_memory(opts["lang"] if opts["lang"] != "" else "nl", now)
 	else:
-		store.open(opts["profile"] if opts["profile"] != "" else MazeProfileStore.DEFAULT_PATH, now)
+		store.open(opts["profile"] if opts["profile"] != "" else MazeProfileStore.DEFAULT_PATH, now, valid)
+	if opts["demo_profile"]:
+		if opts["shot_mode"]:
+			fill_demo_profile(store.data, levels)
+		else:
+			push_warning("--demo-profile only works with --shot")
 	WhiteText.lang = str(store.data.get("lang", "nl"))
 	if opts["lang"] != "" and WhiteText.has_lang(opts["lang"]):
 		WhiteText.lang = opts["lang"]
-	level_ids = MazeLevels.ids()
-	for id in level_ids:
-		var lv := MazeLevels.load_level(id)
-		if not lv.valid():
-			push_error("level %s is invalid: %s" % [id, "; ".join(lv.errors)])
-		levels.append(lv)
 	var start := level_ids.find(opts["level"]) if opts["level"] != "" else -1
 	if start >= 0:
 		start_level(start)
@@ -139,11 +166,26 @@ func _ready() -> void:
 		_take_shot(opts["shot"])
 
 
+## every level with a stored solution finished by replaying it (design 22.15)
+static func fill_demo_profile(p: Dictionary, list: Array[MazeLevel]) -> void:
+	var solutions := WhitePuzzleStore.load_json("res://tests/solutions.json")
+	for lv in list:
+		if not (lv.valid() and solutions.get(lv.id) is String):
+			continue
+		var script: String = solutions[lv.id]
+		var r := MazeChain.from_run(lv, script)
+		if not (r["ok"] and r["finished"]):
+			continue
+		MazeProfile.record_start(p, lv.id, 0)
+		MazeProfile.record_finish(p, lv.id, r["ticks"], r["rings"], script, 0, MazeChain.encode(r["links"]))
+
+
 func _debug_game_options() -> Dictionary:
 	return {
 		"keys": opts["keys"], "solve": opts["solve"], "aim": opts["aim"], "pause": opts["pause"],
 		"shot": opts["shot_mode"], "print_run": opts["print_run"], "touch": opts["touch"], "safe": opts["safe"],
 		"camera": opts["camera"], "world": opts["world"], "fps": opts["fps"], "speed": opts["speed"],
+		"chain_t": opts["chain_t"], "reduced_motion": opts["reduced_motion"], "chain_export": opts["chain_export"],
 	}
 
 

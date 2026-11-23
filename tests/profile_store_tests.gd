@@ -68,14 +68,14 @@ func _damaged() -> void:
 
 
 func _newer() -> void:
-	var text := '{"format": 2, "future": true}'
+	var text := '{"format": 3, "future": true}'
 	_write(text)
 	var s := MazeProfileStore.new()
 	s.open(PATH, 900)
-	_check.call(s.notice == "newer" and not s.writable, "a format-2 file sets the newer notice and is not writable")
+	_check.call(s.notice == "newer" and not s.writable, "a format-3 file sets the newer notice and is not writable")
 	_check.call(not s.save(901), "save returns false for a newer file")
-	_check.call(FileAccess.get_file_as_string(PATH) == text, "a format-2 file is left byte-identical")
-	_check.call(s.data["format"] == 1, "the session still has a working profile in memory")
+	_check.call(FileAccess.get_file_as_string(PATH) == text, "a format-3 file is left byte-identical")
+	_check.call(s.data["format"] == 2, "the session still has a working profile in memory")
 
 
 func _empty_device() -> void:

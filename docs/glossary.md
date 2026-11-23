@@ -29,8 +29,12 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Camera guard | A hard limit of the follow camera: the player centre stays at least a set distance inside the play rect (sideways 3 tiles, top 1 tile, bottom 2.4 tiles or 4 while falling). The camera's counterpart of a dead zone (design 19.6, values in 20.5). |
 | Camera rig (`MazeCameraRig`) | The pure class that computes the camera's position and zoom each frame from the player, the aim, the intro and the overview; the `Camera2D` only receives its result (ADR 0011). |
 | Cast (`MazeSim.cast`) | The pure query that marches the throw ray through the grid and reports the target face and whether the throw is valid. |
+| Chain (`MazeChain`) | The necklace shown at the finish: the rings the player used, as beads on a thread in the order of their first launch, in the shape of the route, from the start to the door. One bead per ring used, so its length is the score (design 22). |
+| Chain bead | A bead on the chain: one thrown ring at its first launch (a counted launch). Always white, the same in every world. |
+| Chain record (`chain`) | The best chain of a level in the profile: rings used, time in ticks and the link text of a finish; the fewest rings wins, the faster on a tie. Ranked on its own, independent of the best time. |
 | Chip (`MazeSkin.chip`) | The 45 degree cut at a convex outer corner of a `#` cell where both sides face air: at most 3 px next to a floor, at most 6 px elsewhere. |
 | Chunk | A 16 x 16 tile part of a static layer, drawn once per level. |
+| Clasp | The buckle at the door end of the chain, in the world's lip tint, shown when rings used is at most par. Over par the thread ends in a plain knot. |
 | Clock | Game time of the current attempt, shown as `m:ss.cc`; starts at the first active tick. Runs at the level speed and slower while aiming. |
 | Contour | The dark band, 3 px wide, inside the edge of a block where it faces air, a spike or `X` (1.5 px per side at a seam). Its colour is derived by the engine from the block colour. Lilith's own outline is half as thick. |
 | Coyote time (`COYOTE_TICKS`) | A jump still works for a few ticks after walking off a ledge. |
@@ -51,9 +55,10 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Fit zoom | The zoom at which the whole level fits in the play rect with a small margin; used by the overview, never above the target zoom. |
 | Flight | A thrown bead on its way; it becomes a ring at its arrival tick. |
 | Follow camera | The zoomed camera that follows Lilith with a look-ahead, a ground anchor and camera guards, clamped to the level (design 19.6). |
-| Format (`format`) | Version number of the profile, of a level file or of a skin pack; raised when a field changes meaning. |
+| Format (`format`) | Version number of the profile (2 since the chain record and its backfill, design 22.9), of a level file or of a skin pack; raised when a field changes meaning. |
 | Game rate | Simulation ticks per real second divided by 60: the level speed times the aim rate (a quarter while aiming), 0 while paused or in the overview. |
 | Game time | Time counted in simulation ticks (60 per second at a game rate of 1). Slow motion and the level speed slow game time down. |
+| Ghost map | The faint picture of a level's solid cells behind the chain on the result card and the share card. |
 | Ground anchor | The feet height of the last ground Lilith stood on; the follow camera keeps it at a fixed height in the play rect, so jumps do not move the view. Falling below it moves the view down. |
 | Hazard box | The player's hitbox shrunk by 4 px on every side; used against spikes. |
 | Hazard colour (`MazeWorlds.HAZARD`) | The one warm red of spikes in every world; no other world colour comes near its hue. |
@@ -64,18 +69,22 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Input mode | Keyboard or touch, whichever was used last; decides the touch overlay's visibility and the control names in hints. |
 | Intro pan | At the opening of a level the camera shows the door, holds briefly and pans to Lilith; any input skips it, and it never blocks play. |
 | Jump buffer (`JUMP_BUFFER_TICKS`) | A jump pressed shortly before landing still happens on landing. |
+| Knot | A small knot on the chain where the route used a preset ring for the first time; not a bead and never counted. |
 | Launch | A ring setting the player's velocity away from its face. The first launch of a thrown ring makes it a used ring. |
 | Level (`MazeLevel`) | One handmade map with metadata, loaded from `levels/<id>.json`. |
 | Level check (`tools/check_levels.gd`) | Headless tool that validates all levels and replays their solutions. |
 | Level id | Stable name of a level (`l001`), the key of its statistics. |
 | Level speed (`MazeGame.speed`) | The time scale of a level, from its position in the series (`SPEED_PCT`, 80 % for level 1 up to 96 % from level 9); fewer ticks per real second, the same trajectories (ADR 0012). |
 | Lilith (`MazeLilith`) | The player character: an original explorer with orange hair, a rose-red headband with two fluttering tails and a bandolier, drawn in code inside the 30 x 32 hitbox. |
+| Link | One element of the chain between start and door: a bead or a knot, with its cell and face (`b` or `k`, face letter, `x.y`). |
+| Link text | The chain as text, for example `bu7.11-bu19.11-bu31.11`; stored in the chain record and in the share code. |
 | Lip | The light marking on a `#` face where a ring can be placed (`MazeArt.lip_face`), drawn as a trim. No lip on `X`, on faces towards a spike or a block, or along the level edge. |
 | Lip tint (`MazeSkin.LIP_TINTS`) | A named set of three engine colours for the lip (lip, light stripe, dark stripe): `sand`, `moss`, `frost`. A skin pack picks one by name. |
 | Look-ahead | The follow camera's horizontal offset of 3 tiles in the walking direction, taken from the velocity with a short turn delay. |
 | Look velocity | The per-tick smoothed velocity that Lilith's tails and launch tilt follow, so they swing round instead of snapping (design 20.3.4). Not used by the camera. |
 | Map button | The touch button under the HUD band on the right that shows the overview while held. |
 | Merge (`MazeProfile.merge`) | Deterministic combination of a local and a remote profile, for the online profile [later]. |
+| Mini chain | The small picture of a level's best chain on its card in the level select. |
 | Mortar | The dark gap between two stones of one mass, `stones.mortar` px wide, in the pack's `mortar` colour. |
 | Motif | A small carved detail on some stones, chosen by the pack: an incised sun (temple), moss (jungle), a crack or a blunt crystal (cave). Never inside a trim. |
 | Move stick | The floating touch control on the left for walking; horizontal only. |
@@ -96,6 +105,8 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Run script (`MazeRunScript`) | Text form of a per-tick input sequence, for example `R40 RJ12 T30 -5`. |
 | Seam | The border between `#` and `X`: a 3 px contour line exactly on the tile border, 1.5 px on each side. |
 | Series | The fixed, ordered levels of the game; level `n + 1` opens after level `n` is finished. |
+| Share card | The 1200 x 675 PNG of a finish: level, time, rings and par, the chain and the share code; shared with the system share sheet or downloaded. |
+| Share code | Text form of a finish's chain: `wm1/<level>/<rings>/<par>/<ticks>/<links>`. Identifies a route; not a proof. |
 | Side kind (`MazeSkin.Side`) | What a face of a block looks at: `AIR`, `SPIKE`, `SAME` (same block kind), `SEAM` (the other block kind) or `EDGE` (outside the level). Decides contour, trim, crumbly edge and inset. |
 | Skin (`MazeSkins.skin`) | The resolved look of a world: a skin pack with clamped numbers, parsed colours and the engine-derived colours added. |
 | Skin pack (`MazeSkins.TEMPLE`, ...) | The data that makes a world look like itself: palette, lip tint name, pin shape, back line pattern, stone grouping and bevel, mortar, edge amplitudes, motifs. JSON-compatible; validated by `MazeSkin.validate` (design 21.4). The base for a world studio [later]. |
@@ -109,9 +120,11 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Spike (`^`) | A hazard tile; its hitbox is the lower half of the tile, slightly narrower. Drawn in the hazard colours with a dark inner outline. |
 | Static layer (`MazeStaticLayer`) | The back wall or tile layer of the world view, split into chunks and drawn once per level. |
 | Stone (`MazeSkin.stone_of`) | One carved block of a `#` mass: 1 x 1, 2 x 1 or 2 x 2 cells, chosen from lattice anchors and the hash, with a chamfer, a bevel and a slight shade. |
+| Stringing | The finish animation: the beads drop onto the thread one by one, the thread pulls taut, the clasp closes; at most 2.05 s, skippable, off with reduced motion. |
 | Supply | The beads left; see beads left. |
 | Target zoom | The camera's fixed zoom for a screen size: 9 tiles of visible height (at least 16 tiles of width), so Lilith is about 8.9 % of the screen height on 16:9 and wider (design 19.4, 20.5). |
 | Thin mass | A `#` cell whose opposite faces both face air (a one-tile tower, wall or platform); its crumbly edge is limited to 2 px. |
+| Thread | The line of the chain, straight between links when taut; in the world's door frame colour (or a fallback with enough contrast). |
 | Throw | Releasing an aim; a valid throw spends a bead from the supply and starts a flight. A throw alone does not count towards par. |
 | Throw stick | The touch control on the right for aiming and throwing: drag to aim, release to throw, back to the centre to cancel. |
 | Tick | One simulation step, 1/60 s of game time. |

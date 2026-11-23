@@ -41,7 +41,8 @@ There is no `LICENSE` file: all rights reserved.
   `MazeRunScript`, `MazeProfile`, `MazeFormat`, `MazeMain`, `MazeLevelSelect`, `MazeGame`, `MazeWorldView`, `MazeHud`,
   `MazeCameraRig`, `MazeControls`, `MazeTouchOverlay`, `MazeOverlays`, `MazeProfileStore`, `MazeStrings`, `MazeLilith`,
   `MazePoseBlend`, `MazeArt`, `MazeWorlds`, `MazeDecor`, `MazeStaticLayer`, `MazeStaticBake`, `MazeSkin`,
-  `MazeSkins`, `MazeTileShapes`). Kit classes have the prefix `White`; do not declare `White*` names here. Test scripts
+  `MazeSkins`, `MazeTileShapes`, `MazeChain`, `MazeChainShapes`, `MazeChainView`, `MazeChainExport`,
+  `MazeChainShare`). Kit classes have the prefix `White`; do not declare `White*` names here. Test scripts
   declare no `class_name`.
 - Documentation comments use `##`; ordinary comments `#`. Comments and identifiers in English.
 - Player-facing texts live in `ui/strings.gd` (`MazeStrings.TEXT`, Dutch and English), registered through the kit;
@@ -96,6 +97,8 @@ godot --path . -- --level=<id> --print-run
 
 - `user://profile.json`, format in design 7.2. A change of a field's meaning raises `format` and adds a step to
   `MazeProfile.migrate`; adding a field does not (unknown keys are kept by older versions).
+- Format 2 holds the chain record per level (design 22.9); a backfill from `best_run` runs once, in the migration from
+  format 1 (`MazeProfile.backfill_chains`). The chain is a view and profile feature: `MazeSim` never changes for it.
 - Every new field gets a merge rule in `MazeProfile.merge` and a test.
 - Tests use files under `user://` with the prefix `white_maze_test_` and delete them afterwards.
 
