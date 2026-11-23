@@ -394,6 +394,11 @@ func _profile_records(check: Callable) -> void:
 	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"] == before, "K10: links null changes nothing")
 	r = MazeProfile.record_finish(p, "l004", 10, 0, "R1", 11, "nonsense")
 	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"] == before, "K10: unparsable links change nothing")
+	var guard: Dictionary = p["levels"]["l004"]["chain"].duplicate()
+	r = MazeProfile.record_finish(p, "l004", 1, 0, "R1", 13, "bu7.11-bu19.11-bu31.11")
+	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"] == guard, "L4: links that do not match the rings are refused")
+	r = MazeProfile.record_finish(p, "l006", 1, 1, "R1", 14, "ku1.1")
+	check.call(not r["new_chain"] and not p["levels"]["l006"].has("chain"), "L4: knots do not make up a ring")
 	r = MazeProfile.record_finish(p, "l005", 10, 0, "R1", 12, "")
 	check.call(r["new_chain"] and p["levels"]["l005"]["chain"] == _chain(0, 10, ""), "K10: an empty chain is stored")
 
@@ -519,6 +524,19 @@ func _migration(check: Callable) -> void:
 				and _read(PROFILE)["format"] == 2,
 			"K11: %s gives no chain and format 2" % what
 		)
+	# a hostile script is refused by its length, before anything is expanded (L1)
+	_clean()
+	_write(PROFILE, _format1("l004", "R99999" + " R99999".repeat(99), res["ticks"], res["rings"]))
+	var started := Time.get_ticks_msec()
+	var hostile := _open(levels)
+	var spent := Time.get_ticks_msec() - started
+	check.call(spent < 1000 and hostile.data["format"] == 2 and not hostile.data["levels"]["l004"].has("chain"), "L1: 100 tokens of R99999 open at once without a chain (%d ms)" % spent)
+	check.call(
+		MazeChain.script_fits("R5 T3 U RJ4 -2", 11) and not MazeChain.script_fits("R5 T3 U RJ4 -2", 10)
+			and MazeChain.script_fits("", 0) == false and not MazeChain.script_fits("R5  R5", 99)
+			and not MazeChain.script_fits("R123456", 99999999) and MazeChain.script_fits(sol, 7200),
+		"L1: script_fits counts the hold ticks without expanding them"
+	)
 	_clean()
 	_write(PROFILE, _format1("l004", sol, res["ticks"], res["rings"]))
 	var no_level := _open({})

@@ -153,6 +153,27 @@ static func parse_code(text: String) -> Dictionary:
 	return out
 
 
+## true when the script holds at most max_ticks ticks; reads the hold counts without expanding the inputs, so a hostile
+## script never costs more than its length
+static func script_fits(script: String, max_ticks: int) -> bool:
+	var total := 0
+	for token in script.split(" ", true):
+		if token.is_empty():
+			return false
+		if token == "U" or token[0] == "T":
+			continue
+		var first := 0
+		while first < token.length() and (token.unicode_at(first) < 48 or token.unicode_at(first) > 57):
+			first += 1
+		var digits := token.substr(first)
+		if digits.is_empty() or digits.length() > 5:
+			return false
+		total += int(digits)
+		if total > max_ticks:
+			return false
+	return true
+
+
 ## unique int per cell and face
 static func key(cell: Vector2i, face: int) -> int:
 	return cell.x * 4096 + cell.y * 4 + face

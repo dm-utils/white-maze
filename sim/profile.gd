@@ -74,8 +74,7 @@ static func backfill_chains(p: Dictionary, levels: Dictionary) -> int:
 		var script: String = entry.get("best_run", "")
 		if script.is_empty() or not entry.has("best_ticks") or not entry.has("best_rings"):
 			continue
-		var parsed := MazeRunScript.parse(script)
-		if not parsed["ok"] or parsed["inputs"].size() > MazeChain.BACKFILL_MAX_TICKS:
+		if not MazeChain.script_fits(script, MazeChain.BACKFILL_MAX_TICKS): # before any parsing, so opening never stalls
 			continue
 		var r := MazeChain.from_run(lv, script, MazeChain.BACKFILL_MAX_TICKS)
 		if r["ok"] and r["finished"] and r["ticks"] == entry["best_ticks"] and r["rings"] == entry["best_rings"] \
@@ -102,7 +101,7 @@ static func add_play(p: Dictionary, level_id: String, ticks: int, deaths: int, n
 
 
 ## {"new_best": bool, "new_fewest": bool, "new_chain": bool, "best_ticks": int, "fewest_rings": int}
-## links: link text of the finish; null or unparsable leaves the chain record alone
+## links: link text of the finish; null, unparsable or not matching rings leaves the chain record alone
 static func record_finish(
 	p: Dictionary, level_id: String, ticks: int, rings: int, run: String, now: int, links: Variant = null
 ) -> Dictionary:
@@ -119,7 +118,8 @@ static func record_finish(
 		entry["fewest_rings"] = rings
 		entry["fewest_ticks"] = ticks
 	var new_chain := false
-	if links is String and MazeChain.parse(links)["ok"]:
+	var parsed := MazeChain.parse(links) if links is String else {"ok": false}
+	if parsed["ok"] and MazeChain.bead_count(parsed["links"]) == rings: # a chain must agree with its rings
 		var cand := {"rings": rings, "ticks": ticks, "links": links}
 		if MazeChain.better(cand, entry.get("chain", {})):
 			entry["chain"] = cand
