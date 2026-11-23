@@ -1249,10 +1249,10 @@ a lead that needs the check of throwability.
 - lab03 (par 1) has no 0-ring route within 300000 nodes; lab02 is par 0.
 
 **Speed (R28).** Measured by `check_solver.sh` on l005 with one of its two rings (no route, so both stop at the node
-limit), startup of Godot subtracted: `search_par.gd` 20000 nodes in 10.3 s (1946 nodes/s), `maze_solver` 200000 nodes in
-827 ms (241546 nodes/s): factor 124. The check fails below 100. The full l005 calibration (both rings, `weight 1`): `search_par.gd` 295 s, `maze_solver` 1.3 s, factor about 230 (both measured
+limit), startup of Godot subtracted: `search_par.gd` 20000 nodes in 7.8 s (2550 nodes/s), `maze_solver` 200000 nodes in
+552 ms (361664 nodes/s): factor 142. The check fails below 100. The full l005 calibration (both rings, `weight 1`): `search_par.gd` 295 s, `maze_solver` 1.3 s, factor about 230 (both measured
 while 14 other solver threads and the screenshots were running; `maze_solver` alone needs 0.7 s).
-`check_solver.sh` takes about two minutes (about 40 s of it the GDScript trace and the GDScript speed run).
+`check_solver.sh` takes 80 s on this machine (about 40 s of it the GDScript trace, 8 s the GDScript speed run).
 
 **Rule.** `docs/conventions.md` (Simulation rules) says that a change of movement in `sim/sim.gd` or `sim/slope.gd` changes
 `maze_solver.cpp` in the same commit; CI runs `tools/check_solver.sh` after the par calibration (needs `g++`, present on
