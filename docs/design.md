@@ -944,7 +944,7 @@ Par of l004 to l009 is the number of rings used by the stored solution, counted 
 
 ### 5.5 Level check tool (`tools/check_levels.gd`, `extends SceneTree`)
 
-Changed by section 23 (`docs/design-roofs.md`): runs for `levels/lab/` as well; the format-2 output line and the cell budget come in phase B.
+Changed by section 23 (`docs/design-roofs.md`): runs for `levels/lab/` as well; the format-2 output line `slopes <n>`, the error for more than 900 cells and the warning for too little sky above a floor face (23.10.1).
 
 For every id in the index: load, validate, print `ok <id> <w>x<h> beads <b> par <p>` or each error as
 `error <id>: <text>`. When `tests/solutions.json` has the id: run the script with `MazeRunScript.run` (at most 36000
