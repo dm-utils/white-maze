@@ -1,6 +1,6 @@
 # 0002 Own fixed-step integer simulation instead of Godot physics
 
-Status: accepted (2026-11-20)
+Status: accepted (2026-11-20). Amended by ADR 0015 (2026-11-23): slope tiles are added to the same integer simulation.
 
 ## Context
 
@@ -38,6 +38,7 @@ checked.
 
 - About 300 lines of own movement and collision code, fully covered by headless tests (design 3.12).
 - Slopes, rotating platforms and physics props are not available; the levels do not need them (assumption A2).
-  Moving obstacles can be added later as entities stepped in the same tick.
+  Moving obstacles can be added later as entities stepped in the same tick. (Since ADR 0015, slope tiles are available
+  as a centre-foot extension of this simulation; rotating platforms and physics props still are not.)
 - Every run can be replayed from its run script (ADR 0003), which makes solution tests, deterministic screenshots and a
   later server check of best times possible.
