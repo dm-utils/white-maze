@@ -7,7 +7,8 @@ beads per level, a par for the fewest rings you bounce off, and a clock that onl
 first, touch in landscape.
 
 Status: phase 1 (playable prototype): simulation, three levels, level select, game screen with keyboard, mouse and touch
-controls, a local profile with times, and the web version. Waiting for the first playtest.
+controls, a local profile with times, and the web version. At the finish the rings you used are strung on a thread, the
+chain, in the shape of your route; it can be shared as an image. Waiting for the first playtest.
 
 - Play version: https://play.white-maze.steefbeest.nl
 - Design: `docs/design.md`, decisions in `docs/adr/`, terms in `docs/glossary.md`, rules for code, levels and tests in
@@ -45,6 +46,12 @@ Debug screenshots (needs `xvfb`; scenarios in `tools/shots.txt`):
 
 ```bash
 addons/white_kit/tools/shots.sh run . tools/shots.txt build/shots
+```
+
+The share image is rendered with a real renderer, so it has its own check (also run in CI):
+
+```bash
+xvfb-run -a godot --path . --rendering-driver opengl3 -s res://tools/check_chain_export.gd
 ```
 
 ## Controls
