@@ -299,29 +299,33 @@ func _no_ties(a: Dictionary, b: Dictionary) -> bool:
 ## decreases, so each level still counts exactly its par. Under ADR 0005 (beads left) this ended with 0 beads used.
 func _take_back_and_par(check: Callable) -> void:
 	var sols := WhitePuzzleStore.load_json("res://tests/solutions.json")
-	for id in MazeLevels.ids():
-		var lv := MazeLevels.load_level(id)
-		var inputs: Array = MazeRunScript.parse(str(sols[id]))["inputs"]
-		var sim := MazeSim.new(lv)
-		var undo_next := false
-		var i := 0
-		while not sim.finished() and sim.tick < 3000:
-			var inp: MazeInput = inputs[i] if i < inputs.size() else MazeInput.idle()
-			i += 1
-			if undo_next:
-				inp.undo = true
-				undo_next = false
-			sim.step(inp)
-			for e in sim.events:
-				if e["type"] == "launch":
-					for r in sim.rings:
-						if r["cell"] == e["cell"] and r["face"] == e["face"] and not r["preset"]:
-							undo_next = true
-		check.call(
-			sim.finished() and sim.rings_used == lv.par,
-			"%s: taking back each used ring after its launch still counts %d rings used (par %d)"
-			% [id, sim.rings_used, lv.par]
-		)
+	for dir in [MazeLevels.DIR, MazeLevels.LAB_DIR]:
+		for id in MazeLevels.ids(dir):
+			_take_back(check, sols, id, MazeLevels.load_level(id, dir))
+
+
+func _take_back(check: Callable, sols: Dictionary, id: String, lv: MazeLevel) -> void:
+	var inputs: Array = MazeRunScript.parse(str(sols[id]))["inputs"]
+	var sim := MazeSim.new(lv)
+	var undo_next := false
+	var i := 0
+	while not sim.finished() and sim.tick < 3000:
+		var inp: MazeInput = inputs[i] if i < inputs.size() else MazeInput.idle()
+		i += 1
+		if undo_next:
+			inp.undo = true
+			undo_next = false
+		sim.step(inp)
+		for e in sim.events:
+			if e["type"] == "launch":
+				for r in sim.rings:
+					if r["cell"] == e["cell"] and r["face"] == e["face"] and not r["preset"]:
+						undo_next = true
+	check.call(
+		sim.finished() and sim.rings_used == lv.par,
+		"%s: taking back each used ring after its launch still counts %d rings used (par %d)"
+		% [id, sim.rings_used, lv.par]
+	)
 
 
 func _solution_determinism(check: Callable) -> void:
