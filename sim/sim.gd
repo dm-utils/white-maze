@@ -146,7 +146,7 @@ func _compute_ground() -> void:
 	var u := _slope_under(px, py)
 	if u.x >= 0 and py == _surface_at(u, px):
 		ground = Ground.STEEP if MazeSlope.steep(u.x) else Ground.GENTLE
-	elif posmod(py, T) == 0 and _solid_in_cols(py / T, px - HW, px + HW):
+	elif posmod(py, T) == 0 and (_solid_in_cols(py / T, px - HW, px + HW) or _on_gable_top(py / T)):
 		ground = Ground.FLAT
 	else:
 		ground = Ground.NONE
@@ -325,6 +325,8 @@ func _move(move: int) -> void:
 	var ox := px
 	var oy := py
 	_move_x(allow)
+	if start == Ground.FLAT and level.slope_count > 0:
+		_stop_at_toe(ox)
 	if level.slope_count > 0 and _lift(allow):
 		px = ox
 		py = oy
@@ -334,8 +336,8 @@ func _move(move: int) -> void:
 	if level.slope_count > 0 and was_grounded and vy >= 0:
 		if ground == Ground.NONE:
 			_snap(start, false)
-		elif ground == Ground.FLAT and (start == Ground.STEEP or start == Ground.GENTLE):
-			# leaving a slope past a block corner at the high end of the next one: follow the roof
+		elif ground == Ground.FLAT:
+			# leaving a slope past a block corner, or walking off a floor onto a falling roof: follow the roof
 			_snap(start, true)
 	if grounded and vy > 0:
 		vy = 0
@@ -357,6 +359,24 @@ func _move(move: int) -> void:
 		jumping = false
 	if vy >= 0:
 		launched = false
+
+
+## walking up to the low end of a steep roof from a floor: stop with the front at the toe, the roof is not climbed
+func _stop_at_toe(ox: int) -> void:
+	var dir := _sign(px - ox)
+	if dir == 0:
+		return
+	var cx := _fdiv(px + HW - 1, T) if dir > 0 else _fdiv(px - HW, T)
+	if cx == (_fdiv(ox + HW - 1, T) if dir > 0 else _fdiv(ox - HW, T)):
+		return
+	var kind := level.cell(cx, _fdiv(py - 1, T))
+	if not MazeSlope.steep(kind) or MazeSlope.downhill(kind) != -dir:
+		return
+	if dir > 0:
+		px = maxi(ox, cx * T - HW)
+	else:
+		px = mini(ox, (cx + 1) * T + HW)
+	vx = 0
 
 
 ## true when the lift put the box into a full block outside the step band
@@ -424,6 +444,19 @@ func _solid_in_cols(cy: int, left: int, right: int) -> bool:
 	return false
 
 
+## top corner of a slope's full-height high side in a box column beside the centre, facing the centre: row cy is
+## its cell row, so py == cy * T stands on it (the box cannot sink into the wall); not when the centre is on a slope
+## itself, a ridge slides off
+func _on_gable_top(cy: int) -> bool:
+	var c := _fdiv(px, T)
+	if level.slope_count == 0 or MazeSlope.is_slope(level.cell(c, cy)):
+		return false
+	for cx in range(_fdiv(px - HW, T), _fdiv(px + HW - 1, T) + 1):
+		if cx != c and MazeSlope.high_side(level.cell(cx, cy)) == (MazeLevel.Face.LEFT if cx > c else MazeLevel.Face.RIGHT):
+			return true
+	return false
+
+
 ## full blocks in rows top..bottom of column cx, or a slope whose vertical high side faces the mover
 func _blocks_x(cx: int, top: int, bottom: int, dir: int) -> bool:
 	if _solid_in_rows(cx, top, bottom):
@@ -462,7 +495,7 @@ func _move_y() -> bool:
 	if vy > 0:
 		var floor_y := -1
 		for cy in range(_fdiv(py - 1, T) + 1, _fdiv(py + vy - 1, T) + 1):
-			if _solid_in_cols(cy, px - HW, px + HW):
+			if _solid_in_cols(cy, px - HW, px + HW) or _on_gable_top(cy):
 				floor_y = cy * T
 				break
 		if level.slope_count > 0:
