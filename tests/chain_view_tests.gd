@@ -4,7 +4,7 @@ extends RefCounted
 const Style := MazeChainShapes.Style
 const SOLUTIONS := "res://tests/solutions.json"
 const CARD_BOX := Rect2(0, 0, 712, 400)
-const EXPORT_BOX := Rect2(40, 124, 1120, 488)
+const EXPORT_BOX := MazeChainView.EXPORT_BOX
 const MINI_BOX := Rect2(0, 0, 104, 58)
 const EPS := 0.01
 const PROFILE := "user://white_maze_test_chain_view.json"
@@ -548,7 +548,59 @@ func _texts_of(info: Dictionary) -> Array:
 	return out
 
 
+## M1: a chain of n beads on l004 for the export, any length
+func _long_info(n: int) -> Dictionary:
+	var lv := MazeLevels.load_level("l004")
+	var links: Array = []
+	for i in n:
+		links.append({"kind": MazeChain.Kind.BEAD, "cell": Vector2i(2 + (i * 7) % 36, 11), "face": 0})
+	var text := MazeChain.encode(links)
+	return {
+		"level": lv, "links": links, "world": 1, "clasp": false, "number": 4, "name": "Eén kraal", "ticks": 4321,
+		"rings": n, "par": 3, "code": MazeChain.code(lv.id, n, 3, 4321, text),
+	}
+
+
+func _export_footer(check: Callable) -> void:
+	WhiteText.lang = "nl"
+	var font := ThemeDB.fallback_font
+	for n in [1, 4, 11, 13, 30, 64]:
+		var info := _long_info(n)
+		var code_text := ""
+		var address := {}
+		var rings_line := {}
+		for t: Dictionary in _texts_of(info):
+			if t["text"] == "play.white-maze.steefbeest.nl":
+				address = t
+			elif t["pos"].x == 40.0 and t["pos"].y == MazeChainView.CODE_BASELINE:
+				code_text = t["text"]
+			elif t["size"] == 22 and t["align"] == "right":
+				rings_line = t
+		var cw := font.get_string_size(code_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+		var aw := font.get_string_size(address["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+		var h := font.get_height(18)
+		var code_top: float = MazeChainView.CODE_BASELINE - font.get_ascent(18)
+		var code_bottom: float = MazeChainView.CODE_BASELINE + font.get_descent(18)
+		var addr_top: float = address["pos"].y - font.get_ascent(18)
+		var tag := "%d rings (code %d characters)" % [n, str(info["code"]).length()]
+		check.call(cw <= MazeChainView.FOOT_W and 40.0 + cw <= 1160.0, "M1: %s: the code line fits the image (%.0f px)" % [tag, cw])
+		check.call(code_bottom <= addr_top and address["pos"].x - aw >= 40.0, "M1: %s: the code never runs into the address" % tag)
+		check.call((code_text == info["code"]) == (cw < MazeChainView.FOOT_W and not code_text.ends_with("…")), "M1: %s: only a long code is cut, with an ellipsis" % tag)
+		if code_text != info["code"]:
+			check.call(code_text.ends_with("…") and info["code"].begins_with(code_text.trim_suffix("…")), "M1: %s: a cut code is a prefix and an ellipsis" % tag)
+		check.call(MazeChainShapes.layout(info["level"], info["links"], MazeChainView.EXPORT_BOX, Style.EXPORT)["inner"].end.y <= code_top, "M1: %s: the chain box ends above the code line" % tag)
+		var rw := font.get_string_size(rings_line["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+		check.call(1160.0 - rw >= 40.0 and h > 0.0, "M1: %s: the rings line stays inside the image" % tag)
+		check.call(MazeChainShare.share_text(info).contains(str(info["code"])), "M1: %s: the share text holds the whole code" % tag)
+		var lay := MazeChainShapes.layout(info["level"], info["links"], MazeChainView.EXPORT_BOX, Style.EXPORT)
+		var inside := true
+		for p: Vector2 in lay["points"]:
+			inside = inside and MazeChainView.EXPORT_BOX.grow(0.01).has_point(p)
+		check.call(inside, "M1: %s: every chain point lies in the chain box" % tag)
+
+
 func _export_and_share(check: Callable) -> void:
+	_export_footer(check)
 	WhiteText.lang = "nl"
 	var info := _export_info("l004")
 	var lines := {}
@@ -563,7 +615,7 @@ func _export_and_share(check: Callable) -> void:
 	check.call(
 		lines["WHITE MAZE"]["pos"] == Vector2(40, 46) and lines["4  Eén kraal"]["pos"] == Vector2(40, 92)
 			and lines["0:06.18"]["pos"] == Vector2(1160, 52) and lines["0:06.18"]["align"] == "right"
-			and lines[code]["pos"] == Vector2(40, 652) and lines["play.white-maze.steefbeest.nl"]["pos"] == Vector2(1160, 652),
+			and lines[code]["pos"] == Vector2(40, 618) and lines["play.white-maze.steefbeest.nl"]["pos"] == Vector2(1160, 654),
 		"K14: the export texts sit at the places of 22.11.1"
 	)
 	var no_code := info.duplicate()

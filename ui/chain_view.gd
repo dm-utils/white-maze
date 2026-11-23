@@ -3,7 +3,10 @@ extends Control
 ## Draws one chain, animated or not (design 22.8). Replays the primitives of MazeChainShapes; owns no rules.
 
 const EXPORT_SIZE := Vector2(1200, 675)
-const EXPORT_BOX := Rect2(40, 124, 1120, 488)
+const EXPORT_BOX := Rect2(40, 124, 1120, 464)
+const CODE_BASELINE := 618.0 # the share code has a line of its own above the address
+const ADDRESS_BASELINE := 654.0
+const FOOT_W := 1120.0
 const EXPORT_RIGHT := 1160.0
 const NAME_MAX_W := 640.0
 const PLAY_ADDRESS := "play.white-maze.steefbeest.nl"
@@ -84,8 +87,8 @@ func texts() -> Array:
 		rings += "  " + MazeStrings.s("under_par")
 	out.append(_text(rings, Vector2(EXPORT_RIGHT, 92), 22, WhiteTheme.TEXT, "right"))
 	if str(i.get("code", "")) != "":
-		out.append(_text(str(i["code"]), Vector2(40, 652), 18, WhiteTheme.DIM, "left"))
-	out.append(_text(PLAY_ADDRESS, Vector2(EXPORT_RIGHT, 652), 18, WhiteTheme.DIM, "right"))
+		out.append(_text(_fit(str(i["code"]), 18, FOOT_W), Vector2(40, CODE_BASELINE), 18, WhiteTheme.DIM, "left"))
+	out.append(_text(PLAY_ADDRESS, Vector2(EXPORT_RIGHT, ADDRESS_BASELINE), 18, WhiteTheme.DIM, "right"))
 	return out
 
 
