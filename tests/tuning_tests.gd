@@ -59,3 +59,23 @@ func run(check: Callable, _node: Node) -> void:
 			if not (c.has(base) or c.has(base + "_TICKS")):
 				bad.append(key)
 	check.call(bad.is_empty(), "every readable tuning value has an integer twin (%s)" % str(bad))
+	_solver(check, c)
+
+
+## the native solver keeps its own copy of the integer values (design 23.10.4)
+func _solver(check: Callable, c: Dictionary) -> void:
+	var f := FileAccess.open("res://tools/solver/maze_solver.cpp", FileAccess.READ)
+	check.call(f != null, "the solver source is in the project")
+	if f == null:
+		return
+	var re := RegEx.create_from_string("constexpr num ([A-Z_]+) = ([0-9]+);")
+	var seen := 0
+	var bad := []
+	for m in re.search_all(f.get_as_text()):
+		var name := m.get_string(1)
+		if c.has(name):
+			seen += 1
+			if c[name] != int(m.get_string(2)):
+				bad.append(name)
+	check.call(bad.is_empty(), "the solver's tuning values equal MazeTuning (%s)" % str(bad))
+	check.call(seen >= 35, "the solver copies the tuning values (%d found)" % seen)
