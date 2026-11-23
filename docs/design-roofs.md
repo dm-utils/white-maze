@@ -1123,3 +1123,16 @@ and the R1 golden trace are untouched (every new branch needs a slope cell). `MI
   `tests/solutions.json` were re-timed by one tick: lab01 `R42` -> `R41` (314 ticks, 2 rings, as before) and lab03 `R16`
   -> `R15` (172 ticks, 1 ring; was 173). The ruins (R1) did not change. The slide-jump values (4.31 and 5.85 tiles) did
   not change.
+
+### Second fix round (card #046, branch `fix/slope-toe`)
+
+- **M3b, landing or jumping over the toe column.** The stop at a steep toe now also holds when the box already overlaps
+  the toe column: from a floor (`start == FLAT`) the centre never enters the column of a steep roof it climbs towards
+  (`px` stays, `vx = 0`); the front still stops at the toe column when it enters it. A landing with the centre inside
+  the column lands on the roof, slides back out (one slide) and then stands still at the toe, so a landing a pixel
+  either way ends in the same rest. Before: 21 to 73 ground changes in 260 ticks. Tests `M3b` (41 landings from 340 to 420 px
+  at a toe on 400, and four jumps with the right held): at most 2 and 4 ground changes, then constant `px`.
+- **L4a, walking off a roof past its wall.** Leaving a roof column (`start` `GENTLE` or `STEEP`) over the wall's top
+  corner, the feet go to the corner (`py` = cell top, at most `abs(vx)` up) when the box still overlaps the wall column,
+  so the box no longer falls inside the wall. Test `L4a`.
+- Lab solutions unchanged (314, 290 and 172 ticks). `MIN_CHECKS` 1894 -> 1897.
