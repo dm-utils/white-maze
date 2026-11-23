@@ -1010,3 +1010,78 @@ the cities' texts.
 
 Filled in per phase by the developer: measurements (slide-jump distances of R12, solver timings of R28, bake numbers of
 R36), changed palette values, level tables with par evidence.
+
+### Phase A (card #041, branch `feature/roofs-a`)
+
+Built as designed unless listed. Check counts: `MIN_CHECKS` 1711 -> 1885; kit tests, `check_levels` (`levels/` and
+`levels/lab/`), `check_search_par.sh` and the web export green; `check_levels` output for l001 to l009 identical.
+
+**R1 golden trace.** `tests/inert_tests.gd` hashes (SHA-256) the tuple `(px, py, vx, vy, grounded, coyote, buffer,
+jumping, launched, lock_ticks, dead_ticks, rings_used)` of every tick of the stored solutions of l001 to l009: 2570 ticks,
+`ed5d3873a5d602b74d300a169a765cd70e4e092e280ac6f84bef3cdfa5db17ad`. Computed on develop before the first simulation
+change (commit `11c6f8b`); unchanged after phase A. The 59 existing shots of `tools/shots.txt` compare equal to develop
+(only the live `fps` label differs).
+
+Deviations from the text above (all in `sim/sim.gd` unless noted):
+
+1. **Lift on a block under a roof (23.5.4 step 3, second bullet).** When the cell of `(px, py - 1)` is a full block with a
+   slope standing on it, the feet go to that slope's surface (never above the block top), not to the block top. As
+   written, a player walking over a tier joint (`R` into the `r` above the next block) was put on the block top, 2 px
+   below the roof, for one tick and then lifted: ground flickered `GENTLE`, `FLAT`, `GENTLE` and R5 ("stays `GENTLE`
+   over the tier joint") failed.
+2. **Snap prefers the roof over a block corner (23.5.4 step 5).** When the player was on a slope (`start` is `GENTLE` or
+   `STEEP`), the slope under the centre wins over a nearer block top under the box, and a `FLAT` result after a
+   slope tick is snapped to the slope under the centre too. As written ("whichever is nearer"), a slide down a stair
+   of `/` tiles (fixture S) stood on every block corner for two to four ticks and braked with `GROUND_DECEL`:
+   6000 -> 3500 and up again at every tile. A player that starts on a floor or lands on a corner is unchanged (the
+   documented corner case of 23.5.4 stays).
+3. **R17.** No ray can reach a face that is covered by a slope without crossing the slope's own polygon first (the slope
+   is always in front of the face), so the cases "top face of a block under a slope" and "side of a block next to a high
+   side" cannot be produced by `cast`. They are covered by validation (`is not exposed`), by `lip_face` and by the
+   comparison of R21: for every open face of the fixtures and the lab levels `MazeArt.lip_face` equals the validity of a
+   cast from the cell in front of the face (more than 300 faces).
+4. **`MazeSlope.FIRST` and `LAST`** are the literals 4 and 9 (the `Cell` values) to keep `MazeSlope` and `MazeLevel` free of
+   a constant cycle.
+5. **Lilith (23.8).** `SLIDE` `hand_near` is `(8.5, -15)` instead of `(10, -15)`: with an aim arm the bead halo at
+   `(10, -15)` and the tilt left the 30 px box by 0.4 px. Bounds in the tests: the boot of `SLIDE` and every pose on a
+   steep grade down to `y = +9`, grounded poses on a gentle grade down to `y = +5` (the design said +4; a running boot
+   at `x = 9.5` and grade 0.5 reaches 4.75). Blends from or to `SLIDE` use the same extension.
+6. **Camera (R19).** `MazeGame` passes `slide`; `MazeCameraRig` reads it with `f.get("slide", false)`, so frames of the
+   old tests need no key. Measured: the bottom guard reaches `GUARD_BOTTOM_FALL` after 0.20 s; the play rect shows at
+   least 144 px (3.6 tiles) below the feet on every frame from 0.3 s.
+7. **Decor and the chain map (23.9.2).** `MazeDecor` uses `covered()` in `_solid_next_to` and the interior-crack rule
+   only; supports (a torch's floor, sand) still need a full block, so nothing is placed on a roof. The ghost map of the
+   chain draws slope cells as solid runs.
+8. **Level check.** The `ok` line of format-2 levels and the 900-cell error are phase B (23.10.1); the lab levels print
+   the format-1 line. CI checks `levels/lab/` in its own step.
+9. **Glossary.** Only the terms of phase A (23.20) are merged into `docs/glossary.md`; native solver, roof style, door
+    shape, `X` pattern, cap row, skyline, journey, chapter card and Delta E come with their phases.
+10. **Fixtures** (`tests/slope_fixtures.gd`) got an `F` cell (S: (13, 2), G: (19, 2), E: (18, 2), T: (14, 2)) so they
+    validate as levels. R15 runs on them and on the three lab levels (50 seeds of 1200 ticks each).
+
+Measurements (R12, from `tests/slope_tests.gd`; the same run prints them):
+
+| Situation | Measured | Design 23.5.10 |
+|---|---|---|
+| Full jump from a gentle slope, lift of the feet | 3.17 tiles | 3.1 to 3.6 |
+| Full jump from a steep slope, lift of the feet | 3.17 tiles | 3.1 to 3.6 |
+| Running jump from a gentle slope, distance at equal height | 4.88 tiles | a 4-tile gap |
+| Jump from a slide without input (360 px/s) | 4.31 tiles | about 5 |
+| Jump from a slide holding downhill (480 px/s) | 5.85 tiles | 6 to 7 |
+| Walking off an eave at 480 px/s, one tile of fall | 1.71 tiles forward | about 1.8 |
+| From rest on a steep roof to 360 px/s | 12 ticks (500 units per tick) | at most 14 |
+
+The two slide jumps are about 0.7 and 0.15 tile shorter than estimated; the owner decides after playing `?lab` whether the
+slide speeds (three tuning values) stay.
+
+Lab series (`levels/lab/`, format 2, `sky`, solutions in `tests/solutions.json`):
+
+| Id | Size | Par | Solution | Content |
+|---|---|---|---|---|
+| lab01 | 48 x 18 | 2 | 314 ticks, 2 rings | floor ring over a steep ridge, slide down the far side, jump at the eave, slide to a gutter with a ring thrown while sliding, leap to the door |
+| lab02 | 40 x 14 | 0 | 290 ticks, 0 rings | gentle tiers up and down, a gentle ridge, a gentle slope into a wall (jump), a gentle descent |
+| lab03 | 36 x 17 | 1 | 173 ticks, 1 ring | steep roof into a gentle one, a spike at the low end, a floor ring thrown while sliding, leap to a ledge |
+
+How to open the lab in the web build: `https://play.white-maze.steefbeest.nl/?lab` (level select with the three cards,
+every card open) or `?lab&level=lab01` (and `lab02`, `lab03`) for one level. Locally: `godot --path . -- --lab`
+(`--level=lab01`). Nothing is written to the profile.

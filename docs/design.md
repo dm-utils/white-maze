@@ -71,7 +71,7 @@ GitHub Pages (needs a remote).
 | # | Assumption | Consequence if wrong |
 |---|---|---|
 | A1 | Godot 4.7.2, GDScript, GL Compatibility, web export single-threaded, as the other White games. | Change the pin in `project.godot`, CI and kit action inputs. |
-| A2 | Levels are built from axis-aligned square tiles; no slopes, no rotating geometry in phase 1 or 2. | The own collision code (3.6) would need slopes; ADR 0002 revisited. |
+| A2 | Slopes: see section 23 (ADR 0015). Otherwise levels are built from axis-aligned square tiles; no rotating geometry. | See section 23. |
 | A3 | Level geometry is static in phase 1. Moving obstacles later become sim entities stepped in the same tick. | Nothing in phase 1 depends on it. |
 | A4 | The phone test of phase 1 runs in a mobile browser (web export), landscape. | A native build is phase 2 or later. |
 | A5 | Pulse's game profile is an opaque JSON object of at most 256 KB with an optional string `id` of at most 64 characters, and a 409 conflict is resolved by a deterministic client merge (`pulse/apps/accounts/src/profile.ts`). | The profile format of section 7 needs an adapter, not a rewrite. |
@@ -288,6 +288,8 @@ func equals(other: MazeInput) -> bool
 
 ### 3.6 Geometry and collision
 
+Changed by section 23 (`docs/design-roofs.md`): slope tiles, ground kinds and the step band.
+
 - Player box: `left = px - 15000`, `right = px + 15000`, `top = py - 32000`, `bottom = py`; half-open
   `[left, right) x [top, bottom)`.
 - Cell `(cx, cy)` covers `[cx * TILE, (cx + 1) * TILE) x [cy * TILE, (cy + 1) * TILE)`.
@@ -381,6 +383,8 @@ Each event is a Dictionary with `"type"` and extra fields: `jump`, `land`, `laun
 never feed back into the simulation.
 
 ### 3.10 Cast (`MazeSim.cast`)
+
+Changed by section 23 (`docs/design-roofs.md`): slope hits (reason `slope`), `covered()` faces and the level field `sky`.
 
 `cast(dir_index) -> Dictionary` is a pure query on the current state; the aim preview calls it every frame and step 4
 calls it at the throw. Result keys: `valid` (bool), `reason` (`"ok"`, `"none"`, `"no_ring"`, `"hazard"`, `"taken"`,
@@ -585,6 +589,8 @@ viewport units; `ins` = safe area insets (`WhiteSafeArea.insets`), `W x H` = vie
 ## 5. Levels
 
 ### 5.1 Format (ADR 0004)
+
+Changed by section 23 (`docs/design-roofs.md`): format 2 with six slope characters and the field `sky`.
 
 One JSON file per level, `levels/<id>.json`, made by hand in a text editor:
 
@@ -937,6 +943,8 @@ one."
 Par of l004 to l009 is the number of rings used by the stored solution, counted as in ADR 0009 (section 17).
 
 ### 5.5 Level check tool (`tools/check_levels.gd`, `extends SceneTree`)
+
+Changed by section 23 (`docs/design-roofs.md`): runs for `levels/lab/` as well; the format-2 output line and the cell budget come in phase B.
 
 For every id in the index: load, validate, print `ok <id> <w>x<h> beads <b> par <p>` or each error as
 `error <id>: <text>`. When `tests/solutions.json` has the id: run the script with `MazeRunScript.run` (at most 36000
@@ -1744,3 +1752,9 @@ Replaces the tiles layer of 18.8, the palettes of 18.4 and the outline of 18.9.
 See `docs/design-chain.md` (section 22, ADR 0014): the used rings as a necklace in the shape of the route, shown at the
 finish, shared as a PNG, stored as a chain record in profile format 2; view and profile only, the simulation is
 untouched. Changes 7.2, 8.2, 8.4 and 10.4.
+
+## 23. Roofs
+
+See `docs/design-roofs.md` (section 23, ADR 0015 to 0017): sloped roof tiles in the integer simulation (steep: slide,
+gentle: walk), level format 2, the roof worlds and levels 10 to 21 after the ruins, the native search tool. Phase A
+(slopes, format 2, lab series `?lab`) is built; deviations as built in 23.21. Changes 1.3 (A2), 3.6, 3.10, 5.1 and 5.5.
