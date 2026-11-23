@@ -19,6 +19,10 @@ func run(check: Callable, _node: Node) -> void:
 	_metrics(check)
 	_top_joints(check)
 	_wall(check)
+	_gable_fall(check)
+	_floor_to_roof(check)
+	_steep_toe(check)
+	_slope_cells(check)
 	_fuzz(check)
 	_determinism(check)
 	_ring_on_gutter(check)
@@ -460,6 +464,115 @@ func _wall(check: Callable) -> void:
 		ok and right.px > 11 * T,
 		"R14: the right side slides away from its wall too (px %.1f)" % (right.px / 1000.0)
 	)
+
+
+## 30 x 40 room with full blocks in row 38 and, left of column step_at, in row 37 (a step down to the roof cells)
+func _tier(roof: Dictionary, step_at := 0) -> MazeLevel:
+	var edits := {Vector2i(2, 36 if step_at > 0 else 37): "S", "S": true}
+	for x in 30:
+		edits[Vector2i(x, 38)] = "#"
+		if x < step_at:
+			edits[Vector2i(x, 37)] = "#"
+	edits.merge(roof, true)
+	return FX.level(H.rows(30, 40, edits))
+
+
+func _gable_fall(check: Callable) -> void:
+	# falling or jumping along the high side of a roof: no sinking into the wall, no lift of more than SLOPE_STEP
+	for shape in ["L", "/"]:
+		var edits := {Vector2i(15, 38): "#", Vector2i(16, 38): "#", Vector2i(17, 38): "#"}
+		var dir := 1
+		var x0s := range(0, 640)
+		if shape == "L":
+			edits[Vector2i(15, 37)] = "L"
+			edits[Vector2i(16, 37)] = "l"
+		else:
+			edits[Vector2i(15, 37)] = "/"
+			dir = -1
+			x0s = range(660, 1200)
+		var lv := FX.level(H.rows(30, 40, edits))
+		var worst := 0
+		var inside := 0
+		var runs := 0
+		for x0 in x0s:
+			var sim := MazeSim.new(lv)
+			put(sim, float(x0), 400.0)
+			for i in 150:
+				var last_y := sim.py
+				sim.step(H.inp(dir))
+				worst = maxi(worst, last_y - sim.py)
+				var wall_x := (15 if dir > 0 else 16) * T
+				if sim.py > 37 * T and (sim.px - wall_x) * dir < 0 and (sim.px + dir * 15000 - wall_x) * dir > 0:
+					inside += 1
+			runs += 1
+		check.call(worst <= 1000, "M1: no upward jump falling along the wall of %s (worst %d, %d runs)" % [shape, worst, runs])
+		check.call(inside == 0, "M1: the box does not sink into the wall of %s (%d ticks)" % [shape, inside])
+
+
+func _floor_to_roof(check: Callable) -> void:
+	# walking from a floor onto a falling roof: the feet follow the roof surface every tick
+	for kind in ["\\", "L"]:
+		var roof := {Vector2i(15, 37): kind}
+		if kind == "L":
+			roof[Vector2i(16, 37)] = "l"
+		var sim := MazeSim.new(_tier(roof, 15))
+		var worst := 0
+		var air := 0
+		var on_roof := 0
+		for i in 150:
+			var last_y := sim.py
+			sim.step(H.inp(1))
+			worst = maxi(worst, sim.py - last_y)
+			air += 0 if sim.grounded else 1
+			if sim.px > 15 * T + 1000 and sim.px < 16 * T - 1000:
+				on_roof += 1 if (sim.ground == MazeSim.Ground.STEEP or sim.ground == MazeSim.Ground.GENTLE) else 0
+		check.call(
+			worst <= MazeTuning.SLIDE_FAST and air == 0 and on_roof > 0,
+			"M2: floor onto a falling roof '%s' without hovering (step %d, air %d, roof ticks %d)" % [kind, worst, air, on_roof]
+		)
+
+
+func _steep_toe(check: Callable) -> void:
+	# pressing up against the foot of a steep roof: stands still at the toe, no rocking, no slide
+	for dir in [1, -1]:
+		var sim: MazeSim
+		var toe: int
+		if dir > 0:
+			sim = MazeSim.new(_tier({Vector2i(15, 37): "/"}))
+			toe = 15 * T - 15000
+		else:
+			sim = MazeSim.new(_tier({Vector2i(15, 37): "\\"}))
+			put(sim, 25.0 * 40, 38.0 * 40)
+			toe = 16 * T + 15000
+		var slid := 0
+		var xs := {}
+		for i in 260:
+			sim.step(H.inp(dir))
+			if i >= 180:
+				xs[sim.px] = true
+			slid += 1 if sim.ground != MazeSim.Ground.FLAT else 0
+		check.call(
+			slid == 0 and xs.size() == 1 and absi(sim.px - toe) <= 1000,
+			"M3: pressing into the foot of a steep roof stands still at the toe (direction %d, px %.1f, %d ticks off the floor)"
+			% [dir, sim.px / 1000.0, slid]
+		)
+
+
+func _slope_cells(check: Callable) -> void:
+	# MazeSlope keeps the literal range of the Cell enum
+	var ok := MazeSlope.FIRST == MazeLevel.Cell.STEEP_R and MazeSlope.LAST == MazeLevel.Cell.GENTLE_L_LO
+	var slopes := [
+		MazeLevel.Cell.STEEP_R,
+		MazeLevel.Cell.STEEP_L,
+		MazeLevel.Cell.GENTLE_R_LO,
+		MazeLevel.Cell.GENTLE_R_HI,
+		MazeLevel.Cell.GENTLE_L_HI,
+		MazeLevel.Cell.GENTLE_L_LO,
+	]
+	for name in MazeLevel.Cell:
+		var value: int = MazeLevel.Cell[name]
+		ok = ok and MazeSlope.is_slope(value) == slopes.has(value)
+	check.call(ok, "L1: MazeSlope.FIRST and LAST match the slope cells of MazeLevel.Cell")
 
 
 func _invariants(sim: MazeSim, prev_ground: int, bad: Dictionary) -> void:
