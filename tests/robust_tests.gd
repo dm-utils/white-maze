@@ -167,7 +167,7 @@ func _sanitize_garbage(check: Callable) -> void:
 		ops_ok = ops_ok and MazeProfile.total_play_ticks(q) >= 0
 		ops_ok = ops_ok and MazeProfile.sanitize(q)["status"] == "ok"
 		var m := MazeProfile.merge(q, p)
-		ops_ok = ops_ok and m["format"] == 1 and MazeProfile.sanitize(m)["status"] == "ok"
+		ops_ok = ops_ok and m["format"] == 2 and MazeProfile.sanitize(m)["status"] == "ok"
 	check.call(fine, "sanitize always returns a status, and {} unless ok")
 	check.call(oks > 100, "garbage inside an otherwise good profile mostly stays ok (%d of 500)" % oks)
 	check.call(idempotent, "sanitize(sanitize(x)) == sanitize(x)")

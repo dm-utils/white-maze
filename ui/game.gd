@@ -418,7 +418,9 @@ func _on_finish() -> void:
 	if store != null:
 		_flush_play()
 		var now := _now()
-		var res := MazeProfile.record_finish(store.data, level.id, ticks, sim.rings_used, script, now)
+		var res := MazeProfile.record_finish(
+			store.data, level.id, ticks, sim.rings_used, script, now, links_text if storable else null
+		)
 		result["new_best"] = res["new_best"]
 		result["best_ticks"] = res["best_ticks"]
 		store.save(now)

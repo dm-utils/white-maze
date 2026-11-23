@@ -107,11 +107,11 @@ func _store_garbage() -> void:
 		_write(cases[name])
 		var s := MazeProfileStore.new()
 		s.open(PROFILE, 4242)
-		var ok: bool = s.data.get("format") == 1 and s.data.get("levels") is Dictionary
+		var ok: bool = s.data.get("format") == 2 and s.data.get("levels") is Dictionary
 		_check.call(ok, "store: '%s' gives a usable profile" % name)
 		var again := MazeProfileStore.new()
 		again.open(PROFILE, 4243)
-		_check.call(again.notice == "" and again.data.get("format") == 1, "store: '%s' is repaired on disk" % name)
+		_check.call(again.notice == "" and again.data.get("format") == 2, "store: '%s' is repaired on disk" % name)
 		var sel := MazeLevelSelect.new()
 		var lv: Array[MazeLevel] = [MazeLevels.load_level("l001"), MazeLevels.load_level("l002")]
 		sel.levels = lv

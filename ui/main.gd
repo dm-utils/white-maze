@@ -116,20 +116,23 @@ func _ready() -> void:
 	opts["shot_mode"] = opts["shot"] != ""
 	MazeStrings.register()
 	var now := int(Time.get_unix_time_from_system())
+	level_ids = MazeLevels.ids()
+	var valid := {}
+	for id in level_ids:
+		var lv := MazeLevels.load_level(id)
+		if lv.valid():
+			valid[id] = lv
+		else:
+			push_error("level %s is invalid: %s" % [id, "; ".join(lv.errors)])
+		levels.append(lv)
 	store = MazeProfileStore.new()
 	if opts["shot_mode"]:
 		store.open_memory(opts["lang"] if opts["lang"] != "" else "nl", now)
 	else:
-		store.open(opts["profile"] if opts["profile"] != "" else MazeProfileStore.DEFAULT_PATH, now)
+		store.open(opts["profile"] if opts["profile"] != "" else MazeProfileStore.DEFAULT_PATH, now, valid)
 	WhiteText.lang = str(store.data.get("lang", "nl"))
 	if opts["lang"] != "" and WhiteText.has_lang(opts["lang"]):
 		WhiteText.lang = opts["lang"]
-	level_ids = MazeLevels.ids()
-	for id in level_ids:
-		var lv := MazeLevels.load_level(id)
-		if not lv.valid():
-			push_error("level %s is invalid: %s" % [id, "; ".join(lv.errors)])
-		levels.append(lv)
 	var start := level_ids.find(opts["level"]) if opts["level"] != "" else -1
 	if start >= 0:
 		start_level(start)

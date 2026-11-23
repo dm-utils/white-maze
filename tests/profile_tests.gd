@@ -17,7 +17,7 @@ func _create(check: Callable) -> void:
 	var p := MazeProfile.create(DEV_A, "en", 100)
 	check.call(
 		(
-			p["format"] == 1
+			p["format"] == 2
 			and p["game"] == "white-maze"
 			and p["tick_hz"] == 60
 			and p["device"] == DEV_A
@@ -49,8 +49,8 @@ func _sanitize(check: Callable) -> void:
 	]:
 		var r := MazeProfile.sanitize(case[1])
 		check.call(r["status"] == "damaged" and r["profile"] == {}, "%s is damaged" % case[0])
-	var newer := MazeProfile.sanitize({"format": 2})
-	check.call(newer["status"] == "newer" and newer["profile"] == {}, "format 2 is newer")
+	var newer := MazeProfile.sanitize({"format": 3})
+	check.call(newer["status"] == "newer" and newer["profile"] == {}, "format 3 is newer")
 	check.call(_status({"format": 1.0}) == "ok", "format 1.0 from JSON is accepted")
 	var ok_profile := {
 		"format": 1,
@@ -115,7 +115,7 @@ func _sanitize(check: Callable) -> void:
 		MazeProfile.sanitize({"format": 1, "levels": 5})["profile"]["levels"] == {},
 		"levels that is not a dictionary becomes empty"
 	)
-	check.call(MazeProfile.migrate({"format": 1, "a": 1}) == {"format": 1, "a": 1}, "migrate keeps format 1")
+	check.call(MazeProfile.migrate({"format": 1, "a": 1}) == {"format": 2, "a": 1}, "migrate raises format 1 to 2")
 
 
 func _stats(check: Callable) -> void:

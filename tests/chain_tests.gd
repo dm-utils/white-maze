@@ -30,6 +30,11 @@ func run(check: Callable, node: Node) -> void:
 	_codecs(check)
 	_records(check)
 	_game_equals_replay(check)
+	_profile_format(check)
+	_profile_records(check)
+	_profile_merge(check)
+	_profile_size(check)
+	_migration(check)
 	_clean()
 	WhiteText.lang = "nl"
 
@@ -273,6 +278,10 @@ func _game_equals_replay(check: Callable) -> void:
 				and res["level"].id == id and res["number"] == MazeLevels.ids().find(id) + 1,
 			"K5: %s: the result carries code, level and number" % id
 		)
+		check.call(
+			m.store.data["levels"][id].get("chain", {}).get("links", "") == PINNED[id],
+			"K5: %s: the finish stores the chain in the profile" % id
+		)
 		_close(m)
 	# the same through the controls (U3 path)
 	_clean()
@@ -313,3 +322,208 @@ func _feed(game: MazeGame, inp: MazeInput) -> void:
 	if inp.undo:
 		c.queue_undo()
 	game.advance(1.0 / 60.0)
+
+
+const DEV_A := "aaaaaaaaaaaaaaaa"
+const DEV_B := "bbbbbbbbbbbbbbbb"
+
+
+func _chain(rings: Variant, ticks: Variant, links: Variant) -> Dictionary:
+	return {"rings": rings, "ticks": ticks, "links": links}
+
+
+## sanitized profile with one finished level holding the given chain value
+func _with_chain(value: Variant) -> Dictionary:
+	var entry := {"best_ticks": 371, "best_rings": 3, "fewest_rings": 3, "fewest_ticks": 371}
+	if not (value is String and value == "<absent>"):
+		entry["chain"] = value
+	return MazeProfile.sanitize({"format": 2, "device": DEV_A, "levels": {"l004": entry}})["profile"]["levels"]["l004"]
+
+
+func _profile_format(check: Callable) -> void:
+	var p := MazeProfile.create(DEV_A, "nl", 1)
+	check.call(p["format"] == 2 and MazeProfile.FORMAT == 2, "K10: create gives format 2")
+	check.call(MazeProfile.sanitize({"format": 3})["status"] == "newer", "K10: format 3 is newer")
+	var one := MazeProfile.sanitize({"format": 1, "device": DEV_A})
+	check.call(
+		one["status"] == "ok" and one["migrated"] and one["profile"]["format"] == 2,
+		"K10: format 1 is ok, migrated and becomes format 2"
+	)
+	var two := MazeProfile.sanitize({"format": 2, "device": DEV_A})
+	check.call(two["status"] == "ok" and not two["migrated"], "K10: format 2 is ok and not migrated")
+	var good := _chain(3, 371, "bu7.11-bu19.11-bu31.11")
+	check.call(_with_chain(good).get("chain") == good, "K10: a valid chain is kept")
+	check.call(_with_chain(_chain(0, 50, "")).get("chain") == _chain(0, 50, ""), "K10: a chain without links is kept")
+	check.call(_with_chain(_chain(3.0, 371.0, good["links"])).get("chain") == good, "K10: JSON floats become whole numbers")
+	var long_links := "bu1.1" + "-bu1.1".repeat(MazeChain.MAX_LINKS)
+	var bad := {
+		"links unparsable": _chain(3, 371, "bu7.11-xx"),
+		"links too long": _chain(65, 371, long_links),
+		"bead count differs": _chain(2, 371, good["links"]),
+		"negative rings": _chain(-1, 371, ""),
+		"negative ticks": _chain(3, -1, good["links"]),
+		"fractional rings": _chain(2.5, 371, good["links"]),
+		"fractional ticks": _chain(3, 371.5, good["links"]),
+		"extra key": {"rings": 3, "ticks": 371, "links": good["links"], "x": 1},
+		"missing key": {"rings": 3, "links": good["links"]},
+		"links not a string": _chain(3, 371, 5),
+		"not a dictionary": "bu7.11",
+		"null": null,
+		"array": [3, 371, "bu"],
+	}
+	for what: String in bad:
+		check.call(not _with_chain(bad[what]).has("chain"), "K10: a chain with %s is removed" % what)
+	check.call(not _with_chain("<absent>").has("chain"), "K10: no chain stays no chain")
+
+
+func _profile_records(check: Callable) -> void:
+	var p := MazeProfile.create(DEV_A, "nl", 1)
+	var a := "bu1.1"
+	var r := MazeProfile.record_finish(p, "l004", 400, 2, "R1", 5, a + "-bu2.2")
+	check.call(r["new_chain"] and p["levels"]["l004"]["chain"] == _chain(2, 400, "bu1.1-bu2.2"), "K10: the first finish stores the chain")
+	r = MazeProfile.record_finish(p, "l004", 500, 1, "R1", 6, a)
+	check.call(r["new_chain"] and p["levels"]["l004"]["chain"] == _chain(1, 500, a), "K10: fewer rings replaces the chain")
+	r = MazeProfile.record_finish(p, "l004", 450, 1, "R1", 7, "bu3.3")
+	check.call(r["new_chain"] and p["levels"]["l004"]["chain"] == _chain(1, 450, "bu3.3"), "K10: equal rings and faster replaces")
+	r = MazeProfile.record_finish(p, "l004", 460, 1, "R1", 8, "bu4.4")
+	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"]["links"] == "bu3.3", "K10: equal rings and slower keeps")
+	r = MazeProfile.record_finish(p, "l004", 100, 2, "R1", 9, "bu1.1-bu2.2")
+	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"]["links"] == "bu3.3", "K10: more rings keeps")
+	var before: Dictionary = p["levels"]["l004"]["chain"].duplicate()
+	r = MazeProfile.record_finish(p, "l004", 10, 0, "R1", 10)
+	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"] == before, "K10: links null changes nothing")
+	r = MazeProfile.record_finish(p, "l004", 10, 0, "R1", 11, "nonsense")
+	check.call(not r["new_chain"] and p["levels"]["l004"]["chain"] == before, "K10: unparsable links change nothing")
+	r = MazeProfile.record_finish(p, "l005", 10, 0, "R1", 12, "")
+	check.call(r["new_chain"] and p["levels"]["l005"]["chain"] == _chain(0, 10, ""), "K10: an empty chain is stored")
+
+
+func _profile_merge(check: Callable) -> void:
+	var local := MazeProfile.create(DEV_A, "nl", 1)
+	var remote := MazeProfile.create(DEV_B, "nl", 1)
+	local["levels"]["l004"] = {"best_ticks": 400, "best_rings": 3, "chain": _chain(3, 400, "bu1.1-bu2.2-bu3.3")}
+	remote["levels"]["l004"] = {"best_ticks": 500, "best_rings": 2, "chain": _chain(2, 500, "bu1.1-bu2.2")}
+	var m := MazeProfile.merge(local, remote)
+	check.call(m["levels"]["l004"]["chain"] == remote["levels"]["l004"]["chain"], "K10: merge takes the better chain from remote")
+	m = MazeProfile.merge(remote, local)
+	check.call(m["levels"]["l004"]["chain"] == remote["levels"]["l004"]["chain"], "K10: merge takes the better chain from local")
+	var tie_l := MazeProfile.create(DEV_A, "nl", 1)
+	var tie_r := MazeProfile.create(DEV_B, "nl", 1)
+	tie_l["levels"]["l004"] = {"chain": _chain(1, 300, "bu1.1")}
+	tie_r["levels"]["l004"] = {"chain": _chain(1, 300, "bu2.2")}
+	check.call(MazeProfile.merge(tie_l, tie_r)["levels"]["l004"]["chain"]["links"] == "bu1.1", "K10: a tie goes to local")
+	var none := MazeProfile.create(DEV_B, "nl", 1)
+	none["levels"]["l004"] = {"best_ticks": 1, "best_rings": 1}
+	check.call(MazeProfile.merge(local, none)["levels"]["l004"]["chain"] == local["levels"]["l004"]["chain"], "K10: an absent chain loses (remote absent)")
+	check.call(MazeProfile.merge(none, local)["levels"]["l004"]["chain"] == local["levels"]["l004"]["chain"], "K10: an absent chain loses (local absent)")
+	check.call(not MazeProfile.merge(none, none)["levels"]["l004"].has("chain"), "K10: no chain on either side stays none")
+	var whole: Dictionary = MazeProfile.sanitize(local)["profile"]
+	check.call(MazeProfile.merge(whole, whole) == whole, "K10: merge(a, a) == a with chains")
+	var s := MazeProfile.sanitize(MazeProfile.merge(local, remote))
+	check.call(s["status"] == "ok" and s["profile"]["levels"]["l004"].has("chain"), "K10: a merged chain survives sanitize")
+
+
+func _profile_size(check: Callable) -> void:
+	var p := MazeProfile.create(DEV_A, "nl", 1)
+	var links := PackedStringArray()
+	for i in MazeChain.MAX_LINKS:
+		links.append("bu%d.%d" % [150 + i, 60])
+	var counts := {
+		DEV_A: {"starts": 10, "finishes": 5, "deaths": 20, "play_ticks": 100000},
+		DEV_B: {"starts": 11, "finishes": 6, "deaths": 21, "play_ticks": 100001},
+	}
+	for i in 30:
+		p["levels"]["l%03d" % i] = {
+			"best_ticks": 1000 + i, "best_rings": 1, "fewest_rings": 1, "fewest_ticks": 1000 + i,
+			"best_run": "R40 RJ12 ".repeat(222).substr(0, 2000), "first_finish": 1, "last_played": 1,
+			"counts": counts.duplicate(true), "chain": _chain(MazeChain.MAX_LINKS, 5000, "-".join(links)),
+		}
+	var size := JSON.stringify(p).length()
+	print("profile with 30 levels and 64-link chains: %d bytes" % size)
+	check.call(size < 140 * 1024, "K10: P7: 30 levels with 64-link chains stay under 140 KB (%d bytes)" % size)
+	check.call(MazeProfile.sanitize(p)["profile"]["levels"]["l029"].has("chain"), "K10: P7: the 64-link chains are valid")
+
+
+func _write(path: String, data: Dictionary) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(data))
+	f.close()
+
+
+func _read(path: String) -> Dictionary:
+	return JSON.parse_string(FileAccess.get_file_as_string(path))
+
+
+func _format1(level_id: String, run: String, ticks: int, rings: int) -> Dictionary:
+	return {
+		"format": 1, "game": "white-maze", "tick_hz": 60, "device": DEV_A, "updated": 5, "lang": "nl",
+		"levels": {level_id: {
+			"best_ticks": ticks, "best_rings": rings, "best_run": run, "fewest_rings": rings, "fewest_ticks": ticks,
+			"first_finish": 3, "last_played": 4,
+			"counts": {DEV_A: {"starts": 2, "finishes": 1, "deaths": 0, "play_ticks": 500}},
+		}},
+	}
+
+
+func _open(levels: Dictionary) -> MazeProfileStore:
+	var s := MazeProfileStore.new()
+	s.open(PROFILE, 100, levels)
+	return s
+
+
+func _migration(check: Callable) -> void:
+	var lv := MazeLevels.load_level("l004")
+	var sol: String = WhitePuzzleStore.load_json(SOLUTIONS)["l004"]
+	var res := MazeChain.from_run(lv, sol)
+	var levels := {"l004": lv}
+	_clean()
+	_write(PROFILE, _format1("l004", sol, res["ticks"], res["rings"]))
+	var s := _open(levels)
+	var disk := _read(PROFILE)
+	var want := MazeChain.record(res["rings"], res["ticks"], res["links"])
+	check.call(s.notice == "" and s.writable, "K11: a format 1 file opens without notice")
+	var on_disk: Dictionary = disk["levels"]["l004"].get("chain", {})
+	check.call(
+		disk["format"] == 2 and not on_disk.is_empty() and int(on_disk["rings"]) == want["rings"]
+			and int(on_disk["ticks"]) == want["ticks"] and on_disk["links"] == want["links"],
+		"K11: the file on disk is format 2 with the replayed chain"
+	)
+	check.call(s.data["levels"]["l004"]["chain"] == want, "K11: the open profile holds the replayed chain")
+	check.call(
+		disk["levels"]["l004"]["best_run"] == sol and disk["levels"]["l004"]["counts"][DEV_A]["play_ticks"] == 500,
+		"K11: the other fields survive the migration"
+	)
+	var bytes := FileAccess.get_file_as_string(PROFILE)
+	var s2 := _open(levels)
+	check.call(FileAccess.get_file_as_string(PROFILE) == bytes and s2.data["levels"] == s.data["levels"], "K11: a second open changes nothing")
+	var damaged := false
+	for f in DirAccess.get_files_at("user://"):
+		damaged = damaged or f.begins_with("profile.damaged-")
+	check.call(not damaged, "K11: a format 1 file is never set aside")
+	# cases without a chain
+	var long_script := "R%d" % (MazeChain.BACKFILL_MAX_TICKS + 1)
+	var cases := {
+		"empty best_run": _format1("l004", "", res["ticks"], res["rings"]),
+		"wrong best_ticks": _format1("l004", sol, res["ticks"] + 1, res["rings"]),
+		"wrong best_rings": _format1("l004", sol, res["ticks"], res["rings"] + 1),
+		"script too long": _format1("l004", long_script, res["ticks"], res["rings"]),
+		"script does not parse": _format1("l004", "X9", res["ticks"], res["rings"]),
+		"script does not finish": _format1("l004", "R3", res["ticks"], res["rings"]),
+	}
+	for what: String in cases:
+		_clean()
+		_write(PROFILE, cases[what])
+		var c := _open(levels)
+		check.call(
+			c.data["format"] == 2 and not c.data["levels"]["l004"].has("chain")
+				and _read(PROFILE)["format"] == 2,
+			"K11: %s gives no chain and format 2" % what
+		)
+	_clean()
+	_write(PROFILE, _format1("l004", sol, res["ticks"], res["rings"]))
+	var no_level := _open({})
+	check.call(no_level.data["format"] == 2 and not no_level.data["levels"]["l004"].has("chain"), "K11: without the level in levels there is no chain")
+	_clean()
+	_write(PROFILE, _format1("l004", sol, res["ticks"], res["rings"]))
+	var other := _open({"l004": MazeLevel.new()})
+	check.call(not other.data["levels"]["l004"].has("chain"), "K11: an invalid level gets no chain")
