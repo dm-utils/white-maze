@@ -9,6 +9,9 @@ func run(check: Callable, _node: Node) -> void:
 	_shipped(check)
 	_validation(check)
 	_cells(check)
+	_slopes(check)
+	_valley(check)
+	_slope_geometry(check)
 	_loader(check)
 	_tool(check)
 
@@ -82,7 +85,7 @@ func _validation(check: Callable) -> void:
 	)
 	var cases := [
 		["not an object", null, "level is not an object"],
-		["format", {"format": 2}, "format must be 1"],
+		["format", {"format": 3}, "format must be 1 or 2"],
 		["id", {"id": "L1"}, "id L1 does not match ^[a-z0-9-]{1,32}$"],
 		["name", {"name": {"nl": "x"}}, "name needs non-empty nl and en"],
 		["difficulty", {"difficulty": "extreme"}, "difficulty must be easy, medium or hard"],
@@ -238,6 +241,154 @@ func _cells(check: Callable) -> void:
 	check.call(
 		lv.cell(2, 6) == MazeLevel.Cell.EMPTY and lv.cell(5, 7) == MazeLevel.Cell.SOLID, "S and F cells are empty"
 	)
+
+
+func _slope_level(edits: Dictionary, extra: Dictionary = {}) -> MazeLevel:
+	var d := {"format": 2, "rings": []}
+	d.merge(extra, true)
+	return H.level(H.rows(16, 8, edits), d)
+
+
+func _slopes(check: Callable) -> void:
+	var all_six := H.rows(16, 8, {})
+	all_six[6] = "..S../..\\.rRLl.."
+	var lv := H.level(all_six, {"format": 2})
+	check.call(lv.valid() and lv.slope_count == 6, "R3: a format-2 level with all six slopes loads (%s)" % str(lv.errors))
+	check.call(lv.render() == PackedStringArray(all_six), "R3: render() gives the slope rows back")
+	check.call(
+		lv.cell(5, 6) == MazeLevel.Cell.STEEP_R and lv.cell(8, 6) == MazeLevel.Cell.STEEP_L
+		and lv.cell(10, 6) == MazeLevel.Cell.GENTLE_R_LO and lv.cell(11, 6) == MazeLevel.Cell.GENTLE_R_HI
+		and lv.cell(12, 6) == MazeLevel.Cell.GENTLE_L_HI and lv.cell(13, 6) == MazeLevel.Cell.GENTLE_L_LO,
+		"R3: the six characters map to their cells"
+	)
+	check.call(
+		not lv.solid(5, 6) and lv.slope(5, 6) and lv.covered(5, 6) and lv.covered(0, 7) and not lv.covered(4, 6),
+		"R3: slopes are not solid but covered"
+	)
+	var f1 := H.level(H.rows(16, 8, {Vector2i(5, 6): "/"}))
+	check.call(f1.format == 1 and not f1.sky, "R3: format 1 is the default")
+	var flat2 := H.level(H.rows(16, 8), {"format": 2, "sky": true})
+	check.call(flat2.valid() and flat2.sky and flat2.slope_count == 0, "R3: sky in format 2 is read")
+	var spike_ok := _slope_level({Vector2i(5, 6): "/", Vector2i(4, 6): "^"})
+	check.call(spike_ok.valid(), "R3: a spike at the low side of a slope is allowed (%s)" % str(spike_ok.errors))
+	var gable := _slope_level({Vector2i(5, 6): "/", Vector2i(6, 6): "#", Vector2i(6, 7): "#"})
+	check.call(gable.valid(), "R3: a slope against a block at its high side is valid (%s)" % str(gable.errors))
+	var cases := [
+		["slope in format 1", H.level(H.rows(16, 8, {Vector2i(5, 6): "/"})), "slope '/' at (5, 6) needs format 2"],
+		["sky in format 1", H.level(H.rows(16, 8), {"sky": true}), "sky needs format 2"],
+		["sky not a bool", H.level(H.rows(16, 8), {"format": 2, "sky": 1}), "sky must be true or false"],
+		["format 3", H.level(H.rows(16, 8), {"format": 3}), "format must be 1 or 2"],
+		["V1 nothing below", _slope_level({Vector2i(5, 5): "/"}), "slope at (5, 5) needs # or X below"],
+		["V1 spike below", _slope_level({Vector2i(5, 5): "/", Vector2i(5, 6): "^"}), "slope at (5, 5) needs # or X below"],
+		["V2 block above", _slope_level({Vector2i(5, 6): "/", Vector2i(5, 5): "#"}), "slope at (5, 6) needs empty space above"],
+		["V2 spike above", _slope_level({Vector2i(5, 6): "/", Vector2i(5, 5): "^"}), "slope at (5, 6) needs empty space above"],
+		["V3 r", _slope_level({Vector2i(6, 6): "r"}), "gentle slope 'r' at (6, 6) needs 'R' to its right"],
+		["V3 R", _slope_level({Vector2i(6, 6): "R"}), "gentle slope 'R' at (6, 6) needs 'r' to its left"],
+		["V3 L", _slope_level({Vector2i(6, 6): "L"}), "gentle slope 'L' at (6, 6) needs 'l' to its right"],
+		["V3 l", _slope_level({Vector2i(6, 6): "l"}), "gentle slope 'l' at (6, 6) needs 'L' to its left"],
+		["V4 wall", _slope_level({Vector2i(5, 6): "/", Vector2i(4, 6): "#", Vector2i(4, 5): "."}), "slope at (5, 6) has a blocked low side"],
+		["V4 cliff", _slope_level({Vector2i(5, 6): "/", Vector2i(6, 6): "/"}), "slope at (6, 6) has a blocked low side"],
+		["V4 edge", _slope_level({Vector2i(0, 6): "/"}), "slope at (0, 6) has a blocked low side"],
+		[
+			"ring under a slope",
+			_slope_level({Vector2i(5, 6): "/"}, {"rings": [{"x": 5, "y": 7, "face": "up"}]}),
+			"ring at (5, 7) up is not exposed"
+		],
+		[
+			"ring beside a high side",
+			_slope_level({Vector2i(5, 6): "/", Vector2i(6, 6): "#", Vector2i(6, 7): "#"},
+					{"rings": [{"x": 6, "y": 6, "face": "left"}]}),
+			"ring at (6, 6) left is not exposed"
+		],
+	]
+	for c in cases:
+		check.call(
+			c[1].errors.size() == 1 and c[1].errors[0] == c[2], "R3: %s gives exactly '%s' (got %s)" % [c[0], c[2], str(c[1].errors)]
+		)
+
+
+func _valley(check: Callable) -> void:
+	var lv := _slope_level({Vector2i(5, 6): "\\", Vector2i(6, 6): "/"})
+	check.call(
+		lv.errors == PackedStringArray(["slope at (5, 6) has a blocked low side", "slope at (6, 6) has a blocked low side"]),
+		"R3: V4 a valley gives one error per slope (got %s)" % str(lv.errors)
+	)
+
+
+func _slope_geometry(check: Callable) -> void:
+	var T := MazeTuning.TILE
+	var b := 3 * T
+	var table := {
+		MazeLevel.Cell.STEEP_R: [b + T, b + T / 2, b],
+		MazeLevel.Cell.STEEP_L: [b, b + T / 2, b + T],
+		MazeLevel.Cell.GENTLE_R_LO: [b + T, b + T - T / 4, b + T / 2],
+		MazeLevel.Cell.GENTLE_R_HI: [b + T / 2, b + T / 4, b],
+		MazeLevel.Cell.GENTLE_L_HI: [b, b + T / 4, b + T / 2],
+		MazeLevel.Cell.GENTLE_L_LO: [b + T / 2, b + T - T / 4, b + T],
+	}
+	var surfaces_ok := true
+	var inside_ok := true
+	for kind in table:
+		var i := 0
+		for lx in [0, T / 2, T]:
+			var s := MazeSlope.surface(kind, 3, lx)
+			surfaces_ok = surfaces_ok and s == table[kind][i]
+			var p := Vector2i(5 * T + lx, s)
+			inside_ok = (
+				inside_ok
+				and MazeSlope.inside(kind, 5, 3, p)
+				and MazeSlope.inside(kind, 5, 3, p + Vector2i(0, 3000))
+				and not MazeSlope.inside(kind, 5, 3, p - Vector2i(0, 1))
+			)
+			i += 1
+	check.call(surfaces_ok, "R4: surface() at lx 0, 20000 and 40000 equals the table for every kind")
+	check.call(inside_ok, "R4: inside() is true on and below the surface and false 1 unit above")
+	var cell := MazeLevel.Cell
+	check.call(
+		MazeSlope.surface(cell.GENTLE_R_LO, 3, T) == MazeSlope.surface(cell.GENTLE_R_HI, 3, 0),
+		"R4: joint rR meets at equal y"
+	)
+	check.call(
+		MazeSlope.surface(cell.GENTLE_L_HI, 3, T) == MazeSlope.surface(cell.GENTLE_L_LO, 3, 0),
+		"R4: joint Ll meets at equal y"
+	)
+	check.call(
+		MazeSlope.surface(cell.STEEP_R, 3, T) == MazeSlope.surface(cell.STEEP_L, 3, 0), "R4: joint /\\ meets at equal y"
+	)
+	check.call(
+		MazeSlope.surface(cell.GENTLE_R_HI, 3, T) == MazeSlope.surface(cell.GENTLE_L_HI, 3, 0),
+		"R4: joint RL meets at equal y"
+	)
+	check.call(
+		MazeSlope.surface(cell.GENTLE_R_HI, 3, T) == MazeSlope.surface(cell.GENTLE_R_LO, 2, 0),
+		"R4: a tier R to r meets at equal y"
+	)
+	check.call(
+		MazeSlope.surface(cell.STEEP_R, 3, T) == 3 * T and MazeSlope.surface(cell.GENTLE_L_LO, 3, T) == 4 * T,
+		"R4: a top joint meets the floor at equal y"
+	)
+	var steep_ok := MazeSlope.steep(cell.STEEP_R) and MazeSlope.steep(cell.STEEP_L) and not MazeSlope.steep(cell.GENTLE_R_HI)
+	check.call(steep_ok and not MazeSlope.is_slope(cell.SPIKE) and MazeSlope.is_slope(cell.GENTLE_L_LO), "R4: kinds")
+	check.call(
+		MazeSlope.downhill(cell.STEEP_R) == -1 and MazeSlope.downhill(cell.GENTLE_R_LO) == -1
+		and MazeSlope.downhill(cell.GENTLE_R_HI) == -1 and MazeSlope.downhill(cell.STEEP_L) == 1
+		and MazeSlope.downhill(cell.GENTLE_L_HI) == 1 and MazeSlope.downhill(cell.GENTLE_L_LO) == 1,
+		"R4: downhill directions"
+	)
+	check.call(
+		MazeSlope.high_side(cell.STEEP_R) == MazeLevel.Face.RIGHT and MazeSlope.high_side(cell.GENTLE_R_HI) == MazeLevel.Face.RIGHT
+		and MazeSlope.high_side(cell.STEEP_L) == MazeLevel.Face.LEFT and MazeSlope.high_side(cell.GENTLE_L_HI) == MazeLevel.Face.LEFT
+		and MazeSlope.high_side(cell.GENTLE_R_LO) == -1 and MazeSlope.high_side(cell.GENTLE_L_LO) == -1,
+		"R4: high sides"
+	)
+	var poly_ok := true
+	for kind in table:
+		var poly := MazeSlope.polygon(kind)
+		poly_ok = poly_ok and poly.size() >= 3
+		for v in poly:
+			# every vertex on or below the surface line
+			poly_ok = poly_ok and v.y * 1000 >= MazeSlope.surface(kind, 0, v.x * 1000)
+	check.call(poly_ok, "R4: polygon() vertices lie on or below the surface")
 
 
 func _write(path: String, text: String) -> void:
