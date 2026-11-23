@@ -46,6 +46,8 @@ var _flushed_deaths := 0
 var _done := false # finished: nothing more to flush
 var _snap_next := false # respawn: the camera cuts to the spawn
 var _overview := false
+var _links: Array = [] # chain of this attempt (design 22.4)
+var _preset_seen := {}
 
 
 func setup(lv: MazeLevel, num: int, count: int, profile: MazeProfileStore, opts: Dictionary = {}) -> void:
@@ -144,10 +146,7 @@ func _debug_setup() -> void:
 		if parsed["ok"]:
 			for inp: MazeInput in parsed["inputs"]:
 				_inputs.append(inp)
-				sim.step(inp)
-				world.notify_events(sim.events)
-				world.after_tick()
-				hud.notify_events(sim.events)
+				_step_sim(inp)
 				if sim.finished():
 					break
 			_acc = 0.0
@@ -184,6 +183,8 @@ func _start_attempt(restart_: bool) -> void:
 		_flush_play()
 	sim = MazeSim.new(level)
 	_inputs.clear()
+	_links.clear()
+	_preset_seen.clear()
 	_flushed_ticks = 0
 	_flushed_deaths = 0
 	_done = false
@@ -380,10 +381,7 @@ func _tick() -> void:
 	inp.throw_dir = controls.take_throw()
 	inp.undo = controls.take_undo()
 	_inputs.append(inp)
-	sim.step(inp)
-	world.notify_events(sim.events)
-	world.after_tick()
-	hud.notify_events(sim.events)
+	_step_sim(inp)
 	for e in sim.events:
 		match e["type"]:
 			"death":
@@ -394,15 +392,28 @@ func _tick() -> void:
 				_on_finish()
 
 
+## one simulation step with the chain and the view notifications
+func _step_sim(inp: MazeInput) -> void:
+	sim.step(inp)
+	MazeChain.note(sim.events, level, _preset_seen, _links)
+	world.notify_events(sim.events)
+	world.after_tick()
+	hud.notify_events(sim.events)
+
+
 func _on_finish() -> void:
 	controls.cancel_aim()
 	touch.set_enabled(false)
 	world.aim_index = -1
 	var ticks := sim.time_ticks()
 	var script := MazeRunScript.encode(_inputs)
+	var storable := _links.size() <= MazeChain.MAX_LINKS
+	var links_text := MazeChain.encode(_links) if storable else ""
 	var result := {
 		"ticks": ticks, "rings": sim.rings_used, "par": level.par, "new_best": false, "best_ticks": ticks,
-		"has_next": number < total, "script": script,
+		"has_next": number < total, "script": script, "links": _links.duplicate(), "links_text": links_text,
+		"code": MazeChain.code(level.id, sim.rings_used, level.par, ticks, links_text) if storable else "",
+		"level": level, "world": world.world_id, "number": number, "name": str(level.names.get(WhiteText.lang, "")),
 	}
 	if store != null:
 		_flush_play()
@@ -414,8 +425,17 @@ func _on_finish() -> void:
 	_done = true
 	last_result = result
 	if options.get("print_run", false):
-		print("run %s %d %d %s" % [level.id, ticks, sim.rings_used, script])
+		for line in print_lines(result):
+			print(line)
 	overlays.show_result(result)
+
+
+## lines of --print-run
+func print_lines(result: Dictionary) -> PackedStringArray:
+	return PackedStringArray([
+		"run %s %d %d %s" % [level.id, result["ticks"], result["rings"], result["script"]],
+		"chain %s" % result["code"],
+	])
 
 
 func _check_rotate() -> void:

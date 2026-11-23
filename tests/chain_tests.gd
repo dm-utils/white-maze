@@ -3,6 +3,7 @@ extends RefCounted
 
 const H := preload("res://tests/helpers.gd")
 const SOLUTIONS := "res://tests/solutions.json"
+const PROFILE := "user://white_maze_test_chain.json"
 
 const PINNED := {
 	"l001": "ku26.11-bu38.11",
@@ -17,12 +18,38 @@ const PINNED := {
 }
 
 
-func run(check: Callable, _node: Node) -> void:
+var _node: Node
+
+
+func run(check: Callable, node: Node) -> void:
+	_node = node
+	_clean()
 	_links_from_events(check)
 	_every_tick(check)
 	_pinned(check)
 	_codecs(check)
 	_records(check)
+	_game_equals_replay(check)
+	_clean()
+	WhiteText.lang = "nl"
+
+
+func _clean() -> void:
+	for p in [PROFILE, PROFILE + ".tmp"]:
+		DirAccess.remove_absolute(p)
+
+
+func _main(extra: Array) -> MazeMain:
+	var m: MazeMain = load("res://ui/main.tscn").instantiate()
+	m.use_cmdline = false
+	m.args = PackedStringArray(["--profile=" + PROFILE, "--speed=100"] + extra)
+	_node.add_child(m)
+	return m
+
+
+func _close(m: MazeMain) -> void:
+	_node.remove_child(m)
+	m.free()
 
 
 ## steps with the same input, collecting links like the game does
@@ -227,3 +254,62 @@ func _records(check: Callable) -> void:
 	check.call(MazeChain.better(rec, worse) and not MazeChain.better(worse, rec), "K4: fewer rings wins")
 	check.call(MazeChain.better(rec, slower) and not MazeChain.better(slower, rec), "K4: equal rings, faster wins")
 	check.call(not MazeChain.better(rec, rec), "K4: an equal record does not beat itself")
+
+
+func _game_equals_replay(check: Callable) -> void:
+	WhiteText.lang = "nl"
+	for id in MazeLevels.ids():
+		_clean()
+		var m := _main(["--level=" + id, "--solve"])
+		var g := m.game
+		g.set_process(false)
+		var res := g.last_result
+		var lv := MazeLevels.load_level(id)
+		check.call(
+			not res.is_empty() and res["links_text"] == PINNED[id], "K5: %s: --solve ends with the pinned chain" % id
+		)
+		check.call(
+			res["code"] == MazeChain.code(id, res["rings"], lv.par, res["ticks"], PINNED[id])
+				and res["level"].id == id and res["number"] == MazeLevels.ids().find(id) + 1,
+			"K5: %s: the result carries code, level and number" % id
+		)
+		_close(m)
+	# the same through the controls (U3 path)
+	_clean()
+	var m := _main(["--level=l001"])
+	var g := m.game
+	g.set_process(false)
+	var solution: String = WhitePuzzleStore.load_json(SOLUTIONS)["l001"]
+	for inp: MazeInput in MazeRunScript.parse(solution)["inputs"]:
+		_feed(g, inp)
+		if g.sim.finished():
+			break
+	check.call(
+		g.sim.finished() and g.last_result["links_text"] == PINNED["l001"],
+		"K5: l001 through the controls gives the same links as from_run"
+	)
+	var lines := g.print_lines(g.last_result)
+	check.call(
+		lines.size() == 2 and lines[0].begins_with("run l001 ") and lines[1] == "chain " + g.last_result["code"]
+			and lines[1].begins_with("chain wm1/l001/1/1/"),
+		"K15: --print-run prints the chain line after the run line (%s)" % lines[1]
+	)
+	_close(m)
+
+
+## drives the game through its controls, one tick per frame
+func _feed(game: MazeGame, inp: MazeInput) -> void:
+	var c := game.controls
+	c.touch_move(inp.move)
+	if inp.jump_pressed:
+		c.touch_jump(false)
+		c.touch_jump(true)
+		if not inp.jump_held:
+			c.touch_jump(false)
+	else:
+		c.touch_jump(inp.jump_held)
+	if inp.throw_dir >= 0:
+		c.touch_throw(inp.throw_dir)
+	if inp.undo:
+		c.queue_undo()
+	game.advance(1.0 / 60.0)
