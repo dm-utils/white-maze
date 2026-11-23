@@ -325,8 +325,11 @@ func _move(move: int) -> void:
 	var ox := px
 	var oy := py
 	_move_x(allow)
-	if start == Ground.FLAT and level.slope_count > 0:
-		_stop_at_toe(ox)
+	if level.slope_count > 0:
+		if start == Ground.FLAT:
+			_stop_at_toe(ox)
+		elif start != Ground.NONE:
+			_leave_roof_top(ox)
 	if level.slope_count > 0 and _lift(allow):
 		px = ox
 		py = oy
@@ -361,22 +364,36 @@ func _move(move: int) -> void:
 		launched = false
 
 
-## walking up to the low end of a steep roof from a floor: stop with the front at the toe, the roof is not climbed
+## walking up to the low end of a steep roof from a floor: stop at the toe, the roof is not climbed. The front stops
+## at the toe column; a box already over it stays, and the centre never enters the column from a floor
 func _stop_at_toe(ox: int) -> void:
 	var dir := _sign(px - ox)
 	if dir == 0:
 		return
-	var cx := _fdiv(px + HW - 1, T) if dir > 0 else _fdiv(px - HW, T)
-	if cx == (_fdiv(ox + HW - 1, T) if dir > 0 else _fdiv(ox - HW, T)):
+	var row := _fdiv(py - 1, T)
+	var front := _fdiv(px + HW - 1, T) if dir > 0 else _fdiv(px - HW, T)
+	var kind := level.cell(front, row)
+	if front != (_fdiv(ox + HW - 1, T) if dir > 0 else _fdiv(ox - HW, T)) and _toe(kind, dir):
+		px = maxi(ox, front * T - HW) if dir > 0 else mini(ox, (front + 1) * T + HW)
+		vx = 0
 		return
-	var kind := level.cell(cx, _fdiv(py - 1, T))
-	if not MazeSlope.steep(kind) or MazeSlope.downhill(kind) != -dir:
+	var centre := _fdiv(px, T)
+	if centre != _fdiv(ox, T) and _toe(level.cell(centre, row), dir):
+		px = ox
+		vx = 0
+
+
+func _toe(kind: int, dir: int) -> bool:
+	return MazeSlope.steep(kind) and MazeSlope.downhill(kind) == -dir
+
+
+## walking off the top of a roof past a wall: the feet go to the wall's top corner, not to the surface below it
+func _leave_roof_top(ox: int) -> void:
+	if _fdiv(px, T) == _fdiv(ox, T):
 		return
-	if dir > 0:
-		px = maxi(ox, cx * T - HW)
-	else:
-		px = mini(ox, (cx + 1) * T + HW)
-	vx = 0
+	var row := _fdiv(py - 1, T)
+	if py > row * T and py - row * T <= absi(px - ox) and _on_gable_top(row):
+		py = row * T
 
 
 ## true when the lift put the box into a full block outside the step band
