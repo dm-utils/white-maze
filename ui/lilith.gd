@@ -3,7 +3,7 @@ extends RefCounted
 ## Lilith, the player figure: pose choice and shape list, pure data (design 18.6, ADR 0010).
 ## Local frame: origin at the feet centre, y down, facing right; the view mirrors for facing left.
 
-enum Body { IDLE, RUN, JUMP, LAUNCH, FALL, DEAD }
+enum Body { IDLE, RUN, JUMP, LAUNCH, FALL, DEAD, SLIDE }
 enum Arm { REST, AIM, THROW, UP }
 
 const RUN_MIN_VX := 500 # units per tick
@@ -13,6 +13,9 @@ const THROW_TICKS := 10
 const DEAD_TILT_TICKS := 12
 const DEAD_TILT_MAX := 70.0 # degrees
 const LAUNCH_TILT_MAX := 8.0 # degrees
+const SLIDE_DROP := 4.0
+const SLIDE_TILT := -0.25 # radians, leaning back uphill
+const GRADE_MAX := 8.0 # px a boot follows the roof line
 const HIP_LIFT := Vector2(0.0, -2.5)
 const TAIL_BOUNDS := Rect2(-19.0, -34.0, 34.0, 34.0)
 
@@ -48,9 +51,13 @@ const TAIL_MIN_SPEED := 50.0
 
 
 ## pose of the legs and body from sim state
-static func body_pose(alive: bool, grounded: bool, vx: int, vy: int, launched: bool) -> int:
+static func body_pose(
+	alive: bool, grounded: bool, vx: int, vy: int, launched: bool, sliding: bool = false
+) -> int:
 	if not alive:
 		return Body.DEAD
+	if sliding:
+		return Body.SLIDE
 	if not grounded:
 		if vy < 0:
 			return Body.LAUNCH if launched else Body.JUMP
@@ -72,7 +79,8 @@ static func arm_mode(aiming: bool, ticks_since_throw: int, body: int) -> int:
 	return Arm.REST
 
 
-## joints of the figure for a pose, local frame; shapes() builds the figure from these. Keys of p as for shapes()
+## joints of the figure for a pose, local frame; shapes() builds the figure from these. Keys of p as for shapes(),
+## plus grade: slope dy/dx under the feet in the local frame (0 off slopes)
 static func rig(p: Dictionary) -> Dictionary:
 	var body: int = p.get("body", Body.IDLE)
 	var arm: int = p.get("arm", Arm.REST)
@@ -89,11 +97,21 @@ static func rig(p: Dictionary) -> Dictionary:
 			drop = 0.5 - 0.5 * cos(phase * TAU * 2.0)
 		Body.LAUNCH:
 			tilt = deg_to_rad(clampf(vel.x / TAIL_SPEED_FULL, -1.0, 1.0) * LAUNCH_TILT_MAX)
+		Body.SLIDE:
+			drop = SLIDE_DROP
+			tilt = SLIDE_TILT
 	var legs := _legs(body, phase)
+	var near_foot: Vector2 = legs["near_foot"]
+	var far_foot: Vector2 = legs["far_foot"]
+	# both boots stand on the roof line
+	var grade: float = p.get("grade", 0.0)
+	if grade != 0.0 and (body == Body.IDLE or body == Body.RUN or body == Body.SLIDE):
+		near_foot.y += clampf(grade * near_foot.x, -GRADE_MAX, GRADE_MAX)
+		far_foot.y += clampf(grade * far_foot.x, -GRADE_MAX, GRADE_MAX)
 	return {
-		"near_foot": legs["near_foot"], "far_foot": legs["far_foot"],
+		"near_foot": near_foot, "far_foot": far_foot,
 		"hand_near": _hand(arm, body, phase, p, SHOULDER), "hand_far": _hand_far(arm, body, phase),
-		"drop": drop, "tilt": tilt, "hair_up": 1.0 if body == Body.FALL else 0.0,
+		"drop": drop, "tilt": tilt, "hair_up": _hair_up(body),
 	}
 
 
@@ -203,6 +221,15 @@ static func shapes(p: Dictionary) -> Array[Dictionary]:
 	return result
 
 
+static func _hair_up(body: int) -> float:
+	match body:
+		Body.FALL:
+			return 1.0
+		Body.SLIDE:
+			return 0.5
+	return 0.0
+
+
 static func _legs(body: int, phase: float) -> Dictionary:
 	var near := Vector2(4.0, -2.5)
 	var far := Vector2(-4.0, -2.5)
@@ -222,6 +249,9 @@ static func _legs(body: int, phase: float) -> Dictionary:
 		Body.DEAD:
 			near = Vector2(5.0, -2.5)
 			far = Vector2(-5.0, -2.5)
+		Body.SLIDE:
+			near = Vector2(7.0, -0.5)
+			far = Vector2(-6.0, -3.0)
 	return {"near_foot": near, "far_foot": far}
 
 
@@ -251,6 +281,8 @@ static func _hand(arm: int, body: int, phase: float, p: Dictionary, shoulder: Ve
 			return sh + Vector2(6.5, 2.5)
 		Body.DEAD:
 			return sh + Vector2(0.0, ARM_LEN)
+		Body.SLIDE:
+			return Vector2(8.5, -15.0)
 	return sh + Vector2(0.5, ARM_LEN)
 
 
@@ -265,6 +297,8 @@ static func _hand_far(arm: int, body: int, phase: float) -> Vector2:
 			return sh + Vector2(-3.5, 6.0)
 		Body.FALL:
 			return sh + Vector2(-6.5, 2.5)
+		Body.SLIDE:
+			return Vector2(-11.0, -19.0)
 	return sh + Vector2(-0.5, ARM_LEN)
 
 

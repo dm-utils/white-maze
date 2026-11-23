@@ -248,7 +248,7 @@ func player_params() -> Dictionary:
 		_face = 1 if dir.x > 0.0 else -1
 	elif dir == Vector2.ZERO and not aiming:
 		_face = sim.facing if sim.facing != 0 else _face
-	var body := MazeLilith.body_pose(sim.alive(), sim.grounded, sim.vx, sim.vy, sim.launched)
+	var body := MazeLilith.body_pose(sim.alive(), sim.grounded, sim.vx, sim.vy, sim.launched, sim.sliding())
 	var arm := MazeLilith.arm_mode(aiming, since_throw, body)
 	var squash := 0.0
 	if sim.grounded and sim.alive():
@@ -268,10 +268,19 @@ func player_params() -> Dictionary:
 		"dead_k": dead_k,
 		"vel": Vector2(look.x * _face, look.y),
 		"slots": mini(sim.level.beads, LILITH_SLOTS), "filled": mini(sim.beads_left, LILITH_SLOTS),
+		"grade": _grade(),
 	}
 	p["rig"] = blend.apply(Vector2i(body, arm), MazeLilith.rig(p), t)
 	last_rig = p["rig"]
 	return p
+
+
+## slope dy/dx under the feet in Lilith's frame (after the facing mirror), 0 off slopes
+func _grade() -> float:
+	var kind := sim.ground_kind()
+	if kind < 0:
+		return 0.0
+	return MazeSlope.downhill(kind) * (1.0 if MazeSlope.steep(kind) else 0.5) * _face
 
 
 func _draw_player_marker() -> void:

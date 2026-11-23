@@ -6,7 +6,10 @@ const PROFILE := "user://white_maze_test_art.json"
 const SOLUTIONS := "res://tests/solutions.json"
 const B := MazeLilith.Body
 const A := MazeLilith.Arm
-const BODIES := [B.IDLE, B.RUN, B.JUMP, B.LAUNCH, B.FALL]
+const BODIES := [B.IDLE, B.RUN, B.JUMP, B.LAUNCH, B.FALL, B.SLIDE]
+const GRADES := [-1.0, -0.5, 0.5, 1.0]
+const SLIDE_BOTTOM := 9.0 # the downhill boot of SLIDE and of any pose on a steep grade (23.8)
+const GENTLE_BOTTOM := 5.0 # feet of grounded poses on a gentle grade
 const ARMS := [A.REST, A.AIM, A.THROW, A.UP]
 const VELS := [0.0, 300.0, -300.0, 1080.0, -1080.0]
 const HITBOX := Rect2(-15.0, -32.0, 30.0, 32.0)
@@ -41,10 +44,16 @@ func run(check: Callable, node: Node) -> void:
 
 ## first violation of the bounds of 18.6.1, or ""
 func _violation(p: Dictionary) -> String:
+	var box_base := HITBOX
+	var grade: float = p.get("grade", 0.0)
+	if p.get("body", B.IDLE) == B.SLIDE or absf(grade) > 0.75:
+		box_base.size.y += SLIDE_BOTTOM
+	elif grade != 0.0:
+		box_base.size.y += GENTLE_BOTTOM
 	for s in MazeLilith.shapes(p):
 		if s["part"] == "outline":
 			continue
-		var box := HITBOX
+		var box := box_base
 		if s["part"] == "tail":
 			box = MazeLilith.TAIL_BOUNDS
 		var pts: PackedVector2Array = s["pts"]
@@ -105,6 +114,15 @@ func _bounds() -> void:
 				for vy: float in VELS:
 					for t in range(0, 120, 7):
 						bad = bad if bad != "" else _violation(_pose(body, arm, {"vel": Vector2(vx, vy), "tick": t}))
+		# feet on slopes: every grounded pose on every grade
+		if body in [B.IDLE, B.RUN, B.SLIDE]:
+			for arm: int in ARMS:
+				for g: float in GRADES:
+					for d in range(0, MazeAim.STEPS, 12):
+						var v := Vector2(MazeAim.dir(d))
+						for ph in [0.0, 0.25, 0.5, 0.75]:
+							var extra := {"aim_angle": atan2(v.y, v.x), "throw_k": 0.5, "phase": ph, "tick": d, "grade": g}
+							bad = bad if bad != "" else _violation(_pose(body, arm, extra))
 		_check.call(bad == "", "A2: Lilith stays inside the hitbox in pose %d %s" % [body, bad])
 	var slots_ok := true
 	for n in 5:
@@ -130,6 +148,8 @@ func _blended_bounds() -> void:
 								}
 								var ra := MazeLilith.rig(_pose(a, arm_a, extra))
 								var pb := _pose(b, arm_b, extra)
+								if a == B.SLIDE or b == B.SLIDE:
+									pb["grade"] = 1.0 # the boots of SLIDE reach below the hitbox floor (23.8)
 								for w in [0.25, 0.5, 0.75]:
 									pb["rig"] = MazeLilith.blend_rig(ra, MazeLilith.rig(pb), w)
 									bad = bad if bad != "" else _violation(pb)
@@ -150,10 +170,14 @@ func _poses() -> void:
 		[[false, true, 0, 0, false], B.DEAD, "dead on the ground"],
 		[[false, false, 0, 5000, false], B.DEAD, "dead in the air"],
 		[[true, false, 0, -100, false], B.JUMP, "start of a hop"],
+		[[true, true, -6000, 0, false, true], B.SLIDE, "sliding on a steep roof"],
+		[[true, true, 0, 0, false, true], B.SLIDE, "sliding without speed"],
+		[[false, true, -6000, 0, false, true], B.DEAD, "dead while sliding"],
 	]
 	for c in cases:
 		var a: Array = c[0]
-		_check.call(MazeLilith.body_pose(a[0], a[1], a[2], a[3], a[4]) == c[1], "A7: body pose, %s" % c[2])
+		var pose := MazeLilith.body_pose(a[0], a[1], a[2], a[3], a[4], a[5] if a.size() > 5 else false)
+		_check.call(pose == c[1], "A7: body pose, %s" % c[2])
 	_check.call(MazeLilith.arm_mode(false, 999, B.IDLE) == A.REST, "A7: arm rests when idle")
 	_check.call(MazeLilith.arm_mode(true, 999, B.RUN) == A.AIM, "A7: aiming while running: AIM")
 	_check.call(MazeLilith.arm_mode(false, 5, B.IDLE) == A.THROW, "A7: 5 ticks after a throw: THROW")
