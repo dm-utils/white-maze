@@ -3,6 +3,7 @@ extends RefCounted
 ## The fixed series: levels/index.json and one levels/<id>.json per level.
 
 const DIR := "res://levels/"
+const LAB_DIR := "res://levels/lab/"
 
 
 ## ids in series order; [] when the index is missing or bad

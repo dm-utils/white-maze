@@ -51,6 +51,9 @@ jobs:
       - name: Level check
         run: godot --headless --path . -s res://tools/check_levels.gd
 
+      - name: Level check (lab)
+        run: godot --headless --path . -s res://tools/check_levels.gd -- --dir=res://levels/lab
+
       - name: Par search calibration
         run: tools/check_search_par.sh
 

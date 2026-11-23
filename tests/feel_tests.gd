@@ -9,6 +9,7 @@ const SOLUTIONS := "res://tests/solutions.json"
 const JOINTS := ["near_foot", "far_foot", "hand_near", "hand_far"]
 const MAX_JOINT_PX := 3.5
 const MAX_TILT_DEG := 2.0
+const SLIDE_RUN_TICKS := 280 # lab01: both slides, the ring leap and the landing; the last stretch is a plain walk
 
 var _check: Callable
 var _node: Node
@@ -22,6 +23,7 @@ func run(check: Callable, node: Node) -> void:
 	_game_speed()
 	_render_time()
 	_smooth()
+	_smooth_slide()
 	_blend()
 	_clean()
 
@@ -284,6 +286,44 @@ func _smooth() -> void:
 	_check.call(
 		watch.worst_deg <= MAX_TILT_DEG,
 		"F5 the tilt changes at most %.0f degrees per frame (%.2f)" % [MAX_TILT_DEG, watch.worst_deg]
+	)
+	_close(m)
+
+
+## F5 on the slide sequence of lab01 (R20): the solution slides twice, over a ridge and down a roof
+func _smooth_slide() -> void:
+	var m := _main(["--speed=100", "--lab", "--level=lab01"])
+	var g := m.game
+	var watch := Watch.new()
+	var c := g.controls
+	var slid := 0
+	var script: String = WhitePuzzleStore.load_json(SOLUTIONS)["lab01"]
+	for inp: MazeInput in MazeRunScript.parse(script)["inputs"]:
+		c.touch_move(inp.move)
+		if inp.jump_pressed:
+			c.touch_jump(false)
+			c.touch_jump(true)
+			if not inp.jump_held:
+				c.touch_jump(false)
+		else:
+			c.touch_jump(inp.jump_held)
+		if inp.throw_dir >= 0:
+			c.touch_throw(inp.throw_dir)
+		_hold120(g, watch, "slide", 2)
+		slid += 1 if g.sim.sliding() else 0
+		if g.sim.tick >= SLIDE_RUN_TICKS:
+			break
+	_check.call(
+		slid > 20 and watch.frames > 500,
+		"F5 the lab01 run slides (%d ticks) and gives frames (%d)" % [slid, watch.frames]
+	)
+	_check.call(
+		watch.worst_px <= MAX_JOINT_PX,
+		"F5 on a slide no joint moves more than %.1f px per frame (%.2f at %s)" % [MAX_JOINT_PX, watch.worst_px, watch.where]
+	)
+	_check.call(
+		watch.worst_deg <= MAX_TILT_DEG,
+		"F5 on a slide the tilt changes at most %.0f degrees per frame (%.2f)" % [MAX_TILT_DEG, watch.worst_deg]
 	)
 	_close(m)
 

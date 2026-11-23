@@ -24,6 +24,7 @@ func run(check: Callable, _node: Node) -> void:
 	_ring_on_gutter(check)
 	_cast(check)
 	_look(check)
+	_lip_vs_cast(check)
 
 
 static func put(sim: MazeSim, x_px: float, y_px: float) -> void:
@@ -134,7 +135,10 @@ func _slide(check: Callable) -> void:
 			slide_events += 1 if has(sim, "slide") else 0
 			if land_tick < 0 and has(sim, "land"):
 				land_tick = i
-				check.call(sim.facing == -1 or mode == 1, "R8: facing points downhill after the landing (mode %d)" % mode)
+				check.call(
+					sim.facing == -1 or mode == 1,
+					"R8: facing points downhill after the landing (mode %d)" % mode
+				)
 			if land_tick >= 0 and sim.ground == MazeSim.Ground.STEEP:
 				on_slope_ticks += 1
 				grounded_all = grounded_all and sim.grounded
@@ -147,8 +151,14 @@ func _slide(check: Callable) -> void:
 				grounded_all = grounded_all and sim.grounded
 			last_y = sim.py
 			prev_steep = sim.ground == MazeSim.Ground.STEEP
-		check.call(slide_events >= 1 and land_tick >= 0, "R8: a landing on a steep roof starts a slide (mode %d)" % mode)
-		check.call(reached >= 0 and reached <= 14, "R8: the goal speed %d is reached within 14 ticks (%d, mode %d)" % [goal, reached, mode])
+		check.call(
+			slide_events >= 1 and land_tick >= 0,
+			"R8: a landing on a steep roof starts a slide (mode %d)" % mode
+		)
+		check.call(
+			reached >= 0 and reached <= 14,
+			"R8: the goal speed %d is reached within 14 ticks (%d, mode %d)" % [goal, reached, mode]
+		)
 		check.call(held_ok, "R8: the speed stays at the goal while on the slope (mode %d)" % mode)
 		check.call(increasing and on_slope_ticks > 5, "R8: py strictly increases on the slope (mode %d)" % mode)
 		check.call(grounded_all, "R8: grounded on every tick of the slide (mode %d)" % mode)
@@ -197,7 +207,10 @@ func _eave(check: Callable) -> void:
 			t0 = i
 			break
 	check.call(t0 >= 0, "R10: the slide ends at the eave (tick %d)" % t0)
-	check.call(sim.vy == MazeTuning.GRAVITY_DOWN, "R10: first tick without support has vy == GRAVITY_DOWN (%d)" % sim.vy)
+	check.call(
+		sim.vy == MazeTuning.GRAVITY_DOWN,
+		"R10: first tick without support has vy == GRAVITY_DOWN (%d)" % sim.vy
+	)
 	check.call(sim.px > 16 * T, "R10: the player leaves past the eave (%d)" % sim.px)
 	var out := false
 	var s2 := MazeSim.new(FX.level(FX.E_ROWS))
@@ -250,7 +263,10 @@ func _landing(check: Callable) -> void:
 			vy_before = vy_prev + MazeTuning.GRAVITY_DOWN
 			landing_vx = sim.vx
 			break
-	check.call(lands == 1 and landing_vx == (0 - vy_before) / 2, "R11: landing on a steep roof gives vx %d == (0 - %d) / 2" % [landing_vx, vy_before])
+	check.call(
+		lands == 1 and landing_vx == (0 - vy_before) / 2,
+		"R11: landing on a steep roof gives vx %d == (0 - %d) / 2" % [landing_vx, vy_before]
+	)
 	var g := MazeSim.new(FX.level(FX.G_ROWS))
 	put(g, 6 * 40 + 10, 100)
 	var gl := 0
@@ -270,14 +286,20 @@ func _landing(check: Callable) -> void:
 		s2.step(H.inp())
 		if has(s2, "land"):
 			break
-	check.call(s2.vx <= 3000 and s2.vx >= 0, "R11: landing on a gentle slope with speed keeps it (vx %d, expected near %d)" % [s2.vx, expect])
+	check.call(
+		s2.vx <= 3000 and s2.vx >= 0,
+		"R11: landing on a gentle slope with speed keeps it (vx %d, expected near %d)" % [s2.vx, expect]
+	)
 	var fall := MazeSim.new(FX.level(FX.S_ROWS))
 	put(fall, 8 * 40 + 10, 20)
 	var steps := 0
 	while not fall.grounded and steps < 100:
 		fall.step(H.inp())
 		steps += 1
-	check.call(fall.vx == -MazeTuning.MAX_FALL / 2 or fall.vx < -5000, "R11: a fall at MAX_FALL turns into a 450 px/s slide (%d)" % fall.vx)
+	check.call(
+		fall.vx == -MazeTuning.MAX_FALL / 2 or fall.vx < -5000,
+		"R11: a fall at MAX_FALL turns into a 450 px/s slide (%d)" % fall.vx
+	)
 
 
 ## roomy level for the metrics: a staircase of steep slopes falling to the left, a gentle pair and a flat floor
@@ -334,13 +356,22 @@ func _metrics(check: Callable) -> void:
 	check.call(lv.valid(), "R12: the metrics room is valid (%s)" % str(lv.errors))
 	var gentle := _lift_of(lv, 6 * 40 + 10, 22 * 40 + 40 - 5)
 	var steep := _lift_of(lv, 24 * 40 + 20, 14 * 40 + 20)
-	check.call(gentle >= 3.1 and gentle <= 3.6, "R12: full jump from a gentle slope lifts 3.1-3.6 tiles (%.2f)" % gentle)
+	check.call(
+		gentle >= 3.1 and gentle <= 3.6,
+		"R12: full jump from a gentle slope lifts 3.1-3.6 tiles (%.2f)" % gentle
+	)
 	check.call(steep >= 3.1 and steep <= 3.6, "R12: full jump from a steep slope lifts 3.1-3.6 tiles (%.2f)" % steep)
 	var plain := _slide_jump(lv, 0)
 	var fast := _slide_jump(lv, -1)
-	check.call(plain >= 4.0 and plain <= 5.5, "R12: a jump from a slide without input covers 4 to 5.5 tiles (%.2f)" % plain)
-	check.call(fast >= 5.5 and fast <= 7.2, "R12: a jump from a slide holding downhill covers 5.5 to 7 tiles (%.2f)" % fast)
-	print("metrics: lift gentle %.2f steep %.2f tiles; slide jump %.2f, holding downhill %.2f tiles" % [gentle, steep, plain, fast])
+	check.call(
+		plain >= 4.0 and plain <= 5.5,
+		"R12: a jump from a slide without input covers 4 to 5.5 tiles (%.2f)" % plain
+	)
+	check.call(
+		fast >= 5.5 and fast <= 7.2,
+		"R12: a jump from a slide holding downhill covers 5.5 to 7 tiles (%.2f)" % fast
+	)
+	print("metrics: lift gentle %.2f steep %.2f; slide jump %.2f, holding downhill %.2f tiles" % [gentle, steep, plain, fast])
 	# running jump from a gentle slope over a gap: distance at equal height
 	var sim := MazeSim.new(lv)
 	put(sim, 7 * 40 + 20, 22 * 40 + 20 - 10)
@@ -367,7 +398,10 @@ func _metrics(check: Callable) -> void:
 		if fall.py - y0 >= T:
 			break
 	var drop := (fall.px - x0) / float(T)
-	check.call(drop > 1.5 and drop < 2.1, "R12: off an eave at 480 px/s one tile of fall covers about 1.8 tiles (%.2f)" % drop)
+	check.call(
+		drop > 1.5 and drop < 2.1,
+		"R12: off an eave at 480 px/s one tile of fall covers about 1.8 tiles (%.2f)" % drop
+	)
 	print("metrics: running jump gap %.2f tiles, eave at 480 px/s %.2f tiles forward per tile fallen" % [gap, drop])
 
 
@@ -384,7 +418,10 @@ func _top_joints(check: Callable) -> void:
 		slides += 1 if has(sim, "slide") else 0
 		if sim.ground == MazeSim.Ground.STEEP:
 			reached = true
-	check.call(reached and none_ticks == 0 and lands == 0, "R13: walking left onto the steep slope: grounded, no land (none %d)" % none_ticks)
+	check.call(
+		reached and none_ticks == 0 and lands == 0,
+		"R13: walking left onto the steep slope: grounded, no land (none %d)" % none_ticks
+	)
 	check.call(slides == 1, "R13: the slide starts once at the joint (%d)" % slides)
 	sim = MazeSim.new(FX.level(FX.T_ROWS))
 	none_ticks = 0
@@ -395,7 +432,10 @@ func _top_joints(check: Callable) -> void:
 		none_ticks += 1 if sim.ground == MazeSim.Ground.NONE else 0
 		lands += 1 if has(sim, "land") else 0
 		gentle = gentle or sim.ground == MazeSim.Ground.GENTLE
-	check.call(gentle and none_ticks == 0 and lands == 0, "R13: walking right down the gentle pair: grounded, no land (none %d)" % none_ticks)
+	check.call(
+		gentle and none_ticks == 0 and lands == 0,
+		"R13: walking right down the gentle pair: grounded, no land (none %d)" % none_ticks
+	)
 
 
 func _wall(check: Callable) -> void:
@@ -406,14 +446,20 @@ func _wall(check: Callable) -> void:
 	for i in 30:
 		sim.step(H.inp(1))
 		ok = ok and sim.px <= 8 * T - 15000
-	check.call(ok and sim.px < 7 * T, "R14: pressing into the wall at the high end still slides away (px %.1f)" % (sim.px / 1000.0))
+	check.call(
+		ok and sim.px < 7 * T,
+		"R14: pressing into the wall at the high end still slides away (px %.1f)" % (sim.px / 1000.0)
+	)
 	var right := MazeSim.new(FX.level(FX.S_ROWS))
 	put(right, 10 * 40 + 15, 5 * 40 + 15)
 	ok = right.ground == MazeSim.Ground.STEEP
 	for i in 30:
 		right.step(H.inp(-1))
 		ok = ok and right.px >= 10 * T + 15000
-	check.call(ok and right.px > 11 * T, "R14: the right side slides away from its wall too (px %.1f)" % (right.px / 1000.0))
+	check.call(
+		ok and right.px > 11 * T,
+		"R14: the right side slides away from its wall too (px %.1f)" % (right.px / 1000.0)
+	)
 
 
 func _invariants(sim: MazeSim, prev_ground: int, bad: Dictionary) -> void:
@@ -469,7 +515,10 @@ func _fuzz(check: Callable) -> void:
 				slides += 1 if sim.ground == MazeSim.Ground.STEEP else 0
 				gentle += 1 if sim.ground == MazeSim.Ground.GENTLE else 0
 	check.call(bad.is_empty(), "R15: random play keeps the slope invariants (%s)" % str(bad.keys()))
-	check.call(slides > 1000 and gentle > 1000, "R15: random play uses steep (%d) and gentle (%d) ground" % [slides, gentle])
+	check.call(
+		slides > 1000 and gentle > 1000,
+		"R15: random play uses steep (%d) and gentle (%d) ground" % [slides, gentle]
+	)
 
 
 func _determinism(check: Callable) -> void:
@@ -510,7 +559,9 @@ func _ring_on_gutter(check: Callable) -> void:
 	check.call(vx_at == -MazeTuning.SLIDE_SPEED, "R18: the slide speed is kept (%d)" % vx_at)
 	check.call(sim.rings_used == 0, "R18: a preset ring does not count")
 	var thrown := MazeSim.new(FX.level(FX.E_ROWS))
-	thrown.rings.append({"cell": Vector2i(9, 6), "face": MazeLevel.Face.UP, "preset": false, "order": 0, "cooldown": 0, "used": false})
+	thrown.rings.append(
+		{"cell": Vector2i(9, 6), "face": MazeLevel.Face.UP, "preset": false, "order": 0, "cooldown": 0, "used": false}
+	)
 	put(thrown, 12 * 40 + 20, 3 * 40 + 20)
 	for i in 120:
 		thrown.step(H.inp())
@@ -549,10 +600,16 @@ func _cast(check: Callable) -> void:
 	var sky := FX.level(H.rows(16, 10), {"sky": true})
 	var open := MazeSim.new(sky)
 	var up := open.cast(36)
-	check.call(not up["valid"] and up["reason"] == "none", "R17: a throw into open sky gives reason none (%s)" % up["reason"])
+	check.call(
+		not up["valid"] and up["reason"] == "none",
+		"R17: a throw into open sky gives reason none (%s)" % up["reason"]
+	)
 	var closed := MazeSim.new(FX.level(H.rows(16, 10)))
 	var cap := closed.cast(36)
-	check.call(not cap["valid"] and cap["reason"] == "no_ring", "R17: without sky the top edge gives no_ring (%s)" % cap["reason"])
+	check.call(
+		not cap["valid"] and cap["reason"] == "no_ring",
+		"R17: without sky the top edge gives no_ring (%s)" % cap["reason"]
+	)
 	var side := open.cast(0)
 	check.call(side["reason"] == "no_ring", "R17: sky does not open the sides (%s)" % side["reason"])
 
@@ -598,7 +655,8 @@ func _look(check: Callable) -> void:
 					for f in 4:
 						var front := c + MazeLevel.FACE_STEP[f]
 						if lv.slope(front.x, front.y):
-							trims = trims and not MazeSkin.rim_face(lv, c, f) and not MazeStaticLayer.lip_drawn(lv, c, f)
+							var open := MazeSkin.rim_face(lv, c, f) or MazeStaticLayer.lip_drawn(lv, c, f)
+							trims = trims and not open
 							lips = lips and MazeSkin.side(lv, c, f) == MazeSkin.Side.SLOPE
 			MazeSkin.end()
 	check.call(counted > 40, "R21: slope primitives were checked (%d tiles)" % counted)
@@ -606,3 +664,35 @@ func _look(check: Callable) -> void:
 	check.call(straight, "R21: the contour of a slope is the collision polygon, a straight surface")
 	check.call(trims, "R21: no covered face has a rim or a lip")
 	check.call(lips, "R21: a block face towards a slope is a slope side")
+
+
+## R21: a lip is drawn exactly where a throw would be valid (range and taken aside)
+func _lip_vs_cast(check: Callable) -> void:
+	var levels: Array[MazeLevel] = []
+	for rows in [FX.S_ROWS, FX.G_ROWS, FX.E_ROWS, FX.T_ROWS]:
+		levels.append(FX.level(rows))
+	for id in MazeLevels.ids(MazeLevels.LAB_DIR):
+		levels.append(MazeLevels.load_level(id, MazeLevels.LAB_DIR))
+	var dirs := [108, 36, 0, 72] # towards the face from the cell in front: up, down, left, right
+	var faces := 0
+	var bad := ""
+	for lv in levels:
+		for y in lv.height:
+			for x in lv.width:
+				if lv.cell(x, y) != MazeLevel.Cell.SOLID:
+					continue
+				for f in 4:
+					var front := Vector2i(x, y) + MazeLevel.FACE_STEP[f]
+					if front.x < 0 or front.y < 0 or front.x >= lv.width or front.y >= lv.height:
+						continue
+					if lv.cell(front.x, front.y) != MazeLevel.Cell.EMPTY:
+						continue
+					var sim := MazeSim.new(lv)
+					sim.px = front.x * T + T / 2
+					sim.py = front.y * T + T / 2 + MazeTuning.PLAYER_H / 2
+					var t := sim.cast(dirs[f])
+					faces += 1
+					if t["cell"] != Vector2i(x, y) or t["valid"] != MazeArt.lip_face(lv, Vector2i(x, y), f):
+						bad = "%s (%d, %d) face %d: %s" % [lv.id, x, y, f, str(t["reason"])]
+	check.call(faces > 300, "R21: faces compared with the cast (%d)" % faces)
+	check.call(bad == "", "R21: lip_face equals cast validity on every open face (%s)" % bad)
