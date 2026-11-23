@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  MIN_CHECKS: "1897" # the number of checks of the game's own tests, so skipped tests fail the build
+  MIN_CHECKS: "1934" # the number of checks of the game's own tests, so skipped tests fail the build
 
 jobs:
   build:
@@ -56,6 +56,9 @@ jobs:
 
       - name: Par search calibration
         run: tools/check_search_par.sh
+
+      - name: Native solver (equal to the simulation tick for tick)
+        run: tools/check_solver.sh
 
       - name: Debug screenshots (tools/shots.txt)
         if: hashFiles('tools/shots.txt') != ''

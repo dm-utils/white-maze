@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Native solver (design 23.10.4): build, tick-for-tick equivalence with the GDScript simulation, calibration, speed.
-#   tools/check_solver.sh            runs in CI (about a minute)
-#   tools/check_solver.sh --full     also the cheaper-route searches of design 17.2 (minutes)
+#   tools/check_solver.sh            runs in CI (about two minutes)
+#   tools/check_solver.sh --full     also the cheaper-route searches of design 17.2, printed not judged (minutes)
 # Exit 1 on any difference or failed calibration. Output goes to build/solver/.
 set -euo pipefail
 
@@ -103,7 +103,8 @@ if awk -v r="$ratio" 'BEGIN { exit !(r < 100) }'; then
 fi
 
 if [ "${1:-}" = "--full" ]; then
-	# no cheaper route at the settings of design 17.2 and the test report of 2026-11-21: expect 0 sets with a finish
+	# settings of design 17.2 and the test report of 2026-11-21: l005, l007, l008 and lab03 find no set with a finish,
+	# lab01 finds three (design 23.21)
 	search() {
 		echo "search $*"
 		$out/maze_solver search $out/levels.txt "$@" | tail -3
