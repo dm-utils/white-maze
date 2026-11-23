@@ -261,10 +261,11 @@ the band that corner would hit the floor as a wall. With it, the corner may sink
 the centre crosses, and then the lift of step 3 puts the feet on the floor; at the border the surfaces meet, so that
 lift is at most `abs(vx)`.
 
-A known small effect: a player who lands on the corner of the floor at the top of a steep roof (centre over the roof)
-stands there; walking towards the roof, the box leaves the floor when the centre is about 15 px from the edge, and the
-snap moves the feet down to the roof surface by up to 16 px in one tick. Render interpolation shows it as a quick step
-down. It happens only after a landing on that exact corner.
+Fix round (card #043, see 23.21): walking off a floor onto a falling roof, the snap of step 5 also runs for
+`start == FLAT`, so the feet follow the roof surface from the tick the centre crosses the edge (no hover, no drop of up
+to 19 px). Falling along the high side of a roof, the top corner of its wall counts as a floor in step 4 and in
+`_compute_ground()` (the box cannot sink into the wall, so step 3 never lifts it by more than the surface step). Walking
+up to the low end of a steep roof from a floor, the box stops with its front at the toe (23.21).
 
 ### 23.5.5 Jumping, coyote, buffer, rings, hazards
 
@@ -1033,8 +1034,12 @@ Deviations from the text above (all in `sim/sim.gd` unless noted):
    `STEEP`), the slope under the centre wins over a nearer block top under the box, and a `FLAT` result after a
    slope tick is snapped to the slope under the centre too. As written ("whichever is nearer"), a slide down a stair
    of `/` tiles (fixture S) stood on every block corner for two to four ticks and braked with `GROUND_DECEL`:
-   6000 -> 3500 and up again at every tile. A player that starts on a floor or lands on a corner is unchanged (the
-   documented corner case of 23.5.4 stays).
+   6000 -> 3500 and up again at every tile. Since the fix round (card #043) the second half also holds for
+   `start == FLAT`: walking from a floor onto a falling roof, the box stays over the block for up to 15 px after the
+   centre has crossed the edge, and the feet used to hang there and drop 9 px (gentle) or 19 px (steep) in one tick. Now
+   a `FLAT` result with a slope surface under the centre within `SLOPE_SNAP + abs(vx)` below the feet is snapped to
+   that surface on every tick, so the feet follow the roof from the first pixel. A player that lands on a corner (not
+   `was_grounded`) is unchanged. The "known small effect" at the end of 23.5.4 therefore no longer exists for walking.
 3. **R17.** No ray can reach a face that is covered by a slope without crossing the slope's own polygon first (the slope
    is always in front of the face), so the cases "top face of a block under a slope" and "side of a block next to a high
    side" cannot be produced by `cast`. They are covered by validation (`is not exposed`), by `lip_face` and by the
@@ -1080,8 +1085,41 @@ Lab series (`levels/lab/`, format 2, `sky`, solutions in `tests/solutions.json`)
 |---|---|---|---|---|
 | lab01 | 48 x 18 | 2 | 314 ticks, 2 rings | floor ring over a steep ridge, slide down the far side, jump at the eave, slide to a gutter with a ring thrown while sliding, leap to the door |
 | lab02 | 40 x 14 | 0 | 290 ticks, 0 rings | gentle tiers up and down, a gentle ridge, a gentle slope into a wall (jump), a gentle descent |
-| lab03 | 36 x 17 | 1 | 173 ticks, 1 ring | steep roof into a gentle one, a spike at the low end, a floor ring thrown while sliding, leap to a ledge |
+| lab03 | 36 x 17 | 1 | 172 ticks, 1 ring | steep roof into a gentle one, a spike at the low end, a floor ring thrown while sliding, leap to a ledge |
 
 How to open the lab in the web build: `https://play.white-maze.steefbeest.nl/?lab` (level select with the three cards,
 every card open) or `?lab&level=lab01` (and `lab02`, `lab03`) for one level. Locally: `godot --path . -- --lab`
 (`--level=lab01`). Nothing is written to the profile.
+
+### Fix round of phase A (card #043, branch `fix/slope-movement`)
+
+Findings of the test of phase A (`docs/test-reports/2026-11-23-daken-fase-a.md`). Only `sim/sim.gd` changes; formats 1
+and the R1 golden trace are untouched (every new branch needs a slope cell). `MIN_CHECKS` 1885 -> 1894.
+
+- **M1, falling along the high side of a roof.** A box beside a wall (the full-height high side of `/`, `\`, `L`, `R`) fell
+  past the wall because `_move_x` only checks the rows of the box when it enters a column, and then `_lift` raised it
+  up to 40 px when the centre reached the roof. Now `_on_gable_top(cy)` makes the top corner of such a wall a floor: the
+  cell is in a box column other than the centre's, its high side faces the centre, and the centre's own cell in that row
+  is not a slope (a ridge `/\` still slides off). `_move_y` lands on it (`py` = cell top) and `_compute_ground()`
+  reports `FLAT` there. The box overhangs the corner by up to 15 px, like standing on a ledge; when the centre crosses
+  into the roof column the existing snap puts the feet on the surface, which at the corner equals the cell top, so
+  there is no jump. Test `M1` (1180 runs of 150 ticks over the whole approach field, both shapes): no upward step above
+  1 px, the box never in the wall column below the cell top.
+- **M2, walking off a floor onto a falling roof.** See deviation 2: the snap to the slope under the centre now also runs
+  for `start == FLAT`. Largest step per tick while walking on: 7.5 px (steep, the slide speed), 2.5 px (gentle); it was
+  18.7 and 9.3 px. The slide event of a steep roof now fires on the tick the centre crosses the edge.
+- **M3, pressing into the foot of a steep roof.** Choice: stand still. From a floor (`start == FLAT`) the box stops with
+  its front edge at the toe of a steep roof (the low end of `/` from the left, of `\` from the right), `vx = 0`, no lift,
+  no slide; a box that already overlaps the toe column (after a jump) stays where it is. A steep roof is not climbed
+  from the floor, which fits "you slide down it". It is still entered from the air (a jump onto the roof), from a
+  ring launch, and from a slope. Gentle roofs are walked onto as before. Before: 0.45 s rocking over 38 px with the
+  ground flickering `FLAT` and `STEEP` every 8 to 18 ticks. Test `M3`: from tick 180 `px` is constant and no tick off
+  the floor, both directions.
+- **L1.** `tests/slope_tests.gd` checks `MazeSlope.FIRST == STEEP_R`, `LAST == GENTLE_L_LO` and `is_slope` for every
+  value of `MazeLevel.Cell`.
+- **L2** (the box sticks a few px into a block corner under a stair of steep roofs) is not changed: the invariant
+  of 23.5.8 holds and the new rules do not touch that case.
+- **Lab solutions.** The slide now starts a few ticks earlier (M2), which moves the following ticks. Two solutions in
+  `tests/solutions.json` were re-timed by one tick: lab01 `R42` -> `R41` (314 ticks, 2 rings, as before) and lab03 `R16`
+  -> `R15` (172 ticks, 1 ring; was 173). The ruins (R1) did not change. The slide-jump values (4.31 and 5.85 tiles) did
+  not change.
