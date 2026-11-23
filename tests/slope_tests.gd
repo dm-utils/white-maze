@@ -22,6 +22,7 @@ func run(check: Callable, _node: Node) -> void:
 	_fuzz(check)
 	_determinism(check)
 	_ring_on_gutter(check)
+	_cast(check)
 
 
 static func put(sim: MazeSim, x_px: float, y_px: float) -> void:
@@ -515,3 +516,41 @@ func _ring_on_gutter(check: Callable) -> void:
 		if thrown.rings_used > 0:
 			break
 	check.call(thrown.rings_used == 1, "R18: a thrown ring launched from a slide counts once")
+
+
+func _cast(check: Callable) -> void:
+	var lv := FX.level(FX.S_ROWS)
+	var sim := MazeSim.new(lv)
+	var t := sim.cast(0)
+	check.call(
+		not t["valid"] and t["reason"] == "slope" and t["cell"] == Vector2i(5, 7) and t["face"] == MazeLevel.Face.UP,
+		"R17: a throw that first meets a slope is invalid with reason slope (%s)" % str(t)
+	)
+	var thrown := MazeSim.new(lv)
+	thrown.step(H.inp(0, false, false, 0))
+	var idle := MazeSim.new(lv)
+	idle.step(H.inp())
+	check.call(
+		H.event(thrown, "throw_invalid").get("reason") == "slope" and thrown.beads_left == lv.beads
+		and thrown.flights.is_empty() and thrown.snapshot() == idle.snapshot(),
+		"R17: the invalid throw changes nothing"
+	)
+	check.call(
+		not MazeArt.lip_face(lv, Vector2i(5, 8), MazeLevel.Face.UP)
+		and not MazeArt.lip_face(lv, Vector2i(8, 5), MazeLevel.Face.LEFT)
+		and MazeArt.lip_face(lv, Vector2i(3, 8), MazeLevel.Face.UP),
+		"R17: faces covered by a slope have no lip; open faces keep theirs"
+	)
+	# a dead player and an empty hand still report their own reason first
+	var dead := MazeSim.new(lv)
+	dead.dead_ticks = 5
+	check.call(dead.cast(0)["reason"] == "dead", "R17: dead wins over slope")
+	var sky := FX.level(H.rows(16, 10), {"sky": true})
+	var open := MazeSim.new(sky)
+	var up := open.cast(36)
+	check.call(not up["valid"] and up["reason"] == "none", "R17: a throw into open sky gives reason none (%s)" % up["reason"])
+	var closed := MazeSim.new(FX.level(H.rows(16, 10)))
+	var cap := closed.cast(36)
+	check.call(not cap["valid"] and cap["reason"] == "no_ring", "R17: without sky the top edge gives no_ring (%s)" % cap["reason"])
+	var side := open.cast(0)
+	check.call(side["reason"] == "no_ring", "R17: sky does not open the sides (%s)" % side["reason"])

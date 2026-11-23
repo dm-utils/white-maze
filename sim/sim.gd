@@ -597,10 +597,22 @@ func cast(dir_index: int) -> Dictionary:
 	var steps := MazeTuning.CAST_RANGE / MazeTuning.CAST_STEP
 	var hit_k := 0
 	var hit_cell := Vector2i()
+	var slope_hit := false
 	for k in range(1, steps + 1):
 		var travel := k * MazeTuning.CAST_STEP
 		var p := Vector2i(o.x + d.x * travel / MazeAim.SCALE, o.y + d.y * travel / MazeAim.SCALE)
 		var c := Vector2i(_fdiv(p.x, T), _fdiv(p.y, T))
+		if level.sky and c.y < 0 and c.x >= 0 and c.x < level.width:
+			prev_point = p
+			prev_cell = c
+			continue
+		if level.slope_count > 0:
+			var kind := level.cell(c.x, c.y)
+			if MazeSlope.is_slope(kind) and MazeSlope.inside(kind, c.x, c.y, p):
+				hit_k = k
+				hit_cell = c
+				slope_hit = true
+				break
 		if level.solid(c.x, c.y):
 			hit_k = k
 			hit_cell = c
@@ -614,13 +626,15 @@ func cast(dir_index: int) -> Dictionary:
 		elif beads_left == 0:
 			result["reason"] = "no_beads"
 		return result
-	var face := _hit_face(prev_cell, hit_cell, d)
+	var face := MazeLevel.Face.UP if slope_hit else _hit_face(prev_cell, hit_cell, d)
 	var front := hit_cell + MazeLevel.FACE_STEP[face]
 	result["cell"] = hit_cell
 	result["face"] = face
 	result["dist"] = hit_k * MazeTuning.CAST_STEP
 	var reason := "ok"
-	if level.cell(hit_cell.x, hit_cell.y) != MazeLevel.Cell.SOLID or level.solid(front.x, front.y):
+	if slope_hit:
+		reason = "slope"
+	elif level.cell(hit_cell.x, hit_cell.y) != MazeLevel.Cell.SOLID or level.covered(front.x, front.y):
 		reason = "no_ring"
 	elif level.cell(front.x, front.y) == MazeLevel.Cell.SPIKE:
 		reason = "hazard"
