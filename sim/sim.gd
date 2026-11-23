@@ -77,8 +77,8 @@ func time_ticks() -> int:
 ## canonical text of all state except level and events, for determinism tests
 func snapshot() -> String:
 	var parts := PackedStringArray()
-	for v in [tick, px, py, prev_px, prev_py, vx, vy, facing, grounded, ground, coyote, buffer, jumping, launched, lock_ticks,
-			dead_ticks, deaths, beads_left, rings_used, throw_count, clock_start, finish_tick]:
+	for v in [tick, px, py, prev_px, prev_py, vx, vy, facing, grounded, ground, coyote, buffer, jumping, launched,
+			lock_ticks, dead_ticks, deaths, beads_left, rings_used, throw_count, clock_start, finish_tick]:
 		parts.append(str(v))
 	for r in rings:
 		parts.append("r%s,%d,%s,%d,%d,%s" % [r["cell"], r["face"], r["preset"], r["order"], r["cooldown"], r["used"]])

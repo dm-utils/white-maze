@@ -344,8 +344,14 @@ func _sliding() -> void:
 		if slide_t >= 0.0 and t - slide_t >= 0.3 and sim.sliding():
 			worst = minf(worst, r.play_rect().end.y - sim.py / 1000.0)
 			frames += 1
-	_check.call(slide_t >= 0.0 and reached >= 0.0 and reached <= 0.3, "R19 the bottom guard grows within 0.3 s (%.2f)" % reached)
-	_check.call(frames > 10 and worst >= 144.0, "R19 at least 3.6 tiles below the feet while sliding (%.1f over %d frames)" % [worst, frames])
+	_check.call(
+		slide_t >= 0.0 and reached >= 0.0 and reached <= 0.3,
+		"R19 the bottom guard grows within 0.3 s (%.2f)" % reached
+	)
+	_check.call(
+		frames > 10 and worst >= 144.0,
+		"R19 at least 3.6 tiles below the feet while sliding (%.1f over %d frames)" % [worst, frames]
+	)
 
 
 func _aim_framing() -> void:

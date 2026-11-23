@@ -167,7 +167,9 @@ static func _roof_pair(a: int, b: int) -> bool:
 
 
 ## polygon part at least d px inside the edge a-b (centre is on the inner side)
-static func _clip_inside(pts: PackedVector2Array, a: Vector2, b: Vector2, centre: Vector2, d: float) -> PackedVector2Array:
+static func _clip_inside(
+	pts: PackedVector2Array, a: Vector2, b: Vector2, centre: Vector2, d: float
+) -> PackedVector2Array:
 	var n := (b - a).orthogonal().normalized()
 	if (centre - a).dot(n) < 0.0:
 		n = -n

@@ -253,7 +253,10 @@ func _slopes(check: Callable) -> void:
 	var all_six := H.rows(16, 8, {})
 	all_six[6] = "..S../..\\.rRLl.."
 	var lv := H.level(all_six, {"format": 2})
-	check.call(lv.valid() and lv.slope_count == 6, "R3: a format-2 level with all six slopes loads (%s)" % str(lv.errors))
+	check.call(
+		lv.valid() and lv.slope_count == 6,
+		"R3: a format-2 level with all six slopes loads (%s)" % str(lv.errors)
+	)
 	check.call(lv.render() == PackedStringArray(all_six), "R3: render() gives the slope rows back")
 	check.call(
 		lv.cell(5, 6) == MazeLevel.Cell.STEEP_R and lv.cell(8, 6) == MazeLevel.Cell.STEEP_L
@@ -279,15 +282,35 @@ func _slopes(check: Callable) -> void:
 		["sky not a bool", H.level(H.rows(16, 8), {"format": 2, "sky": 1}), "sky must be true or false"],
 		["format 3", H.level(H.rows(16, 8), {"format": 3}), "format must be 1 or 2"],
 		["V1 nothing below", _slope_level({Vector2i(5, 5): "/"}), "slope at (5, 5) needs # or X below"],
-		["V1 spike below", _slope_level({Vector2i(5, 5): "/", Vector2i(5, 6): "^"}), "slope at (5, 5) needs # or X below"],
-		["V2 block above", _slope_level({Vector2i(5, 6): "/", Vector2i(5, 5): "#"}), "slope at (5, 6) needs empty space above"],
-		["V2 spike above", _slope_level({Vector2i(5, 6): "/", Vector2i(5, 5): "^"}), "slope at (5, 6) needs empty space above"],
+		[
+			"V1 spike below",
+			_slope_level({Vector2i(5, 5): "/", Vector2i(5, 6): "^"}),
+			"slope at (5, 5) needs # or X below"
+		],
+		[
+			"V2 block above",
+			_slope_level({Vector2i(5, 6): "/", Vector2i(5, 5): "#"}),
+			"slope at (5, 6) needs empty space above"
+		],
+		[
+			"V2 spike above",
+			_slope_level({Vector2i(5, 6): "/", Vector2i(5, 5): "^"}),
+			"slope at (5, 6) needs empty space above"
+		],
 		["V3 r", _slope_level({Vector2i(6, 6): "r"}), "gentle slope 'r' at (6, 6) needs 'R' to its right"],
 		["V3 R", _slope_level({Vector2i(6, 6): "R"}), "gentle slope 'R' at (6, 6) needs 'r' to its left"],
 		["V3 L", _slope_level({Vector2i(6, 6): "L"}), "gentle slope 'L' at (6, 6) needs 'l' to its right"],
 		["V3 l", _slope_level({Vector2i(6, 6): "l"}), "gentle slope 'l' at (6, 6) needs 'L' to its left"],
-		["V4 wall", _slope_level({Vector2i(5, 6): "/", Vector2i(4, 6): "#", Vector2i(4, 5): "."}), "slope at (5, 6) has a blocked low side"],
-		["V4 cliff", _slope_level({Vector2i(5, 6): "/", Vector2i(6, 6): "/"}), "slope at (6, 6) has a blocked low side"],
+		[
+			"V4 wall",
+			_slope_level({Vector2i(5, 6): "/", Vector2i(4, 6): "#", Vector2i(4, 5): "."}),
+			"slope at (5, 6) has a blocked low side"
+		],
+		[
+			"V4 cliff",
+			_slope_level({Vector2i(5, 6): "/", Vector2i(6, 6): "/"}),
+			"slope at (6, 6) has a blocked low side"
+		],
 		["V4 edge", _slope_level({Vector2i(0, 6): "/"}), "slope at (0, 6) has a blocked low side"],
 		[
 			"ring under a slope",
@@ -303,14 +326,16 @@ func _slopes(check: Callable) -> void:
 	]
 	for c in cases:
 		check.call(
-			c[1].errors.size() == 1 and c[1].errors[0] == c[2], "R3: %s gives exactly '%s' (got %s)" % [c[0], c[2], str(c[1].errors)]
+			c[1].errors.size() == 1 and c[1].errors[0] == c[2],
+			"R3: %s gives exactly '%s' (got %s)" % [c[0], c[2], str(c[1].errors)]
 		)
 
 
 func _valley(check: Callable) -> void:
 	var lv := _slope_level({Vector2i(5, 6): "\\", Vector2i(6, 6): "/"})
 	check.call(
-		lv.errors == PackedStringArray(["slope at (5, 6) has a blocked low side", "slope at (6, 6) has a blocked low side"]),
+		lv.errors
+		== PackedStringArray(["slope at (5, 6) has a blocked low side", "slope at (6, 6) has a blocked low side"]),
 		"R3: V4 a valley gives one error per slope (got %s)" % str(lv.errors)
 	)
 
@@ -367,7 +392,8 @@ func _slope_geometry(check: Callable) -> void:
 		MazeSlope.surface(cell.STEEP_R, 3, T) == 3 * T and MazeSlope.surface(cell.GENTLE_L_LO, 3, T) == 4 * T,
 		"R4: a top joint meets the floor at equal y"
 	)
-	var steep_ok := MazeSlope.steep(cell.STEEP_R) and MazeSlope.steep(cell.STEEP_L) and not MazeSlope.steep(cell.GENTLE_R_HI)
+	var steep_ok := MazeSlope.steep(cell.STEEP_R) and MazeSlope.steep(cell.STEEP_L)
+	steep_ok = steep_ok and not MazeSlope.steep(cell.GENTLE_R_HI)
 	check.call(steep_ok and not MazeSlope.is_slope(cell.SPIKE) and MazeSlope.is_slope(cell.GENTLE_L_LO), "R4: kinds")
 	check.call(
 		MazeSlope.downhill(cell.STEEP_R) == -1 and MazeSlope.downhill(cell.GENTLE_R_LO) == -1
@@ -376,8 +402,10 @@ func _slope_geometry(check: Callable) -> void:
 		"R4: downhill directions"
 	)
 	check.call(
-		MazeSlope.high_side(cell.STEEP_R) == MazeLevel.Face.RIGHT and MazeSlope.high_side(cell.GENTLE_R_HI) == MazeLevel.Face.RIGHT
-		and MazeSlope.high_side(cell.STEEP_L) == MazeLevel.Face.LEFT and MazeSlope.high_side(cell.GENTLE_L_HI) == MazeLevel.Face.LEFT
+		MazeSlope.high_side(cell.STEEP_R) == MazeLevel.Face.RIGHT
+		and MazeSlope.high_side(cell.GENTLE_R_HI) == MazeLevel.Face.RIGHT
+		and MazeSlope.high_side(cell.STEEP_L) == MazeLevel.Face.LEFT
+		and MazeSlope.high_side(cell.GENTLE_L_HI) == MazeLevel.Face.LEFT
 		and MazeSlope.high_side(cell.GENTLE_R_LO) == -1 and MazeSlope.high_side(cell.GENTLE_L_LO) == -1,
 		"R4: high sides"
 	)
