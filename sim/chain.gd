@@ -23,10 +23,10 @@ static func note(events: Array, level: MazeLevel, seen: Dictionary, links: Array
 		if e["counted"]:
 			links.append({"kind": Kind.BEAD, "cell": e["cell"], "face": e["face"]})
 			continue
-		var key := _key(e["cell"], e["face"])
-		if seen.has(key) or not _is_preset(level, e["cell"], e["face"]):
+		var id := key(e["cell"], e["face"])
+		if seen.has(id) or not _is_preset(level, e["cell"], e["face"]):
 			continue
-		seen[key] = true
+		seen[id] = true
 		links.append({"kind": Kind.KNOT, "cell": e["cell"], "face": e["face"]})
 
 
@@ -153,7 +153,8 @@ static func parse_code(text: String) -> Dictionary:
 	return out
 
 
-static func _key(cell: Vector2i, face: int) -> int:
+## unique int per cell and face
+static func key(cell: Vector2i, face: int) -> int:
 	return cell.x * 4096 + cell.y * 4 + face
 
 
