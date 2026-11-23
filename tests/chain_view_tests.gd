@@ -27,6 +27,7 @@ func run(check: Callable, node: Node) -> void:
 	_skip(check)
 	await _result_layout(check)
 	await _export_and_share(check)
+	await _level_select(check)
 	_clean()
 	WhiteText.lang = "nl"
 
@@ -645,3 +646,126 @@ func _export_and_share(check: Callable) -> void:
 	)
 	_close(m)
 	_clean()
+
+
+func _all_levels() -> Array[MazeLevel]:
+	var out: Array[MazeLevel] = []
+	for id in MazeLevels.ids():
+		out.append(MazeLevels.load_level(id))
+	return out
+
+
+func _minis(card: Control) -> Array:
+	var out := []
+	for c in card.get_children():
+		if c is MazeChainView:
+			out.append(c)
+	return out
+
+
+func _find_scroll(n: Node) -> ScrollContainer:
+	if n is ScrollContainer:
+		return n
+	for c in n.get_children():
+		var f := _find_scroll(c)
+		if f != null:
+			return f
+	return null
+
+
+func _select_in(size: Vector2i, store: MazeProfileStore, levels: Array[MazeLevel]) -> Array:
+	var sv := SubViewport.new()
+	sv.size = size
+	_node.add_child(sv)
+	var sel := MazeLevelSelect.new()
+	sel.levels = levels
+	sel.store = store
+	sv.add_child(sel)
+	await _node.get_tree().process_frame
+	await _node.get_tree().process_frame
+	return [sv, sel]
+
+
+func _level_select(check: Callable) -> void:
+	var levels := _all_levels()
+	var demo := MazeProfileStore.new()
+	demo.open_memory("nl", 0)
+	MazeMain.fill_demo_profile(demo.data, levels)
+	var ok := true
+	for lv in levels:
+		var chain: Dictionary = demo.data["levels"][lv.id].get("chain", {})
+		var want := MazeChain.from_run(lv, WhitePuzzleStore.load_json(SOLUTIONS)[lv.id])
+		ok = ok and chain.get("links", "") == MazeChain.encode(want["links"]) and chain["rings"] == want["rings"]
+	check.call(ok, "K12: --demo-profile finishes every level with its replayed chain")
+	for lang in ["nl", "en"]:
+		WhiteText.lang = lang
+		for size: Vector2i in [Vector2i(1280, 720), Vector2i(1600, 720)]:
+			var made := await _select_in(size, demo, levels)
+			var sel: MazeLevelSelect = made[1]
+			var tag := "%s %dx%d" % [lang, size.x, size.y]
+			var one_each := sel.cards.size() == levels.size()
+			for card in sel.cards:
+				one_each = one_each and _minis(card).size() == 1
+			check.call(one_each, "K12: %s: every finished card has exactly one mini chain" % tag)
+			var font := ThemeDB.fallback_font
+			var pad: float = sel.cards[0].get_theme_stylebox("normal").content_margin_left
+			var fits := true
+			var below := true
+			var inside := true
+			var detail := ""
+			for i in sel.cards.size():
+				var card: Button = sel.cards[i]
+				var lines := card.text.split("\n")
+				var room := card.size.x - MazeLevelSelect.MINI_SIZE.x - 2.0 * MazeLevelSelect.MINI_INSET
+				for j in 2:
+					var w := font.get_string_size(lines[j], HORIZONTAL_ALIGNMENT_LEFT, -1, WhiteTheme.FONT_BUTTON).x
+					if w + 2.0 * pad > room:
+						fits = false
+						detail = "%s line %d: %.0f > %.0f" % [lines[j], j, w + 2.0 * pad, room]
+				var h := font.get_height(WhiteTheme.FONT_BUTTON)
+				var top3 := (card.size.y - lines.size() * h) / 2.0 + 2.0 * h
+				below = below and top3 >= MazeLevelSelect.MINI_INSET + MazeLevelSelect.MINI_SIZE.y
+				var mini: MazeChainView = _minis(card)[0]
+				var r := Rect2(mini.global_position - card.global_position, mini.size)
+				inside = inside and Rect2(Vector2.ZERO, card.size).encloses(r) \
+						and absf(r.end.x - (card.size.x - MazeLevelSelect.MINI_INSET)) < 0.5 \
+						and absf(r.position.y - MazeLevelSelect.MINI_INSET) < 0.5 and r.size.is_equal_approx(MazeLevelSelect.MINI_SIZE)
+			check.call(fits, "K12: %s: the first two lines stay left of the mini chain (%s)" % [tag, detail])
+			check.call(below, "K12: %s: lines 3 and 4 start below the mini chain" % tag)
+			check.call(inside, "K12: %s: the mini chain is 104 x 58 in the top right corner, 10 px from the edges" % tag)
+			if size.x == 1280:
+				var scroll := _find_scroll(sel)
+				var content := scroll.get_child(0) as Control
+				check.call(content.get_combined_minimum_size().y <= scroll.size.y, "K12: %s: nine cards fit without scrolling (%.0f of %.0f)" % [tag, content.get_combined_minimum_size().y, scroll.size.y])
+			_node.remove_child(made[0])
+			made[0].free()
+	WhiteText.lang = "nl"
+	# unfinished, locked and chain-less cards have no mini chain
+	var part := MazeProfileStore.new()
+	part.open_memory("nl", 0)
+	MazeProfile.record_finish(part.data, "l001", 391, 1, "R1", 1, "ku26.11-bu38.11")
+	MazeProfile.record_finish(part.data, "l002", 256, 2, "R1", 1)
+	var made2 := await _select_in(Vector2i(1280, 720), part, levels)
+	var counts := []
+	for card in made2[1].cards:
+		counts.append(_minis(card).size())
+	check.call(counts == [1, 0, 0, 0, 0, 0, 0, 0, 0], "K12: only a finished card with a chain has a mini chain (%s)" % str(counts))
+	_node.remove_child(made2[0])
+	made2[0].free()
+	var empty := MazeProfileStore.new()
+	empty.open_memory("nl", 0)
+	var made3 := await _select_in(Vector2i(1280, 720), empty, levels)
+	var none := true
+	for card in made3[1].cards:
+		none = none and _minis(card).is_empty()
+	check.call(none, "K12: an empty profile shows no mini chains")
+	_node.remove_child(made3[0])
+	made3[0].free()
+	# a stored chain that does not fit the level is not drawn
+	var odd := MazeProfileStore.new()
+	odd.open_memory("nl", 0)
+	MazeProfile.record_finish(odd.data, "l001", 391, 1, "R1", 1, "bu200.50")
+	var made4 := await _select_in(Vector2i(1280, 720), odd, levels)
+	check.call(_minis(made4[1].cards[0]).is_empty(), "K12: a chain outside the level is not drawn")
+	_node.remove_child(made4[0])
+	made4[0].free()

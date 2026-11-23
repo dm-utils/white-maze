@@ -8,6 +8,8 @@ signal language_toggled
 const MAX_WIDTH := 1100.0
 const COLUMNS := 3
 const CARD_H := 170.0
+const MINI_SIZE := Vector2(104, 58)
+const MINI_INSET := 10.0
 
 var levels: Array[MazeLevel] = []
 var store: MazeProfileStore
@@ -100,8 +102,10 @@ func build() -> void:
 	# room for the focus border, the scroll clip cuts it off otherwise
 	var pad := MarginContainer.new()
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for side in ["left", "right", "top", "bottom"]:
+	for side in ["left", "right"]:
 		pad.add_theme_constant_override("margin_" + side, 6)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 5) # nine cards must fit 1280 x 720 without a scrollbar
 	scroll.add_child(pad)
 	pad.add_child(grid)
 	var first_open := -1
@@ -142,7 +146,31 @@ func _card(i: int) -> Button:
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.disabled = not open
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	if lv.valid() and open:
+		_add_mini_chain(b, i)
 	return b
+
+
+## best chain of a finished level as a small picture in the top right corner of its card (design 22.10)
+func _add_mini_chain(card: Button, i: int) -> void:
+	var lv := levels[i]
+	var entry: Dictionary = store.data.get("levels", {}).get(lv.id, {})
+	if not (MazeProfile.is_finished(store.data, lv.id) and entry.get("chain") is Dictionary):
+		return
+	var chain: Dictionary = entry["chain"]
+	var parsed := MazeChain.parse(str(chain.get("links", "")))
+	if not parsed["ok"] or not MazeChain.fits(lv, parsed["links"]):
+		return
+	var view := MazeChainView.new()
+	view.style = MazeChainShapes.Style.MINI
+	view.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	view.offset_left = -(MINI_SIZE.x + MINI_INSET)
+	view.offset_right = -MINI_INSET
+	view.offset_top = MINI_INSET
+	view.offset_bottom = MINI_INSET + MINI_SIZE.y
+	view.setup(lv, parsed["links"], MazeWorlds.for_number(i + 1), int(chain["rings"]) <= lv.par,
+			MazeChainShapes.FINAL_T, true)
+	card.add_child(view)
 
 
 func _link_focus() -> void:

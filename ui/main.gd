@@ -5,7 +5,8 @@ extends Control
 ## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
 ## --speed=<50-150> (percent of 60 ticks per second, overrides the level curve)
 ## --chain-t=<seconds> (freeze the result chain at that time) --reduced-motion (no chain animation)
-## --chain-export (the result shows only the share card)
+## --chain-export (the result shows only the share card) --demo-profile (with --shot: finished levels from the
+## stored solutions, for the mini chains on the level select)
 ## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
@@ -53,7 +54,7 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
 		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
 		"speed": 0, "chain_t": -1.0, "reduced_motion": false,
-		"chain_export": false,
+		"chain_export": false, "demo_profile": false,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -104,6 +105,8 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 			o["reduced_motion"] = true
 		elif a == "--chain-export":
 			o["chain_export"] = true
+		elif a == "--demo-profile":
+			o["demo_profile"] = true
 		elif a == "--fps":
 			o["fps"] = true
 		elif a.begins_with("--camera="):
@@ -146,6 +149,11 @@ func _ready() -> void:
 		store.open_memory(opts["lang"] if opts["lang"] != "" else "nl", now)
 	else:
 		store.open(opts["profile"] if opts["profile"] != "" else MazeProfileStore.DEFAULT_PATH, now, valid)
+	if opts["demo_profile"]:
+		if opts["shot_mode"]:
+			fill_demo_profile(store.data, levels)
+		else:
+			push_warning("--demo-profile only works with --shot")
 	WhiteText.lang = str(store.data.get("lang", "nl"))
 	if opts["lang"] != "" and WhiteText.has_lang(opts["lang"]):
 		WhiteText.lang = opts["lang"]
@@ -156,6 +164,20 @@ func _ready() -> void:
 		show_select()
 	if opts["shot_mode"]:
 		_take_shot(opts["shot"])
+
+
+## every level with a stored solution finished by replaying it (design 22.15)
+static func fill_demo_profile(p: Dictionary, list: Array[MazeLevel]) -> void:
+	var solutions := WhitePuzzleStore.load_json("res://tests/solutions.json")
+	for lv in list:
+		if not (lv.valid() and solutions.get(lv.id) is String):
+			continue
+		var script: String = solutions[lv.id]
+		var r := MazeChain.from_run(lv, script)
+		if not (r["ok"] and r["finished"]):
+			continue
+		MazeProfile.record_start(p, lv.id, 0)
+		MazeProfile.record_finish(p, lv.id, r["ticks"], r["rings"], script, 0, MazeChain.encode(r["links"]))
 
 
 func _debug_game_options() -> Dictionary:
