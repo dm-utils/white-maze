@@ -22,6 +22,8 @@ func run(check: Callable, _node: Node) -> void:
 	_gable_fall(check)
 	_floor_to_roof(check)
 	_steep_toe(check)
+	_toe_landing(check)
+	_roof_top_exit(check)
 	_slope_cells(check)
 	_fuzz(check)
 	_determinism(check)
@@ -556,6 +558,95 @@ func _steep_toe(check: Callable) -> void:
 			"M3: pressing into the foot of a steep roof stands still at the toe (direction %d, px %.1f, %d ticks off the floor)"
 			% [dir, sim.px / 1000.0, slid]
 		)
+
+
+func _toe_landing(check: Callable) -> void:
+	# landing or jumping with the box over the toe column of a steep roof, then pressing into it: settles, no rocking
+	var roof := {Vector2i(10, 37): "/", Vector2i(11, 36): "/", Vector2i(12, 35): "/"}
+	for x in range(11, 30):
+		for y in range(37 if x == 11 else 36 if x == 12 else 35, 38):
+			roof[Vector2i(x, y)] = "#"
+	roof[Vector2i(11, 36)] = "/"
+	roof[Vector2i(12, 35)] = "/"
+	var lv := _tier(roof)
+	var worst_changes := 0
+	var worst_span := 0
+	var not_flat := 0
+	var runs := 0
+	for x0 in range(340, 421, 2):
+		var sim := MazeSim.new(lv)
+		put(sim, float(x0), 1330.0)
+		var landed := false
+		var changes := 0
+		var prev := sim.ground
+		var lo := 1 << 40
+		var hi := 0
+		for i in 260:
+			sim.step(H.inp(1 if landed else 0))
+			landed = landed or sim.grounded
+			if landed and sim.ground != prev:
+				changes += 1
+			prev = sim.ground
+			if i >= 160:
+				lo = mini(lo, sim.px)
+				hi = maxi(hi, sim.px)
+		runs += 1
+		worst_changes = maxi(worst_changes, changes)
+		worst_span = maxi(worst_span, hi - lo)
+		not_flat += 0 if sim.ground == MazeSim.Ground.FLAT else 1
+	check.call(
+		worst_changes <= 2 and worst_span == 0 and not_flat == 0,
+		"M3b: landing over the toe settles (%d runs, %d ground changes, %d px spread, %d not flat)"
+		% [runs, worst_changes, worst_span, not_flat]
+	)
+	worst_changes = 0
+	worst_span = 0
+	for x0 in [300, 320, 340, 360]:
+		var sim := MazeSim.new(lv)
+		put(sim, float(x0), 1520.0)
+		for i in 5:
+			sim.step(H.inp(0))
+		var changes := 0
+		var prev := sim.ground
+		var lo := 1 << 40
+		var hi := 0
+		for i in 260:
+			sim.step(H.inp(1, i < 20, i == 0))
+			if sim.ground != prev:
+				changes += 1
+			prev = sim.ground
+			if i >= 160:
+				lo = mini(lo, sim.px)
+				hi = maxi(hi, sim.px)
+		worst_changes = maxi(worst_changes, changes)
+		worst_span = maxi(worst_span, hi - lo)
+	check.call(
+		worst_changes <= 4 and worst_span == 0,
+		"M3b: jumping at the toe with the right held settles (%d ground changes, %d px spread)" % [worst_changes, worst_span]
+	)
+
+
+func _roof_top_exit(check: Callable) -> void:
+	# walking off the top of a roof past its wall: the feet stay on the wall's top corner, the box never sinks into it
+	var edits := {Vector2i(15, 38): "#", Vector2i(16, 38): "#", Vector2i(17, 38): "#"}
+	edits[Vector2i(15, 37)] = "L"
+	edits[Vector2i(16, 37)] = "l"
+	var lv := FX.level(H.rows(30, 40, edits))
+	var worst := 0
+	var inside := 0
+	for x0 in range(620, 700):
+		var sim := MazeSim.new(lv)
+		put(sim, float(x0), 37.0 * 40 + (x0 - 600) / 2.0)
+		for i in 60:
+			var last_y := sim.py
+			sim.step(H.inp(-1))
+			worst = maxi(worst, last_y - sim.py)
+			if sim.py > 37 * T and sim.px < 15 * T and sim.px + 15000 > 15 * T:
+				inside += 1
+	check.call(
+		worst <= 5000 and inside == 0,
+		"L4a: leaving a roof past its wall does not sink into the wall (lift %d, %d ticks inside)" % [worst, inside]
+	)
 
 
 func _slope_cells(check: Callable) -> void:
