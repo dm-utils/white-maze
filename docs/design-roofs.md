@@ -1136,3 +1136,124 @@ and the R1 golden trace are untouched (every new branch needs a slope cell). `MI
   corner, the feet go to the corner (`py` = cell top, at most `abs(vx)` up) when the box still overlaps the wall column,
   so the box no longer falls inside the wall. Test `L4a`.
 - Lab solutions unchanged (314, 290 and 172 ticks). `MIN_CHECKS` 1894 -> 1897.
+
+### Phase B (card #045, branch `feature/roofs-b`)
+
+Tools only: nothing in `sim/`, `ui/` or `levels/` changed, so the golden trace of R1 and the output of `check_levels` for
+`levels/` are identical to develop. `MIN_CHECKS` 1897 -> 1934. Card #011 is done with this phase.
+
+**Level check (R24).** Format-2 levels print `ok <id> <w>x<h> beads <b> par <p> slopes <n>`. A level of more than 900
+cells prints the error of 23.10.1 and, like any invalid level, no `ok` line (the budget also applies to format 1). The
+headroom warning is `warn <id>: floor face (x, y) has <n> rows of sky` with `n` = the free rows above the block; it is
+printed for a `#` cell whose column is empty from the top edge down to it (a block below another block or a spike in the
+column does not count) when `n` is 1 to 7. The warnings of the shipped lab: `lab02` has 7 rows of sky above its floor
+faces (24, 7) to (30, 7); the exit code stays 0. Tests (`tests/level_tests.gd`, `_tool_format2`) run the tool as a
+child process and read its output.
+
+**`search_par.gd` (R23).** As designed, plus `--dir=` (the level folder, for the lab). `check_search_par.sh` runs the
+lab01 calibration (`10,12,up;37,15,up`, weight 3, under a second) in the quick part that CI runs, not only in `--full`.
+`tests/solution_tests.gd` and the take-back test of `tests/robust_tests.gd` now run over `levels/` and `levels/lab/`
+(a par-0 solution needs no ring).
+
+**Export and traces.**
+
+- `tools/export_levels.gd` writes the index, the lab and every `--dir` and, unless `--no-fixtures`, the levels `fx-*` of
+  `tools/solver_fixtures.gd`: the four slope fixtures of the tests (`fx-s`, `fx-g`, `fx-e`, `fx-t`) and two rooms made for
+  the trace (`fx-roofs`: huts, a pillar between two steep roofs, free gable ends, gentle tiers; `fx-tiers`: a raised floor
+  with flush falling roofs, a toe on both sides, a free gentle gable). The random walk of the shipped levels alone
+  never met the gable, toe and corner branches, found by mutating the C++ port and looking for mutants the diff did not
+  catch.
+- `tools/trace_sim.gd` reads the export (so the level text is tested too) and writes `cases.txt` as
+  `case <n> <level> <x,y,face;...|-> <px,py|-> <run script>` and `trace_gd.txt` with the fields of 23.10.4 plus
+  `coyote buffer jumping launched lock_ticks facing finished`, so a drift shows up before it reaches the position. Every
+  odd seed has three random extra presets (as designed); every third seed starts at a random free spot instead of `S`,
+  half of them standing on a block or roof. `--sweep=<units>` adds for every `fx-*` level 100-tick runs from standing
+  and falling starts every `<units>` along the level, both directions, with and without jump.
+- `tools/check_solver.sh` runs 20 seeds of 900 ticks (design: 12; `SEEDS`, `TICKS` and `SWEEP` are environment
+  variables) and a sweep of 8000 units: 5240 cases, 742324 ticks in the run of the log, all equal (R26). Per-tick
+  equality was also checked once with 150 seeds (2.1 million ticks) and with a sweep of 4880 cases; both equal.
+  Mutation check of the port: 15 deliberate changes of the C++ (SLOPE_STEP, the landing blend, the guards of
+  `_on_gable_top`, the toe stop, the corner correction, the `_leave_roof_top` guard, the snap rules, ...) were run
+  against the traces; 10 differ. The five that do not are equivalent or sit on a boundary the runs do not reach:
+  `max(ox, ...)` in the toe stop (the front only changes column when `ox` is already left of the bound),
+  `slope_y <= floor_y` in the snap (with `start == FLAT` and no floor under the box there is no block within reach),
+  the `py > row * T` guard and the step of +1 or -1 px in `_leave_roof_top`. The slope tests of the suite cover those in
+  GDScript; a change there needs a look at the port by hand.
+
+**`maze_solver.cpp` (R25 to R28).**
+
+- One file, `-Wall -Wextra` clean, C++17. State and arithmetic are `int32_t` (`num`), not `int64_t`: levels are at most
+  256 x 64 tiles, so no value exceeds 10.3 million units and no product of two state values occurs; the node of the search
+  is half the size. Truncating division and `fdiv` as in GDScript.
+- The function names follow the GDScript: `step`, `horizontal`, `jump`, `gravity`, `move`, `move_x`, `lift`, `move_y`,
+  `move_up`, `snap`, `stop_at_toe`, `leave_roof_top`, `on_gable_top`, `compute_ground`, `launch_from_rings`,
+  `hazard_hit`. Rings are presets only (one cooldown byte per ring, at most 24 rings), so `rings_used` stays 0.
+- `search` differs from `search_par.gd` in details that do not change what counts as a finish: the state key is a 64-bit
+  hash of the same quantised tuple (with `ground`), the open list is a heap on `f` with the newest node first among
+  equals, `nodes` counts the nodes created. `--nodes`, `--weight`, `--k`, `--rings`, `--subset`, `--faces`, `--anchor`
+  and `--part` are as in `search_par.gd`; the last line is `nodes <n> ms <t>`. The finish scripts replay in the
+  GDScript simulation (checked for l001, l002, l004, l005, l007, lab01 and lab03: finished, no death).
+- A tuning test (`tests/tuning_tests.gd`) compares the integer constants of the C++ file with `MazeTuning`.
+
+**Calibration (R27).** Settings and cost of the finish with the rings of the stored solution (`check_solver.sh`; machine
+with 16 cores, one thread):
+
+| Level | Rings | Weight | Nodes | Time |
+|---|---|---|---|---|
+| l001 | 38,11,up | 3 | 449 | 4 ms |
+| l002 | 0,5,right; 22,11,up | 1 | 181488 | 0.5 s |
+| l003 | 1,11,up; 0,4,right; 24,11,up | 3 | 244808 | 1.4 s |
+| l004 | 7,11,up; 19,11,up; 31,11,up | 3 | 2495 | 32 ms |
+| l005 | 21,9,right; 26,9,left | 1 | 198828 | 1.3 s |
+| l006 | 5,21,up; 9,17,up; 13,13,up; 17,9,up | 1 | 80443 | 0.2 s |
+| l007 | 10,9,right; 27,12,up | 1 | 263876 | 0.9 s |
+| l008 | 0,6,right; 10,13,up | 1 | 778883 | 4 s (300000 nodes is not enough) |
+| l009 | 8,13,up; 11,13,up; 10,6,right; 20,13,up | 2 | 666470 | 3.3 s (weight 1: 845339) |
+| lab01 | 10,12,up; 37,15,up | 1 | 391 | 13 ms |
+| lab02 | none | 1 | 378 | 13 ms |
+| lab03 | 17,15,up | 1 | 536 | 15 ms |
+
+The rings are the thrown rings of the stored solutions (`l002` has the wall ring on (0, 5), where the GDScript calibration
+uses (0, 4); both work). Without extra rings the solver finds no finish for l002 to l009 within 300000 nodes (as in the
+test report of 2026-11-21) and finds one for l001 (below).
+
+**Cheaper routes (R27, the "no finish" results).** Relaxation as in 17.2, every exposed face of a `#` cell (the
+`DOWN` faces too, so the sets are a superset of the report's), weight 1:
+
+| Level | Par | Searched | Faces, sets | Nodes per set | Result |
+|---|---|---|---|---|---|
+| l004 | 3 | every set of 2 rings | 180 faces, 16110 sets | 300000 | no finish (4.7 billion nodes, 27 min on 14 threads) |
+| l005 | 2 | every single ring | 121 faces | 3000000 | no finish (28 million nodes, 19 s on 12 threads) |
+| l006 | 4 | sets of 3 rings, a sample of 1/40 | 176 faces, 887k sets, 22k searched | 100000 | no finish (2.2 billion nodes, 24 min on 8 threads) |
+| l007 | 2 | every single ring | 126 faces | 3000000 | no finish (48 million nodes, 27 s on 12 threads) |
+| l008 | 2 | every single ring | 135 faces | 3000000 | no finish (93 million nodes, 33 s on 12 threads) |
+| l009 | 4 | sets of 3 rings, a sample of 1/40 | 131 faces, 366k sets, 9k searched | 300000 | no finish (2.7 billion nodes, 37 min on 8 threads) |
+| lab01 | 2 | every single ring | 106 faces | 300000 | three finishes: `(34,15,up)`, `(36,15,up)`, `(37,15,up)` (see the findings) |
+| lab03 | 1 | no extra ring | | 300000 | no finish |
+
+The searches of l006 and l009 are samples (every 320th set from 8 start offsets, `--part=i/320` for i = 0 to 7): the
+full sets (the report searched 240462 and 23426 sets) take about 40 CPU hours each. The other rows are the complete
+searches. The relaxation is generous (rings from tick 0, no throw, no beads), so no finish means no route; a finish is
+a lead that needs the check of throwability.
+
+**Findings.**
+
+- **lab01 is not minimal at par 2.** `maze_solver search --level=lab01 --subset=1` finds three single floor rings that
+  finish (`(34,15,up)`, `(36,15,up)`, `(37,15,up)`). It is not only the relaxation: with the stored lab01 and only the
+  ring on `(37, 15)` thrown at tick 226 in direction 134 the level is finished in 333 ticks with 1 ring and no death
+  (`R4 RJ4 J4 RJ56 R4 RJ4 R12 RJ12 R4 RJ4 R4 RJ20 R4 RJ90 T134 RJ22 R4 J4 RJ4 R12 RJ60 R1`; 205 throw moments of 274
+  candidates finish). The steep ridge can be jumped without the floor ring on `(10, 12)`. Par of lab01 is 1 on the
+  current simulation (the lab is a test series, so nothing changed here; for the owner or the architect).
+- **l001 has a route with 0 rings** (`maze_solver search --level=l001 --weight=3 --nodes=1000000`, 272622 nodes): this is
+  finding B1 of the test report of 2026-11-21, still open.
+- lab03 (par 1) has no 0-ring route within 300000 nodes; lab02 is par 0.
+
+**Speed (R28).** Measured by `check_solver.sh` on l005 with one of its two rings (no route, so both stop at the node
+limit), startup of Godot subtracted: `search_par.gd` 20000 nodes in 10.3 s (1946 nodes/s), `maze_solver` 200000 nodes in
+827 ms (241546 nodes/s): factor 124. The check fails below 100. The full l005 calibration (both rings, `weight 1`): `search_par.gd` 295 s, `maze_solver` 1.3 s, factor about 230 (both measured
+while 14 other solver threads and the screenshots were running; `maze_solver` alone needs 0.7 s).
+`check_solver.sh` takes about two minutes (about 40 s of it the GDScript trace and the GDScript speed run).
+
+**Rule.** `docs/conventions.md` (Simulation rules) says that a change of movement in `sim/sim.gd` or `sim/slope.gd` changes
+`maze_solver.cpp` in the same commit; CI runs `tools/check_solver.sh` after the par calibration (needs `g++`, present on
+`ubuntu-24.04`).

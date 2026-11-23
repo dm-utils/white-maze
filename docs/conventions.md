@@ -24,10 +24,10 @@ addons/white_kit/tools/shots.sh before-after . tools/shots.txt v<old> v<new>
 | `sim/` | Simulation, tuning, aim table, levels, run scripts, profile logic, time format. No scenes, nodes, input, rendering, time source, randomness or `user://`. |
 | `ui/` | Main scene, level select, game screen, camera rig, world view, HUD, controls, touch overlay, overlays, profile file store, texts. Depends on `sim/` and the kit, never the other way round. |
 | `levels/` | `index.json` and one `<id>.json` per level. |
-| `tools/` | Headless scripts (`check_levels.gd`, `search_par.gd` with its calibration `check_search_par.sh`), the screenshot scenario file `shots.txt` and `shot_variants.gd` (grey and half size copies of screenshots). |
+| `tools/` | Headless scripts (`check_levels.gd`, `search_par.gd` with its calibration `check_search_par.sh`), the native solver in `tools/solver/` with `export_levels.gd`, `trace_sim.gd` and `check_solver.sh` (design 23.10.4), the screenshot scenario file `shots.txt` and `shot_variants.gd` (grey and half size copies of screenshots). |
 | `tests/` | Headless test runner (extends `WhiteTestRunner`), suites, `solutions.json`. |
 | `addons/white_kit/` | White Kit (submodule). |
-| `build/` | Local output (exports, screenshots). Ignored by git. |
+| `build/` | Local output (exports, screenshots, the solver binary and its exported levels in `build/solver/`). Ignored by git. |
 
 There is no `LICENSE` file: all rights reserved.
 
@@ -65,6 +65,9 @@ There is no `LICENSE` file: all rights reserved.
 - Aim directions come only from the literal table `MazeAim.DIRS`. Converting a mouse or touch vector to an index is
   done in `ui/` (or in `MazeAim.index_from_vector`, which is never called by the simulation).
 - The simulation never reads input devices; it gets one `MazeInput` per tick.
+- A change of movement in `sim/sim.gd` or `sim/slope.gd` (or of the tuning values it uses) changes
+  `tools/solver/maze_solver.cpp` in the same commit. `tools/check_solver.sh` compares both simulations tick for tick
+  (levels of the index, the lab and the slope fixtures, seeded hold-only runs) and fails otherwise.
 - A change of rules or tuning that changes how a level plays is checked with the solution tests and
   `tools/check_levels.gd`; if a stored solution no longer finishes, record a new one with `--print-run`.
 
@@ -130,7 +133,7 @@ godot --headless --path . -s res://tools/check_levels.gd
 
 - `develop` is the working branch; `main` is protected and updated through pull requests only (once a remote exists).
 - `.github/workflows/ci.yml` comes from the kit template (`addons/white_kit/templates/ci.yml`) plus the level check and
-  the par search calibration; `develop` is deployed to GitHub Pages (`play.white-maze.steefbeest.nl`).
+  the par search calibration and the native solver check (`tools/check_solver.sh`, needs `g++`); `develop` is deployed to GitHub Pages (`play.white-maze.steefbeest.nl`).
 - Branch names: `feature/<description>`, `fix/<description>`, `chore/<description>`.
 - Commit messages in English, imperative, short subject line.
 - CI (or, without a remote, the same steps locally) must be green before merging. Do not commit build output.

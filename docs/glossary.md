@@ -96,6 +96,7 @@ repeated here only where White Maze adds something. Terms marked [later] belong 
 | Mortar | The dark gap between two stones of one mass, `stones.mortar` px wide, in the pack's `mortar` colour. |
 | Motif | A small carved detail on some stones, chosen by the pack: an incised sun (temple), moss (jungle), a crack or a blunt crystal (cave). Never inside a trim. |
 | Move stick | The floating touch control on the left for walking; horizontal only. |
+| Native solver (`tools/solver/maze_solver`) | A C++ port of the movement part of the simulation for par searches, kept equal to it by a tick-for-tick trace diff (`tools/check_solver.sh`). |
 | No-ring block (`X`) | A solid block on which beads do not stick; drawn as a smooth slab with straight edges, without a lip. |
 | Overview | Holding `Tab`, `M` or the map button zooms out to show the whole level; the game is held (no ticks, the clock stops) until released. |
 | Palette | The colours of one world, from its skin pack plus the engine-derived colours (`MazeWorlds.palette`), checked by `MazeSkin.check_palette`. |
