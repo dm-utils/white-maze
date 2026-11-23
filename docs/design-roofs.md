@@ -19,9 +19,15 @@ written as 6.4 R1 to 6.4 R4.
 2. The roofs come after the ruins, in one journey: levels 1 to 9 stay the ruins (temple, jungle, cave), levels 10 to 21
    go over the roofs of Amsterdam, Andalusia, Fes and London, three per city. The existing worlds stay.
 3. Extra palette rule: the hazard red against the block colour at least "2.0 contrast" (see 23.11.4: the literal
-   luminance reading cannot be met; a colour-difference rule is proposed and asked in 23.19).
+   luminance reading cannot be met; a colour-difference rule, Delta E at least 35, was confirmed).
 4. Every city has a fixed time of day with a dark sky; white and the lip stay readable; skyline silhouettes must not
    look walkable.
+5. Decided at question time (2026-11-23, the answers to 23.19): the speed is 90 % at level 10, rising to 96 % (23.12);
+   rule C16 is the colour difference Delta E at least 35 (23.11.4); Amsterdam steep, Andalusia gentle, Fes flat, London
+   flat with a steep slate roof in the finale (23.13.2); Fes plays with the sabat (ceiling rings under it); a chapter card
+   for every world, the ruins included (23.14); facade stones with the sun sign sparingly, about one per level (23.14).
+   Open: whether "steer only the speed" while sliding feels right; the owner decides after playing the lab (`?lab`),
+   the slide speeds stay three tuning values until then.
 
 ## 23.2 Assumptions
 
@@ -593,7 +599,7 @@ measure 1.25 to 1.7 today. What the designer warned about is hue: terracotta, re
 pins. A colour difference catches that, and keeps the luminance freedom the lip needs. Values: temple about 48,
 Amsterdam brick about 48, Fes about 46, the Andalusian terracotta `#B9824E` about 38, a red brick `#A0402F` about 14
 (rejected), a Marrakech pink `#C87A6E` about 32 (rejected). The dark spike outline (`HAZARD_LINE`, 21.10.1) separates a
-pin from a light block in greyscale. The owner is asked to confirm (23.19).
+pin from a light block in greyscale. The owner confirmed this reading (23.1, item 5).
 
 `MazeArt` gets `static func lab(c: Color) -> Vector3` (sRGB to CIELAB, D65) and `static func delta_e(a: Color, b: Color)
 -> float` (Euclidean distance in Lab). Tested against three reference pairs within 0.5.
@@ -665,16 +671,13 @@ Lilith. Off in frozen shots.
 | Subtitle | `Gehaald n/21` follows from the count. |
 | Profile | No change: statistics are keyed by level id; 21 levels are far under the P6 size test (30 levels). |
 | Debug | `--world=amsterdam|andalusia|fes|london` and the web key `world` take the new names. |
-| Speed (20.6.2) | Proposal (23.19, question 2): the roofs start a new chapter with a new mechanic, so the speed dips and rises again, never above 96 %. |
+| Speed (20.6.2) | Decided (23.1, item 5): the roofs start a new chapter with a new mechanic, so the speed dips and rises again, never above 96 %. |
 
-Speed proposal (`SPEED_PCT` gets 21 entries):
+Speed table (decided; `SPEED_PCT` gets 21 entries):
 
 | Level | 1 to 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 to 21 |
 |---|---|---|---|---|---|---|---|---|
 | Speed (%) | 80 to 96 (unchanged) | 90 | 91 | 92 | 93 | 94 | 95 | 96 |
-
-Alternatives for the owner: keep 96 for every level after 9 (the current rule), or continue to 100 at level 21 (the
-owner found 100 a little too fast).
 
 ## 23.13 Levels 10 to 21
 
@@ -703,11 +706,12 @@ owner found 100 a little too fast).
 | 17 | l017 | Fes | medium | Ceiling rings under sabats; zellige walls | 3 | 2 or 3 | none |
 | 18 | l018 | Fes | hard | A riad shaft (the l005 chimney at scale), bead back | 3 | 3 or 4 | none |
 | 19 | l019 | London | easy (for London) | Chimneys with pots (`X` on top), towers; wall rings | 3 | 2 | none |
-| 20 | l020 | London | medium | Vertical: wall rings up a tower, a bridge with a ceiling ring | 3 | 3 | none or steep |
+| 20 | l020 | London | medium | Vertical: wall rings up a tower, a bridge with a ceiling ring | 3 | 3 | none |
 | 21 | l021 | London | hard | Finale: a steep slate roof slide, towers, everything; ends at the highest tower | 3 | 4 | steep |
 
-Fes depends on the open ceiling-ring question of design 13 ("drop": a ceiling ring also sets `vx = 0`); it is decided
-before the Fes levels are sketched (23.19, question 5).
+Fes plays with the sabat (decided, 23.1 item 5). The old question of design 13 ("drop": a ceiling ring also sets `vx =
+0`) stays as it is in the simulation today (`CEILING_LAUNCH` changes `vy` only); a change would be a new decision before
+the Fes levels are sketched.
 
 ## 23.14 Story and transitions (phase E)
 
@@ -720,7 +724,8 @@ before the Fes levels are sketched (23.19, question 5).
 - **Ending.** After the result overlay of level 21, `Enter` (or the next button, which reads `t("ending_btn")` there)
   shows an ending card (`ending_title`, `ending_text`) instead of the level select; any input then opens the level
   select.
-- **Stone marks (optional).** Format-2 field `marks`: `[{"x": 12, "y": 7, "kind": "sun"}]`, each on a `#` cell (error
+- **Chapter cards also for the ruins** (decided): numbers 1, 4 and 7 get one as well.
+- **Stone marks (decided: wanted, sparingly, about one per level).** Format-2 field `marks`: `[{"x": 12, "y": 7, "kind": "sun"}]`, each on a `#` cell (error
   otherwise); the view draws the `glyph` motif on that stone regardless of the hash (the facade stone with the sun sign).
   View only, no effect on the simulation.
 - The interplay with the chain of section 22 (the result screen) is checked when phase E starts; the ending card comes
@@ -952,7 +957,7 @@ Estimates in developer days (D) and tester days (T), including tests and documen
 |---|---|---|---|---|
 | A | Slopes in the sim, format 2, cast, minimal look, slide pose, camera key, lab | 4 D, 1.5 T | Edge cases at joints (jitter, stalls, one-tick hops); a changed trace on the ruins; sliding feels like losing control | Golden trace first (R1); fixtures for every joint; invariant fuzzing (R15); the owner plays the lab before phase C; slide speeds are three tuning values |
 | B | Level check, search_par, C++ solver with equivalence | 2.5 D, 0.5 T | Two simulations drift apart; integer division semantics differ; CI toolchain | Per-tick trace diff in CI on every level; one rule: sim changes touch both in one commit; `int64_t` and truncating division as in GDScript |
-| C | Pack format 2, engine shapes, skylines, four packs | 3.5 D, 1.5 T | Palette rules conflict (C16 reading); skylines read as walkable; roofs read as lips; bake time grows | C16 as colour difference (owner to confirm); D10 and D11 geometric rules plus review; C19 and sampled checks; bake budget test |
+| C | Pack format 2, engine shapes, skylines, four packs | 3.5 D, 1.5 T | Palette rules conflict (C16 reading); skylines read as walkable; roofs read as lips; bake time grows | C16 as colour difference (confirmed); D10 and D11 geometric rules plus review; C19 and sampled checks; bake budget test |
 | D | Journey plumbing; 12 levels with designer sketches | 0.5 D plumbing, then per city 0.5 designer + 1.5 D + 0.5 T (about 8.5 days in total) | Weak levels; par not minimal; levels over 900 cells; headroom; Fes waits for the ceiling-ring decision | Sketch first and owner nod; solver evidence per level; check errors and warnings |
 | E | Chapter cards, ending, marks | 1 D, 0.5 T | Text volume and tone; interplay with the chain's result screen | Designer writes the texts; checked against section 22 when E starts |
 
@@ -960,22 +965,16 @@ Total about 19 developer days and 5.5 tester days, plus the designer's sketches 
 (the solver ports the finished movement). C needs A (slope drawing); D needs A, B (evidence) and C (look); E needs D for
 the cities' texts.
 
-## 23.19 Open questions for the owner
+## 23.19 Questions for the owner (answered 2026-11-23)
 
-1. **Red against the block.** The rule "2.0 contrast" cannot hold as a light-dark contrast next to the existing lip
-   rules (23.11.4). Proposal: a colour-difference rule (Delta E at least 35) that blocks terracotta, red brick and pink
-   blocks. Agree?
-2. **Speed after level 9.** Proposal: 90 % at level 10, rising by 1 per level to 96 % at 16 and 96 % after that. Or keep
-   96 % for all, or go on to 100 %?
-3. **Control while sliding.** Proposal: on a steep roof you steer only the speed (faster, normal, slower); you never
-   stop and never walk up. Agree after playing the lab?
-4. **Slopes per city.** Proposal: Amsterdam steep, Andalusia gentle, Fes flat (no slopes), London flat with one steep
-   slate roof in the finale. Agree?
-5. **Ceiling ring in Fes.** Fes plays with rings under a sabat. The old question of design 13 ("a ceiling ring also
-   stops your sideways speed, so you drop") needs an answer before the Fes levels are sketched.
-6. **Chapter cards.** One short card with a line of Lilith at the start of every world (also the ruins), shown once.
-   Agree, and also for the ruins?
-7. **Facade stones with the sun sign** (`marks`): wanted, or is the story in the cards enough?
+1. **Red against the block.** Colour difference Delta E at least 35 (C16). Agreed.
+2. **Speed after level 9.** 90 % at level 10, rising by 1 per level to 96 %, then 96 %. Agreed (23.12).
+3. **Control while sliding.** On a steep roof you steer only the speed. Open: the owner decides after playing `?lab`;
+   built as designed in phase A.
+4. **Slopes per city.** Amsterdam steep, Andalusia gentle, Fes flat, London steep in the finale. Agreed.
+5. **Ceiling ring in Fes.** Fes plays with the sabat. Agreed; the ceiling-ring behaviour stays as it is (23.13.2).
+6. **Chapter cards.** One per world, the ruins included. Agreed.
+7. **Facade stones with the sun sign** (`marks`): wanted, sparingly, about one per level. Agreed (phase E, R47).
 
 ## 23.20 Glossary additions (to be merged into `docs/glossary.md` by the developer)
 
