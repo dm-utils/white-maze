@@ -191,7 +191,8 @@ func _solution_flow() -> void:
 		replay != null and replay.finished() and replay.time_ticks() == g.sim.time_ticks(),
 		"the recorded run replays to the same finish"
 	)
-	# Enter opens the next level
+	# Enter opens the next level, once the chain has finished
+	g.overlays.chain_view.finish_now()
 	var key := InputEventKey.new()
 	key.keycode = KEY_ENTER
 	key.pressed = true

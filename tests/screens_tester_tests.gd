@@ -204,6 +204,7 @@ func _unlock_chain() -> void:
 	var m4 := _main(["--level=l009", "--solve"])
 	var left := [false]
 	m4.game.levels_requested.connect(func() -> void: left[0] = true)
+	m4.game.overlays.chain_view.finish_now()
 	m4.game._input(_key(KEY_ENTER))
 	_check.call(left[0], "unlock: Enter on the last level's result opens the level select")
 	_close(m4)

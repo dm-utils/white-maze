@@ -103,6 +103,7 @@ func _ready() -> void:
 	overlay_layer.layer = 3
 	add_child(overlay_layer)
 	overlays = MazeOverlays.new()
+	overlays.safe_override = options.get("safe", "")
 	overlay_layer.add_child(overlays)
 	overlays.resume_pressed.connect(resume)
 	overlays.restart_pressed.connect(restart)
@@ -284,7 +285,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if overlays != null and overlays.result_visible() and event is InputEventKey:
+	if overlays != null and overlays.result_visible() and not overlays.chain_animating() and event is InputEventKey:
 		var k := event as InputEventKey
 		if k.pressed and not k.echo and (k.keycode == KEY_ENTER or k.keycode == KEY_KP_ENTER):
 			get_viewport().set_input_as_handled()
@@ -407,6 +408,8 @@ func _on_finish() -> void:
 	world.aim_index = -1
 	var ticks := sim.time_ticks()
 	var script := MazeRunScript.encode(_inputs)
+	var still: bool = options.get("reduced_motion", false) \
+			or (options.get("shot", false) and float(options.get("chain_t", -1.0)) < 0.0)
 	var storable := _links.size() <= MazeChain.MAX_LINKS
 	var links_text := MazeChain.encode(_links) if storable else ""
 	var result := {
@@ -414,6 +417,7 @@ func _on_finish() -> void:
 		"has_next": number < total, "script": script, "links": _links.duplicate(), "links_text": links_text,
 		"code": MazeChain.code(level.id, sim.rings_used, level.par, ticks, links_text) if storable else "",
 		"level": level, "world": world.world_id, "number": number, "name": str(level.names.get(WhiteText.lang, "")),
+		"reduced_motion": still, "chain_t": options.get("chain_t", -1.0),
 	}
 	if store != null:
 		_flush_play()

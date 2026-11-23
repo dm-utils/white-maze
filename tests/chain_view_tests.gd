@@ -7,18 +7,45 @@ const CARD_BOX := Rect2(0, 0, 712, 400)
 const EXPORT_BOX := Rect2(40, 124, 1120, 488)
 const MINI_BOX := Rect2(0, 0, 104, 58)
 const EPS := 0.01
+const PROFILE := "user://white_maze_test_chain_view.json"
+const ZERO_RUN := "R96,RJ4,R32,RJ4,R16,RJ4,R12,RJ8,R24,L4,R28,RJ4,R16,-4,L4,R8,RJ24,R48"
+const OVER_RUN := "R2,T142,R70,U,L64,-8,T142,R70,U,R20,-24,T142,R6,RJ14,R80,R12,U,-3,T142,R300"
 
 var _node: Node
 
 
 func run(check: Callable, node: Node) -> void:
 	_node = node
+	_clean()
 	_layout(check)
 	_stacking(check)
 	_animation(check)
 	_look(check)
 	_variants(check)
 	_view(check)
+	_args(check)
+	_skip(check)
+	await _result_layout(check)
+	_clean()
+	WhiteText.lang = "nl"
+
+
+func _clean() -> void:
+	for p in [PROFILE, PROFILE + ".tmp"]:
+		DirAccess.remove_absolute(p)
+
+
+func _main(extra: Array) -> MazeMain:
+	var m: MazeMain = load("res://ui/main.tscn").instantiate()
+	m.use_cmdline = false
+	m.args = PackedStringArray(["--profile=" + PROFILE, "--speed=100"] + extra)
+	_node.add_child(m)
+	return m
+
+
+func _close(m: MazeMain) -> void:
+	_node.remove_child(m)
+	m.free()
 
 
 func _chain_of(id: String) -> Array:
@@ -315,3 +342,176 @@ func _view(check: Callable) -> void:
 	check.call(v.primitives() == final, "view: frozen at the final time shows the final state")
 	_node.remove_child(v)
 	v.free()
+
+
+func _args(check: Callable) -> void:
+	var o := MazeMain.parse_args(PackedStringArray(["--chain-t=0.55", "--reduced-motion"]))
+	check.call(is_equal_approx(o["chain_t"], 0.55) and o["reduced_motion"], "args: --chain-t and --reduced-motion")
+	var d := MazeMain.parse_args(PackedStringArray())
+	check.call(d["chain_t"] == -1.0 and not d["reduced_motion"], "args: the chain defaults are off")
+	var bad := MazeMain.parse_args(PackedStringArray(["--chain-t=-2"]))
+	var junk := MazeMain.parse_args(PackedStringArray(["--chain-t=soon"]))
+	check.call(bad["chain_t"] == -1.0 and junk["chain_t"] == -1.0, "args: a bad --chain-t is ignored")
+
+
+func _key(code: int, pressed: bool = true, echo: bool = false) -> InputEventKey:
+	var k := InputEventKey.new()
+	k.keycode = code as Key
+	k.pressed = pressed
+	k.echo = echo
+	return k
+
+
+func _mouse() -> InputEventMouseButton:
+	var m := InputEventMouseButton.new()
+	m.button_index = MOUSE_BUTTON_LEFT
+	m.pressed = true
+	return m
+
+
+func _touch() -> InputEventScreenTouch:
+	var t := InputEventScreenTouch.new()
+	t.pressed = true
+	return t
+
+
+func _advance(view: MazeChainView, seconds: float) -> void:
+	for i in int(round(seconds / 0.05)):
+		view._process(0.05)
+
+
+func _skip(check: Callable) -> void:
+	WhiteText.lang = "nl"
+	var presses := {"key": _key(KEY_SPACE), "mouse": _mouse(), "touch": _touch()}
+	for what: String in presses:
+		_clean()
+		var m := _main(["--level=l004", "--solve"])
+		var g := m.game
+		g.set_process(false)
+		var ov := g.overlays
+		var v := ov.chain_view
+		check.call(g.last_result.has("links") and ov.chain_animating() and v.time() == 0.0, "K9: %s: the chain animates after the finish" % what)
+		_advance(v, 0.1)
+		ov._input(presses[what])
+		check.call(ov.chain_animating() and ov.result_visible(), "K9: %s: a press at 0.1 s is eaten by the grace time" % what)
+		_advance(v, 0.4)
+		check.call(absf(v.time() - 0.5) < 1e-6 and ov.chain_animating(), "K9: %s: the animation runs to 0.5 s" % what)
+		ov._input(presses[what])
+		check.call(
+			not ov.chain_animating() and ov.result_visible() and m.game == g and m.select == null
+				and g.sim.finished() and g.level.id == "l004",
+			"K9: %s: a press at 0.5 s ends the animation and stays on the result" % what
+		)
+		check.call(v.time() >= MazeChainShapes.duration(3), "K9: %s: the chain is in its final state" % what)
+		g._input(_key(KEY_ENTER))
+		check.call(m.game != null and m.game.level.id == "l005", "K9: %s: after the animation Enter opens the next level" % what)
+		_close(m)
+	# keys held from playing and releases never skip
+	_clean()
+	var m2 := _main(["--level=l004", "--solve"])
+	m2.game.set_process(false)
+	var ov2 := m2.game.overlays
+	_advance(ov2.chain_view, 0.6)
+	ov2._input(_key(KEY_SPACE, false))
+	ov2._input(_key(KEY_SPACE, true, true))
+	check.call(ov2.chain_animating(), "K9: a key release and a key echo do not skip")
+	# Enter during the animation does not open the next level
+	m2.game._input(_key(KEY_ENTER))
+	check.call(m2.game.level.id == "l004", "K9: Enter during the animation does not open the next level")
+	_close(m2)
+	# reduced motion and shots start in the final state
+	_clean()
+	var m3 := _main(["--level=l004", "--solve", "--reduced-motion"])
+	check.call(not m3.game.overlays.chain_animating() and m3.game.overlays.chain_view != null, "K9: reduced motion: not animating from the first frame")
+	_close(m3)
+	_clean()
+	var m4 := _main(["--level=l004", "--solve", "--chain-t=0.55"])
+	var v4 := m4.game.overlays.chain_view
+	check.call(is_equal_approx(v4.time(), 0.55) and not m4.game.overlays.chain_animating(), "K9: --chain-t freezes the chain at that time")
+	_close(m4)
+	_clean()
+	var m5 := _main(["--level=l004", "--solve", "--shot=/tmp/x.png"])
+	check.call(not m5.game.overlays.chain_animating(), "K9: a shot shows the final state")
+	_close(m5)
+	# fixtures of the over-par and zero-ring scenarios
+	var l4 := MazeChain.from_run(MazeLevels.load_level("l004"), OVER_RUN.replace(",", " "))
+	check.call(
+		l4["finished"] and l4["rings"] == 4 and MazeChain.encode(l4["links"]) == "bu7.11-bu7.11-bu19.11-bu31.11",
+		"fixture: the over-par run of l004 uses 4 rings with two stacked beads"
+	)
+	var l1 := MazeChain.from_run(MazeLevels.load_level("l001"), ZERO_RUN.replace(",", " "))
+	check.call(
+		l1["finished"] and l1["rings"] == 0 and MazeChain.encode(l1["links"]) == "ku26.11",
+		"fixture: the zero-ring run of l001 finishes without rings (card #010 may close this opening: then replace it)"
+	)
+	_clean()
+
+
+func _result_data(rings: int, par: int) -> Dictionary:
+	var lv := MazeLevels.load_level("l001")
+	var res := MazeChain.from_run(lv, WhitePuzzleStore.load_json(SOLUTIONS)["l001"])
+	var links: Array = res["links"] if rings > 0 else []
+	return {
+		"ticks": 391, "rings": rings, "par": par, "new_best": true, "best_ticks": 391, "has_next": true,
+		"level": lv, "links": links, "world": 0, "number": 1, "name": "Eerste ring",
+	}
+
+
+func _result_layout(check: Callable) -> void:
+	var cases := [
+		[Vector2i(1280, 720), "", Vector2(712, 400)],
+		[Vector2i(1600, 720), "60,0,60,24", Vector2(800, 450)],
+		[Vector2i(1280, 960), "", Vector2(712, 400)],
+	]
+	for c: Array in cases:
+		var size: Vector2i = c[0]
+		var sv := SubViewport.new()
+		sv.size = size
+		_node.add_child(sv)
+		var ov := MazeOverlays.new()
+		ov.safe_override = c[1]
+		sv.add_child(ov)
+		ov.show_result(_result_data(1, 1))
+		await _node.get_tree().process_frame
+		await _node.get_tree().process_frame
+		var ins := WhiteSafeArea.parse(c[1])
+		var safe := Rect2(ins["left"], ins["top"], size.x - ins["left"] - ins["right"], size.y - ins["top"] - ins["bottom"])
+		var card := ov.chain_view.get_global_rect()
+		var col := ov.result_column.get_global_rect()
+		var tag := "%dx%d %s" % [size.x, size.y, c[1]]
+		check.call(safe.encloses(card) and safe.encloses(col), "K13: %s: card and column lie inside the safe rect (%s %s)" % [tag, card, col])
+		check.call(not card.intersects(col), "K13: %s: card and column do not overlap" % tag)
+		check.call(card.size.is_equal_approx(c[2]), "K13: %s: the card is %s (%s)" % [tag, c[2], card.size])
+		check.call(card.size.x >= 480.0 and card.size.x <= 800.0 and absf(card.size.x / card.size.y - 16.0 / 9.0) < 0.01, "K13: %s: the card is 480 to 800 wide and 16:9" % tag)
+		check.call(ov.chain_view.layout()["bead_r"] >= 8.0, "K13: %s: l001 beads are at least 8 px" % tag)
+		sv.remove_child(ov)
+		ov.free()
+		_node.remove_child(sv)
+		sv.free()
+	check.call(MazeOverlays.card_size(Vector2(1232, 300)) == Vector2(533, 300), "K13: a low screen shrinks the card to the free height")
+	# a resized viewport is followed
+	var sv2 := SubViewport.new()
+	sv2.size = Vector2i(1280, 720)
+	_node.add_child(sv2)
+	var ov2 := MazeOverlays.new()
+	sv2.add_child(ov2)
+	ov2.show_result(_result_data(1, 1))
+	await _node.get_tree().process_frame
+	sv2.size = Vector2i(1600, 720)
+	await _node.get_tree().process_frame
+	await _node.get_tree().process_frame
+	check.call(ov2.chain_view.get_global_rect().size.is_equal_approx(Vector2(800, 450)), "K13: the card follows a resized viewport")
+	# the no_rings line
+	var zero := ov2
+	zero.show_result(_result_data(0, 1))
+	var found := false
+	for l: Node in zero.result_column.get_children():
+		found = found or (l is Label and l.text == MazeStrings.s("no_rings"))
+	check.call(found, "K13: a result with 0 rings adds the no_rings line")
+	var plain := false
+	zero.show_result(_result_data(1, 1))
+	for l: Node in zero.result_column.get_children():
+		plain = plain or (l is Label and l.text == MazeStrings.s("no_rings"))
+	check.call(not plain, "K13: a result with rings has no no_rings line")
+	_node.remove_child(sv2)
+	sv2.free()

@@ -43,3 +43,11 @@ skin-towers 1280x720 --level=l006 --keys=R10,T139,R51
 skin-x 1280x720 --level=l003 --world=cave
 skin-phone 960x432 --level=l006 --touch --safe=40,0,40,16
 skin-rings 1280x720 --level=l002 --keys=T43,-9,L8
+chain-mid 1280x720 --level=l004 --solve --chain-t=0.55
+chain-taut 1280x720 --level=l004 --solve --chain-t=0.95
+chain-jungle 1280x720 --level=l005 --solve
+chain-towers 1280x720 --level=l006 --solve
+chain-cave 1280x720 --level=l009 --solve
+chain-zero 1280x720 --level=l001 --keys=R96,RJ4,R32,RJ4,R16,RJ4,R12,RJ8,R24,L4,R28,RJ4,R16,-4,L4,R8,RJ24,R48
+chain-overpar 1280x720 --level=l004 --keys=R2,T142,R70,U,L64,-8,T142,R70,U,R20,-24,T142,R6,RJ14,R80,R12,U,-3,T142,R300
+chain-phone 960x432 --level=l006 --solve --touch --safe=40,0,40,16

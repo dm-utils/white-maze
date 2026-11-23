@@ -4,10 +4,12 @@ extends Control
 ## Debug (after --): --level=<id> --all-levels --lang=nl|en --touch --safe=l,t,r,b --profile=<path> --print-run
 ## --keys=<script> --solve --aim=<index> --pause --camera=door|overview --world=temple|jungle|cave --fps --shot=<png>
 ## --speed=<50-150> (percent of 60 ticks per second, overrides the level curve)
+## --chain-t=<seconds> (freeze the result chain at that time) --reduced-motion (no chain animation)
 ## Web: the same keys as query parameters, a subset: ?fps&world=cave&level=l001 (see QUERY_KEYS).
 
 const BG := Color("#1B1F26")
 const SHOT_WAIT_S := 0.5
+const REDUCED_MOTION_JS := "!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)"
 # no profile path, shot or solve from a URL
 const QUERY_KEYS := ["fps", "world", "level", "camera", "lang", "touch", "speed"]
 const QUERY_FLAGS := ["fps", "touch"]
@@ -49,7 +51,7 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 	var o := {
 		"level": "", "all_levels": false, "lang": "", "touch": false, "safe": "", "profile": "", "print_run": false,
 		"keys": "", "solve": false, "aim": -1, "pause": false, "shot": "", "camera": "", "world": "", "fps": false,
-		"speed": 0,
+		"speed": 0, "chain_t": -1.0, "reduced_motion": false,
 	}
 	for a in list:
 		if a.begins_with("--level="):
@@ -90,6 +92,14 @@ static func parse_args(list: PackedStringArray) -> Dictionary:
 				o["speed"] = int(v)
 			else:
 				push_warning("--speed: expected %d to %d, got '%s'" % [lo, hi, v])
+		elif a.begins_with("--chain-t="):
+			var v := a.get_slice("=", 1)
+			if v.is_valid_float() and float(v) >= 0.0:
+				o["chain_t"] = float(v)
+			else:
+				push_warning("--chain-t: expected seconds >= 0, got '%s'" % v)
+		elif a == "--reduced-motion":
+			o["reduced_motion"] = true
 		elif a == "--fps":
 			o["fps"] = true
 		elif a.begins_with("--camera="):
@@ -114,6 +124,8 @@ func _ready() -> void:
 			args.append_array(query_args(str(JavaScriptBridge.eval("window.location.search", true))))
 	opts = parse_args(args)
 	opts["shot_mode"] = opts["shot"] != ""
+	if OS.has_feature("web") and JavaScriptBridge.eval(REDUCED_MOTION_JS, true):
+		opts["reduced_motion"] = true
 	MazeStrings.register()
 	var now := int(Time.get_unix_time_from_system())
 	level_ids = MazeLevels.ids()
@@ -147,6 +159,7 @@ func _debug_game_options() -> Dictionary:
 		"keys": opts["keys"], "solve": opts["solve"], "aim": opts["aim"], "pause": opts["pause"],
 		"shot": opts["shot_mode"], "print_run": opts["print_run"], "touch": opts["touch"], "safe": opts["safe"],
 		"camera": opts["camera"], "world": opts["world"], "fps": opts["fps"], "speed": opts["speed"],
+		"chain_t": opts["chain_t"], "reduced_motion": opts["reduced_motion"],
 	}
 
 
