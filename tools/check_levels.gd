@@ -1,9 +1,12 @@
 extends SceneTree
 ## Level check: godot --headless --path . -s res://tools/check_levels.gd [-- --dir=<level folder>]
 ## Validates every level of the index, replays its solution from tests/solutions.json, exit code 1 on any problem.
+## Warnings (headroom above floor faces of sky levels) do not fail the check.
 
 const SOLUTIONS := "res://tests/solutions.json"
 const MAX_TICKS := 36000
+const MAX_CELLS := 900 # bake budget, design 23.2 RA6
+const MIN_SKY_ROWS := 8 # a floor ring lifts the head about 7.1 tiles
 
 
 func _init() -> void:
@@ -44,7 +47,15 @@ func _check(dir: String) -> int:
 				print("error %s: %s" % [id, e])
 				problems += 1
 			continue
-		print("ok %s %dx%d beads %d par %d" % [id, lv.width, lv.height, lv.beads, lv.par])
+		if lv.width * lv.height > MAX_CELLS:
+			print("error %s: %dx%d is %d cells, more than %d" % [id, lv.width, lv.height, lv.width * lv.height, MAX_CELLS])
+			problems += 1
+			continue
+		var line := "ok %s %dx%d beads %d par %d" % [id, lv.width, lv.height, lv.beads, lv.par]
+		if lv.format == 2:
+			line += " slopes %d" % lv.slope_count
+		print(line)
+		_warn_headroom(lv)
 		if solutions.has(id):
 			problems += _check_solution(lv, str(solutions[id]))
 	for file in DirAccess.get_files_at(dir):
@@ -52,6 +63,18 @@ func _check(dir: String) -> int:
 			print("error %s: level file is not in the index" % file.trim_suffix(".json"))
 			problems += 1
 	return problems
+
+
+## floor faces of a sky level: a full block topped by open air up to the top edge, with too few rows of it
+func _warn_headroom(lv: MazeLevel) -> void:
+	if not lv.sky:
+		return
+	for x in lv.width:
+		var open := 0
+		while open < lv.height and lv.cell(x, open) == MazeLevel.Cell.EMPTY:
+			open += 1
+		if open > 0 and open < MIN_SKY_ROWS and open < lv.height and lv.cell(x, open) == MazeLevel.Cell.SOLID:
+			print("warn %s: floor face (%d, %d) has %d rows of sky" % [lv.id, x, open, open])
 
 
 func _check_solution(lv: MazeLevel, script: String) -> int:

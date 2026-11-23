@@ -4,6 +4,8 @@ extends RefCounted
 const H := preload("res://tests/helpers.gd")
 const TMP := "user://white_maze_test_levels"
 
+var _out := ""
+
 
 func run(check: Callable, _node: Node) -> void:
 	_shipped(check)
@@ -14,6 +16,7 @@ func run(check: Callable, _node: Node) -> void:
 	_slope_geometry(check)
 	_loader(check)
 	_tool(check)
+	_tool_format2(check)
 
 
 func _shipped(check: Callable) -> void:
@@ -454,11 +457,15 @@ func _clean() -> void:
 
 func _run_tool(args: PackedStringArray) -> int:
 	var out := []
+	_out = ""
 	var full := PackedStringArray(
 		["--headless", "--path", ProjectSettings.globalize_path("res://"), "-s", "res://tools/check_levels.gd", "--"]
 	)
 	full.append_array(args)
-	return OS.execute(OS.get_executable_path(), full, out, true)
+	var code := OS.execute(OS.get_executable_path(), full, out, true)
+	if not out.is_empty():
+		_out = out[0]
+	return code
 
 
 func _tool(check: Callable) -> void:
@@ -490,3 +497,61 @@ func _tool(check: Callable) -> void:
 	_write(TMP + "/index.json", JSON.stringify({"format": 1, "levels": ["l001", 5]}))
 	check.call(_run_tool(PackedStringArray(["--dir=" + path])) == 1, "check_levels exits 1 on a non-string item")
 	_clean()
+
+
+## R24: format-2 output line, 900-cell budget, headroom warning; one level per folder
+func _tool_format2(check: Callable) -> void:
+	var slope := _base()
+	slope["format"] = 2
+	slope["id"] = "t001"
+	slope["rows"] = _rows_with({Vector2i(2, 4): "#", Vector2i(3, 6): "/"})
+	check.call(_run_level(slope) == 0, "R24: check_levels exits 0 on a format-2 level")
+	check.call(
+		"ok t001 8x8 beads 3 par 1 slopes 1" in _out, "R24: the ok line of a format-2 level ends in the slope count"
+	)
+	var flat := _base()
+	flat["id"] = "t001"
+	flat["rows"] = _rows_with({Vector2i(2, 4): "#"})
+	_run_level(flat)
+	check.call("ok t001 8x8 beads 3 par 1\n" in _out, "R24: the ok line of a format-1 level is unchanged")
+	var big := _base()
+	big["id"] = "t001"
+	big["rows"] = H.rows(31, 30)
+	check.call(_run_level(big) == 1, "R24: check_levels exits 1 on a 31 x 30 level")
+	check.call("error t001: 31x30 is 930 cells, more than 900" in _out, "R24: the 900-cell error text")
+	big["rows"] = H.rows(30, 30)
+	check.call(_run_level(big) == 0, "R24: a 30 x 30 level (900 cells) passes")
+	# floor 5 rows under the top edge of a sky level
+	var rows := H.rows(16, 8, {"S": 1, "F": 1, Vector2i(2, 4): "S", Vector2i(14, 4): "F"})
+	for y in [5, 6]:
+		rows[y] = "#".repeat(16)
+	var low := _base()
+	low["format"] = 2
+	low["sky"] = true
+	low["id"] = "t001"
+	low["rows"] = rows
+	check.call(_run_level(low) == 0, "R24: a headroom warning does not fail the check")
+	check.call(
+		(
+			"warn t001: floor face (0, 5) has 5 rows of sky" in _out
+			and "warn t001: floor face (15, 5) has 5 rows of sky" in _out
+		),
+		"R24: the warning names every floor face of the low floor"
+	)
+	low["rows"] = H.rows(16, 12, {Vector2i(2, 10): "S", "S": 1})
+	_run_level(low)
+	check.call("warn" not in _out, "R24: a floor with 11 rows of sky gives no warning")
+	low["sky"] = false
+	low["format"] = 1
+	low["rows"] = rows
+	_run_level(low)
+	check.call("warn" not in _out, "R24: a level without sky gives no warning")
+	_clean()
+
+
+## writes the level as the only one of a temporary folder and runs the tool on it
+func _run_level(d: Dictionary) -> int:
+	DirAccess.make_dir_recursive_absolute(TMP)
+	_write(TMP + "/" + d["id"] + ".json", JSON.stringify(d))
+	_write(TMP + "/index.json", JSON.stringify({"format": 1, "levels": [d["id"]]}))
+	return _run_tool(PackedStringArray(["--dir=" + ProjectSettings.globalize_path(TMP)]))

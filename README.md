@@ -31,7 +31,12 @@ godot --headless --path . --import
 godot --headless --path . res://tests/run_tests.tscn
 godot --headless --path . -s res://tools/check_levels.gd
 tools/check_search_par.sh
+tools/check_solver.sh
 ```
+
+`tools/check_solver.sh` builds the C++ par search in `tools/solver/` (needs `g++`), compares it with the simulation tick for tick and
+calibrates it on the stored solutions. Usage of the search: `build/solver/maze_solver search build/solver/levels.txt --level=l005
+--rings="21,9,right;26,9,left"` (options in `tools/solver/maze_solver.cpp`).
 
 Play one level directly and print the run when you finish it:
 

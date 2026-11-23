@@ -3,7 +3,7 @@ extends SceneTree
 ## weighted A* over macro steps of k ticks (move x jump). A set of fewer rings than par that finishes is a lead
 ## (throwability and timing must still be checked by hand); no result proves nothing.
 ## godot --headless --path . -s res://tools/search_par.gd -- --level=l002 --rings="0,4,right;22,11,up" [--k=4]
-##     [--nodes=30000]
+##     [--nodes=30000] [--dir=res://levels/lab/]
 ## godot --headless --path . -s res://tools/search_par.gd -- --level=l002 --subset=1 [--faces=x0,y0,x1,y1]
 ##     [--anchor=x0,y0,x1,y1] [--part=i/n]
 ##     tries every set of N exposed faces (--faces: candidate area, --anchor: at least one ring inside this tile
@@ -18,6 +18,7 @@ var _max_nodes := 30000
 
 func _init() -> void:
 	var id := "l001"
+	var dir := MazeLevels.DIR
 	var subset := 0
 	var rings: Array[Dictionary] = []
 	var rect := Rect2i(0, 0, 100000, 100000)
@@ -26,6 +27,8 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--level="):
 			id = a.get_slice("=", 1)
+		elif a.begins_with("--dir="):
+			dir = a.get_slice("=", 1)
 		elif a.begins_with("--k="):
 			_k = int(a.get_slice("=", 1))
 		elif a.begins_with("--weight="):
@@ -46,7 +49,7 @@ func _init() -> void:
 			for item in a.get_slice("=", 1).split(";"):
 				var f := item.split(",")
 				rings.append({"cell": Vector2i(int(f[0]), int(f[1])), "face": MazeLevel.FACE_NAMES.find(f[2])})
-	_level = MazeLevels.load_level(id)
+	_level = MazeLevels.load_level(id, dir)
 	if subset == 0:
 		_try(rings)
 		quit(0)
@@ -80,7 +83,7 @@ func _faces(rect: Rect2i) -> Array[Dictionary]:
 				continue
 			for face in 4:
 				var f := Vector2i(x, y) + MazeLevel.FACE_STEP[face]
-				if _level.solid(f.x, f.y) or _level.cell(f.x, f.y) == MazeLevel.Cell.SPIKE:
+				if _level.covered(f.x, f.y) or _level.cell(f.x, f.y) == MazeLevel.Cell.SPIKE:
 					continue
 				if _is_preset(Vector2i(x, y), face):
 					continue
@@ -116,9 +119,10 @@ static func _combos(n: int, k: int) -> Array:
 ## true when a finish was found
 func _try(extra: Array[Dictionary], quiet := false) -> bool:
 	var lv := MazeLevel.from_dict({
-		"format": 1, "id": "tmp", "name": {"nl": "t", "en": "t"}, "difficulty": "easy", "beads": 1, "par": 0,
-		"rows": Array(_level.render()),
+		"format": _level.format, "id": "tmp", "name": {"nl": "t", "en": "t"}, "difficulty": "easy", "beads": 1,
+		"par": 0, "rows": Array(_level.render()),
 	})
+	lv.sky = _level.sky
 	lv.preset_rings = _level.preset_rings.duplicate()
 	lv.preset_rings.append_array(extra)
 	var script := _search(lv)
@@ -135,9 +139,9 @@ func _try(extra: Array[Dictionary], quiet := false) -> bool:
 
 static func _clone(s: MazeSim) -> MazeSim:
 	var n := MazeSim.new(s.level)
-	for f in ["tick", "px", "py", "prev_px", "prev_py", "vx", "vy", "facing", "grounded", "coyote", "buffer",
-			"jumping", "launched", "lock_ticks", "dead_ticks", "deaths", "beads_left", "rings_used", "throw_count",
-			"clock_start", "finish_tick"]:
+	for f in ["tick", "px", "py", "prev_px", "prev_py", "vx", "vy", "facing", "grounded", "ground", "coyote",
+			"buffer", "jumping", "launched", "lock_ticks", "dead_ticks", "deaths", "beads_left", "rings_used",
+			"throw_count", "clock_start", "finish_tick"]:
 		n.set(f, s.get(f))
 	n.rings.clear()
 	for r in s.rings:
@@ -149,8 +153,8 @@ func _key(s: MazeSim, held: bool) -> int:
 	var cd := 0
 	for r in s.rings:
 		cd = cd * 4 + (1 if r["cooldown"] > 0 else 0) + (2 if r["used"] else 0)
-	return [s.px / 3000, s.py / 3000, s.vx / 1500, s.vy / 1500, s.grounded, s.coyote > 0, s.buffer > 0, s.jumping,
-			s.launched, s.lock_ticks, s.dead_ticks, s.rings_used, cd, held].hash()
+	return [s.px / 3000, s.py / 3000, s.vx / 1500, s.vy / 1500, s.grounded, s.ground, s.coyote > 0, s.buffer > 0,
+			s.jumping, s.launched, s.lock_ticks, s.dead_ticks, s.rings_used, cd, held].hash()
 
 
 func _h(s: MazeSim) -> int:
