@@ -886,7 +886,8 @@ image itself is rendered in its own `SubViewport` of exactly 1200 x 675. The rin
 for a zero-ring finish where the result screen shows `under_par` and `no_rings` on two lines.
 
 **Level select.** The card's top and bottom padding of the scroll area went from 6 to 5 px: nine cards were 1 px too
-tall for 1280 x 720 (a scrollbar showed on the select shots before this card), K12 needs them to fit. `--demo-profile`
+tall for 1280 x 720 (a scrollbar showed on the select shots before this card), K12 needs them to fit. So the `select`
+and `select-en` shots changed slightly (no scrollbar, the cards are a few px wider), unlike the design expected. `--demo-profile`
 is `MazeMain.fill_demo_profile` and only works with `--shot` (else a warning).
 
 **Profile.** `MazeProfileStore.open` saves after a migration; `MazeMain` loads the levels before the profile and
