@@ -23,6 +23,8 @@ var share_feedback: Label
 
 var _export: MazeChainExport
 var _share_info := {}
+var _blocking := false # eating the rest of the press that skipped the chain
+var _block_frame := -1
 
 var _result_margin: MarginContainer
 var _result_vs := Vector2.ZERO
@@ -76,6 +78,7 @@ func hide_pause() -> void:
 ## optionally reduced_motion, chain_t (design 22.8)
 func show_result(data: Dictionary) -> void:
 	_free(_result)
+	_blocking = false
 	chain_view = null
 	share_button = null
 	share_feedback = null
@@ -194,18 +197,30 @@ func chain_animating() -> bool:
 	return result_visible() and chain_view != null and chain_view.animating()
 
 
-## key, mouse or touch press during the animation skips it; the first SKIP_GRACE_S of it eat presses silently
+## key, mouse or touch press during the animation skips it; the first SKIP_GRACE_S of it eat presses silently. A
+## pointer press that skipped it never reaches a button: the emulated twin of a touch (mouse or touch, same frame) and
+## the release are eaten too, buttons work again from the next press that starts in a later frame
 func _input(event: InputEvent) -> void:
+	var pointer := event is InputEventMouseButton or event is InputEventScreenTouch
+	if _blocking and pointer:
+		if event.pressed and Engine.get_process_frames() > _block_frame:
+			_blocking = false
+		else:
+			get_viewport().set_input_as_handled()
+			return
 	if not chain_animating():
 		return
 	var pressed := false
 	if event is InputEventKey:
 		pressed = event.pressed and not event.echo
-	elif event is InputEventMouseButton or event is InputEventScreenTouch:
+	elif pointer:
 		pressed = event.pressed
 	if not pressed:
 		return
 	get_viewport().set_input_as_handled()
+	if pointer:
+		_blocking = true
+		_block_frame = Engine.get_process_frames()
 	if chain_view.time() >= SKIP_GRACE_S:
 		chain_view.finish_now()
 

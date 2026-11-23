@@ -24,7 +24,8 @@ func run(check: Callable, node: Node) -> void:
 	_variants(check)
 	_view(check)
 	_args(check)
-	_skip(check)
+	await _skip(check)
+	await _skip_real_input(check)
 	await _result_layout(check)
 	await _export_and_share(check)
 	await _level_select(check)
@@ -392,11 +393,13 @@ func _skip(check: Callable) -> void:
 		g.set_process(false)
 		var ov := g.overlays
 		var v := ov.chain_view
+		v.set_process(false) # the test sets the animation time itself
 		check.call(g.last_result.has("links") and ov.chain_animating() and v.time() == 0.0, "K9: %s: the chain animates after the finish" % what)
 		_advance(v, 0.1)
 		ov._input(presses[what])
 		check.call(ov.chain_animating() and ov.result_visible(), "K9: %s: a press at 0.1 s is eaten by the grace time" % what)
 		_advance(v, 0.4)
+		await _node.get_tree().process_frame # a second press comes in a later frame than the first
 		check.call(absf(v.time() - 0.5) < 1e-6 and ov.chain_animating(), "K9: %s: the animation runs to 0.5 s" % what)
 		ov._input(presses[what])
 		check.call(
@@ -769,3 +772,78 @@ func _level_select(check: Callable) -> void:
 	check.call(_minis(made4[1].cards[0]).is_empty(), "K12: a chain outside the level is not drawn")
 	_node.remove_child(made4[0])
 	made4[0].free()
+
+
+func _button_centre(ov: MazeOverlays, text: String) -> Vector2:
+	for b: Node in ov.result_column.get_children():
+		if b is Button and b.text == text:
+			return ov.get_viewport().get_final_transform() * b.get_global_rect().get_center() # canvas to window
+	return Vector2(-1, -1)
+
+
+func _tap_event(pos: Vector2, pressed: bool) -> InputEventScreenTouch:
+	var t := InputEventScreenTouch.new()
+	t.index = 0
+	t.position = pos
+	t.pressed = pressed
+	return t
+
+
+func _mouse_at(pos: Vector2, pressed: bool) -> InputEventMouseButton:
+	var m := InputEventMouseButton.new()
+	m.button_index = MOUSE_BUTTON_LEFT
+	m.position = pos
+	m.global_position = pos
+	m.pressed = pressed
+	m.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+	return m
+
+
+## H1: through the real input path (touch plus its emulated mouse click) a tap that skips the chain presses no button
+func _skip_real_input(check: Callable) -> void:
+	WhiteText.lang = "nl"
+	var frames := _node.get_tree().process_frame
+	for target: String in ["Volgende", "Opnieuw", "Levels"]:
+		for kind: String in ["touch", "mouse"]:
+			_clean()
+			var m := _main(["--level=l004", "--solve"])
+			var g := m.game
+			var ov := g.overlays
+			await frames
+			await frames
+			var v := ov.chain_view
+			for i in 6:
+				v._process(0.1)
+				if v.time() > 0.6:
+					break
+			var tag := "%s with %s" % [target, kind]
+			var at := _button_centre(ov, target)
+			check.call(ov.chain_animating() and at.x > 0.0, "H1: %s: the chain still animates at %.2f s" % [tag, v.time()])
+			Input.parse_input_event(_tap_event(at, true) if kind == "touch" else _mouse_at(at, true))
+			await frames
+			await frames
+			check.call(not ov.chain_animating(), "H1: %s: the tap ends the animation" % tag)
+			check.call(m.game == g and m.select == null and g.level.id == "l004" and ov.result_visible() and g.sim.finished(),
+					"H1: %s: the tap that skips presses no button" % tag)
+			Input.parse_input_event(_tap_event(at, false) if kind == "touch" else _mouse_at(at, false))
+			await frames
+			await frames
+			check.call(m.game == g and m.select == null and ov.result_visible() and g.sim.finished(),
+					"H1: %s: its release presses no button either" % tag)
+			# a new touch after the animation works
+			Input.parse_input_event(_tap_event(at, true) if kind == "touch" else _mouse_at(at, true))
+			await frames
+			Input.parse_input_event(_tap_event(at, false) if kind == "touch" else _mouse_at(at, false))
+			await frames
+			await frames
+			var acted := false
+			match target:
+				"Volgende":
+					acted = m.game != null and m.game.level.id == "l005"
+				"Opnieuw":
+					acted = m.game != null and not m.game.overlays.result_visible()
+				"Levels":
+					acted = m.select != null
+			check.call(acted, "H1: %s: a new tap after the animation presses the button" % tag)
+			_close(m)
+	_clean()
