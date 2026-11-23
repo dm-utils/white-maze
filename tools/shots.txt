@@ -57,3 +57,4 @@ chain-export-zero 1200x675 --level=l001 --keys=R96,RJ4,R32,RJ4,R16,RJ4,R12,RJ8,R
 select-chains 1280x720 --all-levels --demo-profile
 select-chains-en 1280x720 --all-levels --demo-profile --lang=en
 select-chains-phone 960x432 --all-levels --demo-profile --safe=40,0,40,16
+chain-zero-en-phone 960x432 --level=l001 --keys=R96,RJ4,R32,RJ4,R16,RJ4,R12,RJ8,R24,L4,R28,RJ4,R16,-4,L4,R8,RJ24,R48 --lang=en --touch --safe=40,0,40,16

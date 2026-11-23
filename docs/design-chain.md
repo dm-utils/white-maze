@@ -840,7 +840,7 @@ Changed entry: **Format** (profile format is now 2; design 22.9).
 
 ## 22.21 Deviations as built (card #038)
 
-Result: 1630 game checks (`MIN_CHECKS` 1630, was 1193), kit tests 764, `tools/check_levels.gd`, `tools/check_search_par.sh`
+Result: 1711 game checks (`MIN_CHECKS` 1711, was 1193; 1630 after round 1, round 2 is 22.21.2), kit tests 764, `tools/check_levels.gd`, `tools/check_search_par.sh`
 and the web export green. K1 holds: `git diff 8e4574b -- sim/sim.gd sim/tuning.gd sim/level.gd sim/aim.gd sim/input.gd
 sim/run_script.gd levels tests/solutions.json` is empty; `sim/` only gained `chain.gd` and the profile changes.
 
@@ -900,6 +900,28 @@ checks the fixture and says so in its message, so closing the opening fails that
 must then get another route (no other shipped level can be finished without a thrown ring). `chain-overpar` uses
 `R2 T142 R70 U L64 -8 T142 R70 U R20 -24 T142 R6 RJ14 R80 R12 U -3 T142 R300` on l004: 4 rings, par 3, chain
 `bu7.11-bu7.11-bu19.11-bu31.11` (the first face used twice: stacked beads), 513 ticks.
+
+### 22.21.2 Repairs after the test of card #039 (round 2)
+
+- **H1, a tap that skips the chain presses no button.** With `emulate_mouse_from_touch` a tap is a mouse press and a
+  touch press; the first ended the animation and the second reached the button under the finger. `MazeOverlays._input`
+  now eats every pointer press (mouse or touch) of the frame that skipped, and their releases, until a press arrives
+  in a later frame; only then do the buttons answer again. The test (`_skip_real_input`) uses `Input.parse_input_event`
+  with a touch (and so its emulated mouse click) and with a mouse, on Next, Restart and Levels, and checks the new tap
+  after the animation. K9's direct `_input` calls now sit one frame apart.
+- **M1, the share image takes any length.** The share code has a line of its own (baseline 618) above the address
+  (baseline 654, right aligned); a code wider than 1120 px is cut in the image with an ellipsis, the share text keeps the
+  whole code. The chain box is `Rect2(40, 124, 1120, 464)` (was 488 high), so the chain scales into what the footer
+  leaves. Tested with 1, 4, 11, 13, 30 and 64 beads. Changes 22.11.1: footer rows `y` 592 to 675.
+- **L1.** `backfill_chains` first checks the length with `MazeChain.script_fits` (adds the hold counts without expanding
+  inputs, over 5 digits or over the limit is refused) and only then runs the replay; 100 tokens of `R99999` open at once.
+  `sim/run_script.gd` is untouched (K1).
+- **L2.** The result keeps below the HUD buttons: the top margin is `max(MARGIN, 70) + safe top`, and the gaps of the
+  column shrink (down to 4 px) when it would not fit. The result is about 23 px lower on 1280 x 720 than before.
+- **L3.** Mini chain: thread 2 px (was 1.25), bead radius clamp 3.2 to 4.5 (was 2.5 to 4); the knot is still 0.6 of a
+  bead and has no outline, so it stays smaller and without the dark ring.
+- **L4.** `record_finish` refuses links whose bead count differs from `rings` (K10 stays true: the profile only holds
+  consistent chains).
 
 ### 22.21.1 Web smoke test (K17, partly)
 
