@@ -23,6 +23,7 @@ func run(check: Callable, _node: Node) -> void:
 	_determinism(check)
 	_ring_on_gutter(check)
 	_cast(check)
+	_look(check)
 
 
 static func put(sim: MazeSim, x_px: float, y_px: float) -> void:
@@ -554,3 +555,54 @@ func _cast(check: Callable) -> void:
 	check.call(not cap["valid"] and cap["reason"] == "no_ring", "R17: without sky the top edge gives no_ring (%s)" % cap["reason"])
 	var side := open.cast(0)
 	check.call(side["reason"] == "no_ring", "R17: sky does not open the sides (%s)" % side["reason"])
+
+
+static func _in_polygon(p: Vector2, poly: PackedVector2Array, tol: float) -> bool:
+	if Geometry2D.is_point_in_polygon(p, poly):
+		return true
+	for i in poly.size():
+		var a := poly[i]
+		var b := poly[(i + 1) % poly.size()]
+		if Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p) <= tol:
+			return true
+	return false
+
+
+func _look(check: Callable) -> void:
+	var inside := true
+	var straight := true
+	var counted := 0
+	var trims := true
+	var lips := true
+	for world in 3:
+		var skin := MazeSkins.skin(world)
+		for rows in [FX.S_ROWS, FX.G_ROWS, FX.E_ROWS, FX.T_ROWS]:
+			var lv := FX.level(rows)
+			MazeSkin.begin(lv, skin)
+			for y in lv.height:
+				for x in lv.width:
+					var c := Vector2i(x, y)
+					if lv.slope(x, y):
+						var shape := PackedVector2Array()
+						for v in MazeSlope.polygon(lv.cell(x, y)):
+							shape.append(Vector2(v) + Vector2(c) * 40.0)
+						var prims := MazeTileShapes.slope(lv, skin, c)
+						counted += 1
+						straight = straight and prims[0]["pts"] == shape
+						for pr in prims:
+							var pts: PackedVector2Array = pr["pts"]
+							for p in pts:
+								inside = inside and _in_polygon(p, shape, 0.01)
+					if lv.cell(x, y) != MazeLevel.Cell.SOLID:
+						continue
+					for f in 4:
+						var front := c + MazeLevel.FACE_STEP[f]
+						if lv.slope(front.x, front.y):
+							trims = trims and not MazeSkin.rim_face(lv, c, f) and not MazeStaticLayer.lip_drawn(lv, c, f)
+							lips = lips and MazeSkin.side(lv, c, f) == MazeSkin.Side.SLOPE
+			MazeSkin.end()
+	check.call(counted > 40, "R21: slope primitives were checked (%d tiles)" % counted)
+	check.call(inside, "R21: every slope primitive lies inside its collision polygon")
+	check.call(straight, "R21: the contour of a slope is the collision polygon, a straight surface")
+	check.call(trims, "R21: no covered face has a rim or a lip")
+	check.call(lips, "R21: a block face towards a slope is a slope side")

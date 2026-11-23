@@ -61,6 +61,10 @@ static func _chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: i
 		if not seen.has(slab.position):
 			seen[slab.position] = true
 			_slab(out, level, skin, slab)
+	if level.slope_count > 0:
+		for c in cells:
+			if level.slope(c.x, c.y):
+				out.append_array(slope(level, skin, c))
 	for c in cells:
 		if level.cell(c.x, c.y) == MazeLevel.Cell.SOLID:
 			_block_detail(out, skin, cracks, c)
@@ -76,6 +80,108 @@ static func _chunk(level: MazeLevel, skin: Dictionary, cracks: Dictionary, cx: i
 				_tuft(out, level, skin, c.x, c.y)
 		if c == level.finish:
 			_door(out, pal, o)
+	return out
+
+
+const COURSE_GAP := 7.0
+const COURSE_W := 1.6
+
+
+## primitives of a slope tile: contour, roof, courses along the surface (design 23.9.1)
+static func slope(level: MazeLevel, skin: Dictionary, cell: Vector2i) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var kind := level.cell(cell.x, cell.y)
+	var pal: Dictionary = skin["pal"]
+	var o := Vector2(cell) * T
+	var shape := PackedVector2Array()
+	for v in MazeSlope.polygon(kind):
+		shape.append(Vector2(v))
+	var contour: Color = (pal["roof"] as Color).darkened(MazeSkin.CONTOUR_DARKEN)
+	out.append(poly(_shifted(shape, o), contour))
+	var inner := shape
+	var centre := Vector2.ZERO
+	for v in shape:
+		centre += v / shape.size()
+	for i in shape.size():
+		var a := shape[i]
+		var b := shape[(i + 1) % shape.size()]
+		var d := _slope_edge_inset(level, cell, kind, a, b)
+		if d > 0.0:
+			inner = _clip_inside(inner, a, b, centre, d)
+	if inner.size() < 3:
+		return out
+	out.append(poly(_shifted(inner, o), pal["roof"]))
+	var sy := _surface_line(kind)
+	var j := 1
+	while j * COURSE_GAP < 2.0 * T:
+		var shift := j * COURSE_GAP
+		var course := PackedVector2Array(
+			[Vector2(-1.0, sy.x - sy.y + shift), Vector2(T + 1.0, sy.x + sy.y * (T + 1.0) + shift)]
+		)
+		for piece in Geometry2D.intersect_polyline_with_polygon(course, inner):
+			if piece.size() >= 2:
+				out.append(line(piece[0] + o, piece[piece.size() - 1] + o, pal["roof_lo"], COURSE_W))
+		j += 1
+	return out
+
+
+## local surface as y = c.x + c.y * x, in px
+static func _surface_line(kind: int) -> Vector2:
+	var y0 := MazeSlope.surface(kind, 0, 0) / 1000.0
+	var y1 := MazeSlope.surface(kind, 0, MazeTuning.TILE) / 1000.0
+	return Vector2(y0, (y1 - y0) / T)
+
+
+static func _shifted(pts: PackedVector2Array, by: Vector2) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(p + by)
+	return out
+
+
+## inset of a polygon edge: contour towards air and along the surface, seam against blocks, none inside a roof
+static func _slope_edge_inset(level: MazeLevel, cell: Vector2i, kind: int, a: Vector2, b: Vector2) -> float:
+	if absf(a.x - b.x) > 0.001:
+		return MazeSkin.SEAM_W if absf(a.y - b.y) < 0.001 else MazeSkin.CONTOUR_W
+	var dir := 1 if a.x > 20.0 else -1
+	var n := cell + Vector2i(dir, 0)
+	if n.x < 0 or n.x >= level.width:
+		return 0.0
+	var other := level.cell(n.x, n.y)
+	if other == MazeLevel.Cell.EMPTY or other == MazeLevel.Cell.SPIKE:
+		return MazeSkin.CONTOUR_W
+	if MazeSlope.is_slope(other):
+		var pair := _roof_pair(kind, other)
+		return 0.0 if pair else MazeSkin.SEAM_W
+	return MazeSkin.SEAM_W
+
+
+static func _roof_pair(a: int, b: int) -> bool:
+	var lo := MazeLevel.Cell.GENTLE_R_LO
+	var hi := MazeLevel.Cell.GENTLE_R_HI
+	if (a == lo and b == hi) or (a == hi and b == lo):
+		return true
+	lo = MazeLevel.Cell.GENTLE_L_LO
+	hi = MazeLevel.Cell.GENTLE_L_HI
+	return (a == lo and b == hi) or (a == hi and b == lo)
+
+
+## polygon part at least d px inside the edge a-b (centre is on the inner side)
+static func _clip_inside(pts: PackedVector2Array, a: Vector2, b: Vector2, centre: Vector2, d: float) -> PackedVector2Array:
+	var n := (b - a).orthogonal().normalized()
+	if (centre - a).dot(n) < 0.0:
+		n = -n
+	var out := PackedVector2Array()
+	var count := pts.size()
+	for i in count:
+		var p := pts[i]
+		var q := pts[(i + 1) % count]
+		var dp := (p - a).dot(n) - d
+		var dq := (q - a).dot(n) - d
+		if dp >= 0.0:
+			out.append(p)
+		if (dp >= 0.0) != (dq >= 0.0):
+			out.append(p + (q - p) * (dp / (dp - dq)))
 	return out
 
 

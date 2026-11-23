@@ -255,11 +255,11 @@ static func _ghost(level: MazeLevel, map: Rect2, frame: Rect2, k: float) -> Arra
 	for y in level.height:
 		var x := 0
 		while x < level.width:
-			if not level.solid(x, y):
+			if not level.covered(x, y):
 				x += 1
 				continue
 			var x0 := x
-			while x < level.width and level.solid(x, y):
+			while x < level.width and level.covered(x, y):
 				x += 1
 			out.append(Rect2(_to_map(Vector2(x0, y) * TILE, map, frame, k), Vector2(x - x0, 1) * TILE * k))
 	return out
